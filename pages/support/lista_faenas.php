@@ -267,4 +267,5 @@ if (array_key_exists($requestUrl, $routes)) {
 
 
     });
+    
 </script>

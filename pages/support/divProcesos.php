@@ -169,9 +169,9 @@ if(strpos("ERROR",strtolower($reconcile)) !== false || strpos("warning",strtolow
                 if ($validarJams == 2) {
                     $colorAux = "bg-danger";
                     $valorAux = "Danger";
-                    $subject = 'Problemas con ' . $carpeta;
-                    $message = 'problemas en el Proceso Jams';
-                    enviarEmail($subject, $message);
+                    //$subject = 'Problemas con ' . $carpeta;
+                    //$message = 'problemas en el Proceso Jams';
+                    //enviarEmail($subject, $message);
 
                 }
 
@@ -203,9 +203,9 @@ if(strpos("ERROR",strtolower($reconcile)) !== false || strpos("warning",strtolow
                 if ($validarJamsSec == 2) {
                     $colorAux = "bg-danger";
                     $valorAux = "Danger";
-                    $subject = 'Problemas con ' . $carpeta;
-                    $message = 'problemas en el Proceso Jams';
-                    enviarEmail($subject, $message);
+                    //$subject = 'Problemas con ' . $carpeta;
+                    //$message = 'problemas en el Proceso Jams';
+                    //enviarEmail($subject, $message);
                     //echo '<audio autoplay>';
                     //echo '<source src="pages/support/sonido/ping_missing.mp3" type="audio/mp3">';
                     //echo '</audio>';
@@ -325,8 +325,8 @@ if(strpos("ERROR",strtolower($reconcile)) !== false || strpos("warning",strtolow
                 if ($largoAux >= 6 || $largoAux < 2 && $validarCrontab != "*") {
                     $colorAux = "bg-danger";
                     $valorAux = "Danger: ";
-                    $message = "Problemas con el proceso de sumarizado en " . $carpeta;
-                    echo $system->enviarMensajeTelegram($message);
+                    //$message = "Problemas con el proceso de sumarizado en " . $carpeta;
+                    //echo $system->enviarMensajeTelegram($message);
 
                     //$subject = 'Problemas con '.$carpeta;
                     //$message = 'Error en el Proceso de sumarizado';
@@ -364,9 +364,9 @@ if(strpos("ERROR",strtolower($reconcile)) !== false || strpos("warning",strtolow
                 if ($validacionNtp == 2) {
                     $colorAux = "bg-danger";
                     $valorAux = "Danger: ";
-                    $subject = 'Problemas con ' . $carpeta;
-                    $message = 'Problemas con el NTP';
-                    enviarEmail($subject, $message);
+                    //$subject = 'Problemas con ' . $carpeta;
+                    //$message = 'Problemas con el NTP';
+                    //enviarEmail($subject, $message);
                     $system -> alertaSonora(120000);
                 }
 

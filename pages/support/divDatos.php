@@ -435,6 +435,21 @@ if (strpos($sumarizadorPrimario, " JAMS: Shutting down") !== false) {
 $largoSchemaInfo = count($schemaInfoSec);
 $largoSchemaInfoAct = count($schemaInfoAct);
 
+for ($x = 0; $x < $largoSchemaInfoAct; $x++) {
+    $schemaInfo = explode(" |", $schemaInfoAct[$x]);
+    $schemaInfo = $schemaInfo[5];
+    $schemaInfo = explode(" ",$schemaInfo);
+    $fechaSchemaInfo = $schemaInfo[1];
+    $fechaActual = date("Y-m-d");
+    if($schemaInfo != ""  || $schemaInfo != " " && $largoSchemaInfoAct > 2){
+        $mensajeSchema = "OK";
+        $color = "badge bg-success p-2 btn-block pt-0 pb-0";
+        
+    }else{
+        $mensajeSchema = "Warning";
+        $color = "badge bg-warning p-2 btn-block pt-0 pb-0";
+    }
+}
 
 
 ?>
