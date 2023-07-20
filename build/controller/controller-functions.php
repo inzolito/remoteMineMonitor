@@ -1,28 +1,29 @@
 <?php
+require_once("controller-conexiones.php");
 
 class systemClass
 {
 
     function conectaDB()
     {
-        $mysqli = @new mysqli('localhost', 'jigsaw', 'Jigsaw1', 'checksupport');
+       $conection = new conectionClass();
+       return $conection->conectaDB2();
 
-        if ($mysqli->connect_error) {
-            die('Error de conexión: ' . $mysqli->connect_error);
-        }
-        return $mysqli;
     }
 
     function urlSystem()
     {
-        return "http://10.40.90.99/soporte";
+       $conection = new conectionClass();
+       return $conection->urlSystem2();
     }
 
 
     function validarSesion()
     {
         $conn = new systemClass();
+        
         $conn->conectaDB();
+        
         if (session_status() == PHP_SESSION_ACTIVE) {
         } else {
             session_start();
