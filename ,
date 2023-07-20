@@ -1,0 +1,11 @@
+<?php
+echo "aa";
+$output = shell_exec('df -h');
+$output = preg_split('/\n/', $output);
+
+foreach($output as $line){
+    if(strpos($line, "root") !== false){
+       // echo "<pre>$line</pre>";
+    }
+}
+?>

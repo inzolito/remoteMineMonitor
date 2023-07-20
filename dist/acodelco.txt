@@ -1,0 +1,4 @@
+Radomiro Tomic ,	Activo en cnrt001,	Corriendo en cnrt22 ,	Corriendo en cnrt22 ,	Activo en cnrt001 ,	 Mem: 125 81 |	%Cpu(s): 12.2 ,  / 75% ,	Puerto abierto
+22/12/13-16:40:58  ,	N logs 2 ,	Ultimo 2022-12-13 16:41 ,	Ultimo Dec 13 , Pto 3000 ok ,	 Swap: 0 0 |	%Cpu(s): us,	 / 75% ,	
+cnrt001 active, Ver 2.8-002.011 ,	 ,	 ,	 relevo1 is up	,	 , ,	
+cnrt22 backup,	 JAMS.2022-12-13-00-48-53_UTC.log  ,	 ,	 ,	 relevo2 is up	,	 , ,	
