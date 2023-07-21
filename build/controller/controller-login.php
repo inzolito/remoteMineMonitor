@@ -2,7 +2,7 @@
 require_once("controller-functions.php");
 
 class login
-{
+{ 
     
     function logearse($user,$pass)
     {

@@ -2,11 +2,12 @@
 require_once("../../build/controller/controller-functions.php");
 require_once("../../build/controller/controller-faena.php");
 
+
 $system = new systemClass();
 $system->validarSesion();
 $conn = $system->conectaDB();
 $faenaCl = new faena();
-
+ 
 $firstday = date('Y-m-d', strtotime("this week"));
 $lastday = date("Y-m-d", strtotime($firstday . "+ 6 days"));
 
@@ -65,7 +66,7 @@ if (array_key_exists($requestUrl, $routes)) {
 
 <div class="card">
     <div class="card-header">
-        <h3 class="card-title"><i class="fa-solid fa-shovel"></i>Faenas</h3>
+        <h3 class="card-title"><i class="fa-solid fa-shovel"></i>Faenas </h3>
     </div>
 
     <div class="card-body p-0">
