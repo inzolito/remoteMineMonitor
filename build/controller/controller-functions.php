@@ -33,10 +33,13 @@ class systemClass
             session_start();
             if ($_SESSION["user"] == false) {
                 echo '<meta http-equiv="refresh" content="0; url=' . $conn->urlSystem() . '/pages/login/login.php">';
+                return 1;
             }
         }
     }
 
+ 
+    
     function formatoFecha($fecha, $tipoFecha)
     {
 
@@ -123,7 +126,7 @@ class systemClass
         //$horaActual = date("H:i");
         //$diaActual = date("d");
         $largo = count($log);
-        
+
         $contador = 0;
         for ($x = 0; $x < $largo; $x++) {
             $hora = $log[0];

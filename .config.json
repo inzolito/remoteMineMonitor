@@ -1,0 +1,10 @@
+{
+    "DB_HOST": "localhost",
+    "DB_USER": "jigsaw",
+    "DB_PASS": "Jigsaw1",
+    "DB_NAME": "checksupport",
+    "APP_INDEX": "http://10.40.90.99/monitoreoLaboratorio/",
+    "APP_RUTADATASET": "/home/jigsaw/monitoreoRemoto/",
+    "APP_ENV":"development"
+}
+ 

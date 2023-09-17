@@ -11,11 +11,11 @@ $faenaCl = new faena();
 $firstday = date('Y-m-d', strtotime("this week"));
 $lastday = date("Y-m-d", strtotime($firstday . "+ 6 days"));
 
-
+//print_r($_SESSION);
 ?>
 
 <?php
-if ($_SESSION["permiso"] == "admin" || $_SESSION["permiso"] == "soporte") {
+if ($_SESSION["permiso"] == "Administrador" || $_SESSION["permiso"] == "Soporte") {
 ?>
 
 <div class="card">
@@ -85,7 +85,7 @@ if ($_SESSION["permiso"] == "admin" || $_SESSION["permiso"] == "soporte") {
                 <?php
 
                 $sql_query = "select * from faenas  where estado=1 order by faena asc";
-                if ($_SESSION["permiso"] == "admin" || $_SESSION["permiso"] == "soporte") {
+                if ($_SESSION["permiso"] == "Administrador" || $_SESSION["permiso"] == "Soporte") {
                 } else {
                     $sql_query = "select * from faenas f join permisos_faenas p on(f.id=p.id_faena) where estado=1 and id_permiso='".$_SESSION["id_permiso"]."' order by faena asc";
                 }

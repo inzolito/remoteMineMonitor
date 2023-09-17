@@ -32,8 +32,9 @@ if ($minutoActualLiberarRam >= 6 && $minutoActualLiberarRam <= 8) {
     }
 
     if ($r ==1) {
-        header("Location: " . $_SERVER['PHP_SELF'] . "?id=$idFaenaS&r=0");
-        exit();        
+       //implementar luego
+        // header("Location: " . $_SERVER['PHP_SELF'] . "?id=$idFaenaS&r=0");
+       // exit();        
     }else{
 
     }

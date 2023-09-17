@@ -2,6 +2,9 @@
 require_once("../soporte/build/controller/controller-functions.php");
 $system = new systemClass();
 $system->validarSesion();
+ 
+
+
 
 
 
@@ -76,8 +79,9 @@ $system->validarSesion();
 
 
 <body class="hold-transition sidebar-mini layout-fixed">
+ 
   <div class="wrapper">
-
+ 
     <!-- Preloader -->
     <div class="preloader flex-column justify-content-center align-items-center">
       <img class="animation__shake" src="dist/img/system/logohxg.jpg" alt="AdminLTELogo" height="60" width="60">
@@ -217,8 +221,7 @@ $system->validarSesion();
       <!-- /.sidebar -->
     </aside>
 
-
-
+ 
 
 
     <!-- Content Wrapper. Contains page content -->
@@ -548,20 +551,13 @@ $system->validarSesion();
 
     //----------------------------
 
-
-    function developMessaje() {
-      var pruebaDiv = '<div class="alert alert-warning test-message" role="alert" style="position: sticky; top: 0;margin-bottom:-5px; background-color: yellow; text-align: center; z-index: 9999;">' +
-        'Entorno de desarrollo del sistema de monitoreon Hexagon Minning.' + 
-        '</div>';
-      $("body").prepend(pruebaDiv);
-    }
+ 
     $(document).ready(function() {
 
 
       lista_faenas2()
 
-      // este mensaje solo se debe activar en el entorno de desarrollo
-      developMessaje()
+   
 
     });
   </Script>
