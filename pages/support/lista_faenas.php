@@ -7,60 +7,52 @@ $system = new systemClass();
 $system->validarSesion();
 $conn = $system->conectaDB();
 $faenaCl = new faena();
- 
+
 $firstday = date('Y-m-d', strtotime("this week"));
 $lastday = date("Y-m-d", strtotime($firstday . "+ 6 days"));
 
 
-$requestUrl = $_SERVER['REQUEST_URI'];
-
-// Define las rutas y las acciones correspondientes
-$routes = array(
-    '/' => 'home',
-    '/faenas' => 'faenas',
-    '/faenas/{alias}' => 'Antucoya'
-);
-
-foreach ($routes as $route => $action) {
-    // Escapa los caracteres especiales para evitar problemas con expresiones regulares
-    $routePattern = preg_quote($route, '/');
-}
-// Verifica si la URL solicitada está en las rutas definidas
-if (array_key_exists($requestUrl, $routes)) {
-    // Obtén el nombre de la acción correspondiente a la URL
-    $action = $routes[$requestUrl];
-
-    // Ejecuta la acción correspondiente
-    switch ($action) {
-        case 'home':
-            // Lógica para la página de inicio
-            echo 'Página de inicio';
-            break;
-        case 'faenas':
-            // Lógica para la página de about
-            echo 'Acerca de nosotros';
-            break;
-        case 'Antucoya':
-            // Lógica para la página de contacto
-            echo 'Página de contacto';
-            break;
-        default:
-            // Acción no encontrada
-            echo '404 Not Found';
-            break;
-    }
-} else {
-    // Mostrar una página de error o redirigir a una página predeterminada
-    echo '404 Not Found';
-}
-
-
-
-
 ?>
 
- 
+<?php
+if ($_SESSION["permiso"] == "admin" || $_SESSION["permiso"] == "soporte") {
+?>
 
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title"><i class="fa-solid fa-shovel"></i>Monitoreo especial </h3>
+    </div>
+
+
+
+    <div class="card-body">
+        <div class="row ">
+            <div class="col-md-2"></div>
+            <div class="col-md-2"></div>
+            <div class="col-md-2">
+                <a class="btn btn-app bg-info" onclick='cargaServidoresWindows()'>
+
+                    <i class="fas fa-hard-hat"></i> Codelco
+                </a>
+            </div>
+            <div class="col-md-2">
+                <a class="btn btn-app bg-info">
+
+                    <i class="fas fa-hard-hat"></i> Split
+                </a>
+            </div>
+            <div class="col-md-2"></div>
+            <div class="col-md-2"></div>
+        </div>
+    </div>
+
+</div>
+
+ <?php
+
+}
+
+?>
 
 
 
@@ -83,7 +75,7 @@ if (array_key_exists($requestUrl, $routes)) {
                 <tr>
                     <th style="width: 10px">#</th>
                     <th>Faena</th>
-                    <th></th>
+                    <th> </th>
                     <th> </th>
                     <th> </th>
                     <th> Acción</th>
@@ -92,7 +84,13 @@ if (array_key_exists($requestUrl, $routes)) {
             <tbody>
                 <?php
 
-                $faenasSql = $conn->query("select * from faenas where estado=1 order by faena asc");
+                $sql_query = "select * from faenas  where estado=1 order by faena asc";
+                if ($_SESSION["permiso"] == "admin" || $_SESSION["permiso"] == "soporte") {
+                } else {
+                    $sql_query = "select * from faenas f join permisos_faenas p on(f.id=p.id_faena) where estado=1 and id_permiso='".$_SESSION["id_permiso"]."' order by faena asc";
+                }
+
+                $faenasSql = $conn->query($sql_query);
 
                 while ($faenaDatos = $faenasSql->fetch_assoc()) {
                     $faenaCheckDatos = $faenaCl->datosCheck($faenaDatos["id"]);
@@ -192,7 +190,7 @@ if (array_key_exists($requestUrl, $routes)) {
                     <tr>
                         <td><?php echo $faenaDatos["id"] ?></td>
                         <td>
-                            <div id="divIconoListaFaenasStatus_<?php echo $faenaDatos["id"] ?>"> </div> 
+                            <div id="divIconoListaFaenasStatus_<?php echo $faenaDatos["id"] ?>"> </div>
                             <?php echo  $faenaDatos["faena"] . " (" . $faenaDatos["alias"] . ")"; ?>
                         </td>
                         <td><?php echo "-" ?> </td>
@@ -219,7 +217,7 @@ if (array_key_exists($requestUrl, $routes)) {
                     </tr>
                     <script>
                         // idDiv, sizeIcon = 0) 
-                        statusListaFaena(<?php echo $faenaDatos["id"] ?>,"divIconoListaFaenasStatus",0)
+                        statusListaFaena(<?php echo $faenaDatos["id"] ?>, "divIconoListaFaenasStatus", 0)
                     </script>
                 <?php
                 }
@@ -268,5 +266,4 @@ if (array_key_exists($requestUrl, $routes)) {
 
 
     });
-    
 </script>

@@ -88,11 +88,17 @@ class faena
     }
 
 
-    function datos($id_faena)
+    function datos($id_faena,$aliasFaena=0)
     {
         $system = new systemClass();
         $mysqli = $system->conectaDB();
-        $faenaSql = $mysqli->query("select *  from faenas  where id=" . $id_faena . " ");
+
+        if($aliasFaena==0){
+            $faenaSql = $mysqli->query("select *  from faenas  where id=" . $id_faena . " ");
+
+        }else{
+            $faenaSql = $mysqli->query("select *  from faenas  where alias=" . $aliasFaena . " ");
+        }
 
         if ($faenaSql->num_rows == 1) {
             return $faenaSql->fetch_object();

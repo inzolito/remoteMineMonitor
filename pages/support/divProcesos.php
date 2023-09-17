@@ -108,9 +108,9 @@ $dataTimeVisual = $fechaActualVisual . " " . $horaActualVsual;
 //validar Jams
 $largoJams = count($Jamms);
 
-if (strpos($Jamms, "JAMSRouter start") !== false && strpos($Jamms, "JAMSCluster run") !== false) {
+if (strpos($Jamms, "JAMSRouter start") !== false && strpos($Jamms, "JAMSCluster run") !== false && $largoJams > 3) {
     $validarJams = 1;
-} else if(strpos($Jamms,"JAMSRun -config config.jams -log JAMS,error")!==false || $largoJams < 2) {
+} else if(strpos($Jamms,"JAMSRun -config config.jams -log JAMS,error")!==false || $largoJams < 4) {
     $validarJams = 2;
 }
 
@@ -314,7 +314,7 @@ if(strpos("ERROR",strtolower($reconcile)) !== false || strpos("warning",strtolow
                 $colorAux = "bg-success";
                 $valorAux = "Success: ";
                 $largoAux = $largoSummarizador;
-                if ($largoAux > 2 || $largoAux < 2) {
+                if ($largoAux >= 1 || $largoAux < 2) {
                     $colorAux = "bg-warning";
                     $valorAux = "Warning: ";
                 }
@@ -322,7 +322,7 @@ if(strpos("ERROR",strtolower($reconcile)) !== false || strpos("warning",strtolow
                     $colorAux = "bg-success";
                     $valorAux = "Success: ";
                 }
-                if ($largoAux >= 6 || $largoAux < 2 && $validarCrontab != "*") {
+                if ($largoAux >= 6 || $largoAux < 1 && $validarCrontab != "*") {
                     $colorAux = "bg-danger";
                     $valorAux = "Danger: ";
                     //$message = "Problemas con el proceso de sumarizado en " . $carpeta;

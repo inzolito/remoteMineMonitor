@@ -23,6 +23,13 @@ $system->validarSesion();
   <link href="plugins/fontawesome-free/css/brands.css" rel="stylesheet">
   <link href="plugins/fontawesome-free/css/solid.css" rel="stylesheet">
 
+
+
+  <!-- Clase nativa de RMM-->
+  <link rel="stylesheet" href="build/css/clasesNativas.css">
+
+
+
   <!-- Ionicons -->
   <link rel="stylesheet" href="https://code.ionicframework.com/ionicons/2.0.1/css/ionicons.min.css">
   <!-- Tempusdominus Bootstrap 4 -->
@@ -485,6 +492,12 @@ $system->validarSesion();
 
     }
 
+    function cargaServidoresWindows() {
+      $("#div-container").load("pages/servWindows/monitoreoWin.php");
+      titulo("", "Servidores Codelco");
+
+    }
+
     function problemas() /*carga en el index lo que realicemos en el archivo problemas.php */ {
       // $("#div-container").load("pages/problemas/problemas.php");
       cargarPaginaEnDiv("pages/problemas/problemas.php", {});
@@ -511,7 +524,7 @@ $system->validarSesion();
       $.ajax({
         url: 'pages/support/iconOnline.php?idf=' + id,
         success: function(data) {
-          $('#'+idDiv+'_' + id).html(data);
+          $('#' + idDiv + '_' + id).html(data);
         }
       });
     }
@@ -535,12 +548,20 @@ $system->validarSesion();
 
     //----------------------------
 
+
+    function developMessaje() {
+      var pruebaDiv = '<div class="alert alert-warning test-message" role="alert" style="position: sticky; top: 0;margin-bottom:-5px; background-color: yellow; text-align: center; z-index: 9999;">' +
+        'Entorno de desarrollo del sistema de monitoreon Hexagon Minning.' + 
+        '</div>';
+      $("body").prepend(pruebaDiv);
+    }
     $(document).ready(function() {
 
 
       lista_faenas2()
 
-
+      // este mensaje solo se debe activar en el entorno de desarrollo
+      developMessaje()
 
     });
   </Script>

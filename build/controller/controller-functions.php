@@ -6,24 +6,28 @@ class systemClass
 
     function conectaDB()
     {
-       $conection = new conectionClass();
-       return $conection->conectaDB2();
-
+        $conection = new conectionClass();
+        return $conection->conectaDB2();
     }
 
     function urlSystem()
     {
-       $conection = new conectionClass();
-       return $conection->urlSystem2();
+        $conection = new conectionClass();
+        return $conection->urlSystem2();
     }
 
+    function rutaDataSet()
+    {
+        $conection = new conectionClass();
+        return $conection->rutaDataSet2();
+    }
 
     function validarSesion()
     {
         $conn = new systemClass();
-        
+
         $conn->conectaDB();
-        
+
         if (session_status() == PHP_SESSION_ACTIVE) {
         } else {
             session_start();
@@ -67,6 +71,21 @@ class systemClass
             case "vistadtlectura":
                 return date("d H:i", strtotime($fecha));
                 break;
+            case 7:
+            case "datatimeDB":
+
+                $anio = substr($fecha, 0, 4);
+                $mes = substr($fecha, 4, 2);
+                $dia = substr($fecha, 6, 2);
+                $hora = substr($fecha, 8, 2);
+                $minuto = substr($fecha, 10, 2);
+                $segundo = substr($fecha, 12, 2);
+
+                // Formatear la fecha y hora legible
+                $fechaFormateada = "{$anio}-{$mes}-{$dia} {$hora}:{$minuto}:{$segundo}";
+
+                return $fechaFormateada;
+                break;
             default:
                 return $fecha;
                 break;
@@ -100,11 +119,11 @@ class systemClass
 
     function validarLog($log, $intervalo, $alineacion = "left")
     {
-        $margin = ($alineacion == "left") ? "mr-3" : "ml-3";
+        $margin = ($alineacion == "left") ? "mr-2" : "ml-2";
         //$horaActual = date("H:i");
         //$diaActual = date("d");
         $largo = count($log);
-
+        
         $contador = 0;
         for ($x = 0; $x < $largo; $x++) {
             $hora = $log[0];
@@ -132,9 +151,9 @@ class systemClass
         //echo $horaResta = $horaActual - $hAux;
 
         if ($diferencia <= $intervalo) {
-            return "<p class='float-$alineacion' style='font-size:10px'><i class='fa-solid text-success fa-circle $margin'></i> </p>";
-        } else{
-            return "<p class='float-$alineacion' style='font-size:10px'><i class='fa-solid text-danger fa-circle $margin'></i> </p>";
+            return "<p class='float-$alineacion mt-1' style='font-size:10px'><i class='fa-solid text-success fa-circle $margin'></i> </p>";
+        } else {
+            return "<p class='float-$alineacion mt-1' style='font-size:10px'><i class='fa-solid text-danger fa-circle $margin'></i> </p>";
             echo '<audio autoplay>';
             echo '<source src="pages/support/sonido/ping_missing.mp3" type="audio/mp3">';
             echo '</audio>';
@@ -177,28 +196,36 @@ class systemClass
 
     function iconStatusConexionFaena($alias)
     {
-        $carpeta = $alias."/";
+        $carpeta = $alias . "/";
         $ruta = "/home/jigsaw/monitoreoRemoto/" . $carpeta;
         $log = file($ruta . "ProcesosJamsMon.log");
-        
+
         if (file_exists($ruta . "/ProcesosJamsMon.log")) {
 
             $fechaActual = new DateTime();
             $fechaLog = DateTime::createFromFormat("Y-m-d H:i:s", trim($log[0]));
-            $diferencia = $fechaActual->diff($fechaLog)->i;  
+            $diferencia = $fechaActual->diff($fechaLog)->i;
 
-            $iconoOnline = " class='fas fa-wifi text-success mr-2' "; 
+            $iconoOnline = " class='fas fa-wifi text-success mr-2' ";
             if ($diferencia > 6) {
                 $iconoOnline = " class='fas fa-wifi text-danger mr-2' ";
                 //$system->alertaSonora(240000);
             }
         } else {
             $iconoOnline = " class='fas fa-wifi text-danger mr-2' ";
-
         }
         return  $iconoOnline;
     }
 
+    function datatimeCargaDiv()
+    {
+
+        //conseguir fecha actual
+        date_default_timezone_set('America/Santiago');
+        $fechaActualVisual = "<i class='fas fa-calendar'></i>" . date("d");
+        $horaActualVsual = "<i class='fas fa-clock ml-1'></i>" . date("H:i");
+        return  $fechaActualVisual . " " . $horaActualVsual;
+    }
 
     function validarPing($largo)
     {
@@ -225,14 +252,15 @@ class systemClass
         }
     }
 
-    function alertaSonora($tiempo){
+    function alertaSonora($tiempo)
+    {
         echo '<script>';
         echo 'var audio = new Audio("pages/support/sonido/ping_missing.mp3");';
         echo 'audio.play();';
-        echo 'setTimeout(function() { audio.pause(); }, '.$tiempo.');';
+        echo 'setTimeout(function() { audio.pause(); }, ' . $tiempo . ');';
         echo '</script>';
     }
-    
+
 
     function alertaSistema($alias, $titulo, $mensaje)
     {
@@ -268,5 +296,12 @@ class systemClass
 
         $context  = stream_context_create($options);
         $result = file_get_contents($url, false, $context);
+    }
+
+    function divAlert()
+    {
+        return "<div   >
+                     <i class='fa-solid fa-triangle-exclamation' style='font-size:50px'></i>
+                </div>";
     }
 }

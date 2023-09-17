@@ -14,9 +14,14 @@ class conectionClass
 
     function urlSystem2()
     {
-        return "http://10.40.90.99/soporte";
+       // return "http://10.40.90.99/soporte";
+       return "http://10.40.90.99/monitoreoLaboratorio/";
     }
 
- 
+    function rutaDataSet2()
+    {
+        return "/home/jigsaw/monitoreoRemoto/";
+        //return "/home/jigsaw/monitoreoRemotoLaboratorio/";
+    }
 
 }

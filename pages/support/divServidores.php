@@ -17,6 +17,35 @@ $faenaDatosS = $faenaCl->datos($idFaenaS);
 $estadoCheckFaenaS = $faenaCl->estado($idFaenaS);
 $checkDatosS = $faenaCl->datosCheck($idFaenaS);
 
+
+
+// --------------------------------------------------refresco cada una hora para liberar la ram del videowall----------------
+$minutoActualLiberarRam = (int)date("i");
+ 
+ 
+//echo $minutoActualLiberarRam."<br>";
+if ($minutoActualLiberarRam >= 6 && $minutoActualLiberarRam <= 8) {
+    if (isset($_REQUEST["r"])) {
+        $r = $_REQUEST["r"];
+    } else {
+        $r = 1;
+    }
+
+    if ($r ==1) {
+        header("Location: " . $_SERVER['PHP_SELF'] . "?id=$idFaenaS&r=0");
+        exit();        
+    }else{
+
+    }
+} else {
+    $r = 2;
+}
+ 
+//echo " r=$r ";
+// -------------------------------------------------------------------------------------------------------------------------
+
+
+
 //array asociativo minas
 $arrayFaenasDatos = array(
     "amant" => array(
@@ -56,10 +85,10 @@ $arrayFaenasDatos = array(
         "cpuMedioSec" => 2.6
     ),
     "magsa" => array(
-        "cpuLimite" => 4,6,
+        "cpuLimite" => 4, 6,
         "cpuMedio" => 2,
         "cpuLimiteSec" => 4,
-        "cpuMedioSec" => 2,6
+        "cpuMedioSec" => 2, 6
     ),
 
     "amcen" => array(
@@ -90,7 +119,7 @@ $arrayFaenasDatos = array(
 
 // leer logs
 $carpetaS = $faenaDatosS->alias . "/";
-$rutaS = "/home/jigsaw/monitoreoRemoto/" . $carpetaS;
+$rutaS = $system->rutaDataSet() . $carpetaS;
 
 $pingServerAct = file($rutaS . "pingServerAct.log");
 $pingServerSec = file($rutaS . "pingServerSecundario.log");
@@ -110,8 +139,11 @@ $cpuGraficoPrimario = file($rutaS . "cpuGraficoMon.log");
 $cpuGraficoSecundario = file($rutaS . "cpuGraficoSecMon.log");
 $TopC = file($rutaS . "TopCMon.log");
 $TopCSec = file($rutaS . "TopCSecMon.log");/**/
-$versionRuby = file($rutaS."versionRubyMon.log");
-
+$versionRuby = file($rutaS . "versionRubyMon.log");
+$jamsClusterLog = file($rutaS . "JamsClusterMon.log");
+// ---Variables utiles----- active ,stopped, backup,standby
+$estadoSrevidorActivo="active";
+$estadoSrevidorSecundario="backup";
 
 $i = 0;
 
@@ -203,7 +235,7 @@ switch (true) {
         $graficocpubg = "rgba(255, 195, 0, 1)";
         $graficocpult = "rgba(255, 195, 0, 1)";
         $graficocpubr = "rgba(255, 195, 0, 1)";
-       // echo "<script> agregarAlertaFaena('CPU servidor primario', 'load alto', 'error'); </script>";
+        // echo "<script> agregarAlertaFaena('CPU servidor primario', 'load alto', 'error'); </script>";
         break;
 
     case ($datosGraficoCpu[0] >= $cpuLimiteAux):
@@ -247,7 +279,7 @@ $graficocpubgSec = "rgba(15,204,4)";
 $graficocpustSec = "rgba(15,204,4)";
 $graficocpultSec = "rgba(15,204,4)";
 $graficocpubrSec = "rgba(15,204,4)";
- 
+
 
 $cpuMedioAux = $arrayFaenasDatos[$faenaDatosS->alias]["cpuMedioSec"];
 $cpuLimiteAux = $arrayFaenasDatos[$faenaDatosS->alias]["cpuLimiteSec"];
@@ -490,36 +522,62 @@ $validarPingSec = $validarPingSec[2];
 
 // hay que cambiar esta logica // lo comente de momento ya que al momento de cambiar la funcion oculta los DIV
 
-$claseIcono=$system -> iconStatusConexionFaena($faenaDatosS->alias);
+$claseIcono = $system->iconStatusConexionFaena($faenaDatosS->alias);
 
-if(strpos($claseIcono, "class='fas fa-wifi text-success mr-2'") !== false){
+if (strpos($claseIcono, "class='fas fa-wifi text-success mr-2'") !== false) {
     echo "<script> iconoOnline(1) </script>";
-}else{
+} else {
     echo "<script> iconoOnline(0) </script>";
 }
 
-$largoEstadoDisco=count($estadoDisco);
-$largoEstadoDiscoSec=count($estadoDiscoSecundario);
+$largoEstadoDisco = count($estadoDisco);
+$largoEstadoDiscoSec = count($estadoDiscoSecundario);
+
+
+
+// ------------------------- Validador para detectar si el servidor está caido. en stopped o success- --------------------
+// --Aún falta afinar mas condiciones para el server caido, como los log.
 
 $claseDiv = "card card-navy";
-$puntoAuxPrim=$system->validarLog($estadoDisco,20);
-$puntoAux= $system->validarLog($estadoDiscoSecundario,20);
-if(strpos($puntoAux,"success") !== false){
-    if(strpos($estadoServidorSecundario,"stopped") !== false){
+$puntoAuxPrim = $system->validarLog($estadoDisco, 20);
+$puntoAux = $system->validarLog($estadoDiscoSecundario, 20);
+
+// ---Variables utiles----- active ,stopped, backup,standby
+
+// Secundario
+if (strpos($puntoAux, "success") !== false) {
+    if (strpos($estadoServidorSecundario, "stopped") !== false) {
         $claseDiv = "card card-gray";
-        
-    }else{
+        $estadoServidorSecundario="stopped";
+    } else {
     }
-}else{
-    $claseDiv = "card card-light";
+} else {
+    $claseDiv = "card dangerRRM";
+    $estadoSrevidorActivo="down";
 }
 
+for ($x=0; $x<=count($jamsClusterLog); $x++ ) {
+   
+    if( count(explode("No route to host",$jamsClusterLog[$x]))>0 ||  count(explode("Could not resolve hostname",$jamsClusterLog[$x]))>0  )
+    {
+    
+        $estadoServidorSecundario="down";
+    }
+    
+}
+
+
+// Activo
 $claseDivPrim = "card card-navy";
-if(strpos($puntoAuxPrim,"success") !== false){
-
-}else{
+if (strpos($puntoAuxPrim, "success") !== false) {
+} else {
     $claseDivPrim = "card card-light";
+    $estadoSrevidorActivo="down";
 }
+//No route to host
+//Could not resolve hostname
+
+
 
 
 ?>
@@ -530,7 +588,7 @@ if(strpos($puntoAuxPrim,"success") !== false){
     <div class="col-md-6">
         <div class='<?php echo $claseDivPrim ?>'>
             <div class="card-header">
-                <h3 class="card-title">Servidor primario <?php echo $system->validarLog($estadoDisco,20) ?> </h3>
+                <h3 class="card-title">Servidor primario <?php echo $system->validarLog($estadoDisco, 20) ?> </h3>
                 <div class="card-tools">
                     <span class="badge" style='font-size: 1.0em'><?php echo $dataTimeVisual ?></span>
                 </div>
@@ -562,7 +620,7 @@ if(strpos($puntoAuxPrim,"success") !== false){
                         <table class="table table-bordered">
                             <tbody>
                                 <div class="progress-group mt-2 px-2">
-                                    Ram<span class="float-right"><b><?php echo round($ramUsadaTotal / 1024, 1)   ?></b>/<?php echo round($ramTotal / 1024, 1)."G"   ?>
+                                    Ram<span class="float-right"><b><?php echo round($ramUsadaTotal / 1024, 1)   ?></b>/<?php echo round($ramTotal / 1024, 1) . "G"   ?>
                                     </span>
                                     <div class="progress progress-sm">
                                         <div class="progress-bar bg-primary" style="width: <?php echo $porcentajeRam  ?>%">
@@ -574,15 +632,15 @@ if(strpos($puntoAuxPrim,"success") !== false){
                     </div>
                     <div class="col-md-6">
                         <canvas id="cpuServer1"></canvas>
-                        
-                        <div class="row"> 
-                            <div class="col-md-2" style="padding-top:5px !important;"><?php echo $system->validarLog($TopC,6,"right")?></div>
+
+                        <div class="row">
+                            <div class="col-md-2" style="padding-top:5px !important;"><?php echo $system->validarLog($TopC, 6, "right") ?></div>
                             <div class="col-md-10">
-                                CPU - Load Average: <?php echo $loadAveragePrimario  ?> 
+                                CPU - Load Average: <?php echo $loadAveragePrimario  ?>
                                 <button type="button" id="btnTopC" onclick="verInfo('divTopCVista')" class="btn btn-outline-light btn-sm pt-0 pb-0 ml-1"> <i class='fas fa-eye fa-solid mr-1 fa-eye'></i></button>
                             </div>
                         </div>
-                        
+
 
                         <div style="display:none">
                             <div class="row" id="divTopCVista" tittle="TopC" style="overflow:auto;">
@@ -655,11 +713,14 @@ if(strpos($puntoAuxPrim,"success") !== false){
         </div>
     </div>
 
-    <!-- Servidor 1 x 2  .... Server Secundario-->
+
+
+
+    <!------------------------------------------------------ Servidor 1 x 2  .... Server Secundario----------------------------------------->
     <div class="col-md-6">
         <div class='<?php echo $claseDiv ?>'>
             <div class="card-header">
-                <h3 class="card-title">Servidor secundario <?php echo $system->validarLog($estadoDiscoSecundario,20) ?></h3>
+                <h3 class="card-title">Servidor secundario <?php echo $system->validarLog($estadoDiscoSecundario, 20) ?></h3>
                 <div class="card-tools">
                     <span class="badge" style='font-size: 1.0em'><?php echo $dataTimeVisual ?></span>
                 </div>
@@ -667,7 +728,9 @@ if(strpos($puntoAuxPrim,"success") !== false){
 
             <div class="card-body">
 
-                <div class="row">
+            <?php echo $estadoServidorSecundario; //if($estadoServidorSecundario=="down") echo $system->divAlert() ?>
+                
+            <div class="row">
                     <div class="col-md-3">
                         <div class="text-left">Disco Duro</div>
                         <input type="text" value=<?php echo $porcSec  ?> class="<?php echo $graficoDonutColor["discoS2"] ?>" data-width="150" data-height="150" data-fgcolor="#3c8dbc" data-readonly="true">
@@ -692,7 +755,7 @@ if(strpos($puntoAuxPrim,"success") !== false){
                         <table class="table table-bordered">
                             <tbody>
                                 <div class="progress-group mt-2 px-2">
-                                    Ram<span class="float-right"><b><?php echo round($ramUsadaTotalSec / 1024, 1)   ?></b>/<?php echo round($ramTotalSec / 1024, 1)."G"  ?>
+                                    Ram<span class="float-right"><b><?php echo round($ramUsadaTotalSec / 1024, 1)   ?></b>/<?php echo round($ramTotalSec / 1024, 1) . "G"  ?>
                                     </span>
                                     <div class="progress progress-sm">
                                         <div class="progress-bar bg-primary" style="width: <?php echo $porcentajeRamSec  ?>%">
@@ -705,14 +768,14 @@ if(strpos($puntoAuxPrim,"success") !== false){
 
                     <div class="col-md-6">
                         <canvas id="cpuServer2"></canvas>
-                        <div class="row"> 
-                            <div class="col-md-2" style="padding-top:5px !important;"><?php echo $system-> validarLog($TopCSec,6,"right")?></div>
+                        <div class="row">
+                            <div class="col-md-2" style="padding-top:5px !important;"><?php echo $system->validarLog($TopCSec, 6, "right") ?></div>
                             <div class="col-md-10">
-                                CPU - Load Average: <?php echo $loadAverageSecundario ?> 
+                                CPU - Load Average: <?php echo $loadAverageSecundario ?>
                                 <button type="button" id="btnTopC" onclick="verInfo('divTopCSecVista')" class="btn btn-outline-light btn-sm pt-0 pb-0 ml-1"> <i class='fas fa-eye fa-solid mr-1 fa-eye'></i></button>
                             </div>
                         </div>
-                        
+
 
 
                         <div style="display:none">
@@ -803,7 +866,7 @@ if(strpos($puntoAuxPrim,"success") !== false){
     $(document).ready(function() {
         $("#divTopCVista").fadeOut()
         $("#divTopCSecVista").fadeOut()
-       // mensajeAlertasFaena()
+        // mensajeAlertasFaena()
     });
 
     function verInfo(id) {
@@ -832,12 +895,12 @@ if(strpos($puntoAuxPrim,"success") !== false){
         height: 90,
         displayInput: true,
         fgColor: '#09DA06',
-        draw: function () {
-        // Obtiene el valor del knob
-        var value = $(this.i).val();
+        draw: function() {
+            // Obtiene el valor del knob
+            var value = $(this.i).val();
 
-        // Agrega el signo de porcentaje
-        $(this.i).val(value + '%');
+            // Agrega el signo de porcentaje
+            $(this.i).val(value + '%');
         }
     });
     $('.GraficoRojo').knob({
@@ -847,13 +910,13 @@ if(strpos($puntoAuxPrim,"success") !== false){
         width: 90,
         height: 90,
         fgColor: 'red',
-        draw: function () {
-        // Obtiene el valor del knob
-        var value = $(this.i).val();
+        draw: function() {
+            // Obtiene el valor del knob
+            var value = $(this.i).val();
 
-        // Agrega el signo de porcentaje
-        $(this.i).val(value + '%');
-    }
+            // Agrega el signo de porcentaje
+            $(this.i).val(value + '%');
+        }
     });
     $('.GraficoAmarillo').knob({
         readOnly: true,
@@ -862,13 +925,13 @@ if(strpos($puntoAuxPrim,"success") !== false){
         width: 90,
         height: 90,
         fgColor: '#ffc107',
-        draw: function () {
-        // Obtiene el valor del knob
-        var value = $(this.i).val();
+        draw: function() {
+            // Obtiene el valor del knob
+            var value = $(this.i).val();
 
-        // Agrega el signo de porcentaje
-        $(this.i).val(value + '%');
-    }
+            // Agrega el signo de porcentaje
+            $(this.i).val(value + '%');
+        }
     });
 
 

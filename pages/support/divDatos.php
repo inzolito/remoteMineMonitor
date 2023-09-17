@@ -40,8 +40,8 @@ $tamanoArchivos = file($ruta . "SizeLogTotalMon.log");
 $tamanoArchivosSec = file($ruta . "SizeLogTotalSecMon.log");
 $jamsCluster = file($ruta . "ProcesosJamsMon.log");
 $jamsClusterSec = file($ruta . "ProcesosJamsSecMon.log");
-$schemaInfoSec=file($ruta. "schemaInfoSec.log");
-$schemaInfoAct=file($ruta. "schemaInfo.log");
+$schemaInfoSec = file($ruta . "schemaInfoSec.log");
+$schemaInfoAct = file($ruta . "schemaInfo.log");
 
 //nombre del servidor primario activo
 $nombreServidorActivo = $estadoDisco[2];
@@ -150,15 +150,15 @@ if ($carpeta == "cndrt/") {
     $fechaDaily = explode("prod-", $fechaDaily[0]);
     $fechaDaily = $fechaDaily[1];
     $fechaLoadedDaily = $fechaDaily;
-} else if($carpeta == "cnms/"){
+} else if ($carpeta == "cnms/") {
     $fechaDaily = explode("-MS", $ultimoDaily);
     $fechaDaily = explode("prod-", $fechaDaily[0]);
     $fechaDaily = $fechaDaily[1];
-}else if($carpeta == "cnchuq/"){
+} else if ($carpeta == "cnchuq/") {
     $fechaDaily = explode("-CH", $ultimoDaily);
     $fechaDaily = explode("prod-", $fechaDaily[0]);
     $fechaDaily = $fechaDaily[1];
-}else{
+} else {
     $fechaDaily = explode(".tgz", $ultimoDaily);
     $fechaDaily = explode("jmineops-", $fechaDaily[0]);
     $fechaDaily = $fechaDaily[1];
@@ -435,22 +435,6 @@ if (strpos($sumarizadorPrimario, " JAMS: Shutting down") !== false) {
 $largoSchemaInfo = count($schemaInfoSec);
 $largoSchemaInfoAct = count($schemaInfoAct);
 
-for ($x = 0; $x < $largoSchemaInfoAct; $x++) {
-    $schemaInfo = explode(" |", $schemaInfoAct[$x]);
-    $schemaInfo = $schemaInfo[5];
-    $schemaInfo = explode(" ",$schemaInfo);
-    $fechaSchemaInfo = $schemaInfo[1];
-    $fechaActual = date("Y-m-d");
-    if($schemaInfo != ""  || $schemaInfo != " " && $largoSchemaInfoAct > 2){
-        $mensajeSchema = "OK";
-        $color = "badge bg-success p-2 btn-block pt-0 pb-0";
-        
-    }else{
-        $mensajeSchema = "Warning";
-        $color = "badge bg-warning p-2 btn-block pt-0 pb-0";
-    }
-}
-
 
 ?>
 
@@ -476,7 +460,7 @@ for ($x = 0; $x < $largoSchemaInfoAct; $x++) {
                                 <tr>
                                     <td>
                                         <?php
-                                        echo $validScriptRlm = $system->validarLog($Rlm,20);
+                                        echo $validScriptRlm = $system->validarLog($Rlm, 20);
                                         if (strpos($validScriptRlm, "text-danger") !== false) $ColorTextoRlm = "badge btn-default disabled p-2 btn-block";
 
                                         ?>
@@ -553,8 +537,8 @@ for ($x = 0; $x < $largoSchemaInfoAct; $x++) {
                                         //$subject = 'Problemas con ' . $carpeta;
                                         //$message = 'Problemas con la cantidad de consultas en IDLE: ' . $cantidadIdle;
                                         //enviarEmail($subject, $message);
-                                        
-                                        
+
+
                                     ?>
                                         <script>
                                             //agregarAlertaFaena("exceso consultas en idle","Demaciadas consultas en estado IDLE","error"); 
@@ -629,17 +613,17 @@ for ($x = 0; $x < $largoSchemaInfoAct; $x++) {
 
                                     ?>
 
-                                    JamsCluster  (corriendo)
+                                    JamsCluster (corriendo)
                                 </td>
                                 <td>
-                                    <?php echo "Desde: ".$nombreServidorActivo . "<i class='fa-solid fa-arrow-right'></i>" . $clusterPrimario ?><br>
-                                    <?php echo "Desde: ".$nombreServidorSecundario . "<i class='fa-solid fa-arrow-right'></i>" . $clusterSecundario; ?>
+                                    <?php echo "Desde: " . $nombreServidorActivo . "<i class='fa-solid fa-arrow-right'></i>" . $clusterPrimario ?><br>
+                                    <?php echo "Desde: " . $nombreServidorSecundario . "<i class='fa-solid fa-arrow-right'></i>" . $clusterSecundario; ?>
                                 </td>
                                 <td>
                                     <span class="<?php echo $colorCluster ?> "> <?php echo $mensajeCuster ?> </span>
                                 </td>
                             </tr>
-                            
+
                             <tr>
                                 <td>
                                     <?php echo $validarSchemaInfo = $system->validarLog($schemaInfoSec, 8);
@@ -651,45 +635,47 @@ for ($x = 0; $x < $largoSchemaInfoAct; $x++) {
                                 </td>
                                 <td>
                                     <?php
-                                        
-                                        if($carpeta == "cndmh/"){
-                                            for ($x = 0; $x < $largoSchemaInfoAct; $x++) {
-                                                $schemaInfo = explode(" |", $schemaInfoAct[$x]);
-                                                $schemaInfo = $schemaInfo[5];
-                                                $schemaInfo = explode(" ",$schemaInfo);
-                                                $schemaInfo = $schemaInfo[1]." ".$schemaInfo[2];
-                                                if($schemaInfo != ""  || $schemaInfo != " " && $largoSchemaInfoAct > 2){
-                                                    $mensajeSchema = "OK";
-                                                    $color = "badge bg-success p-2 btn-block pt-0 pb-0";
-                                                    print_r($schemaInfo);
-                                                }else{
-                                                    $mensajeSchema = "Warning";
-                                                    $color = "badge bg-warning p-2 btn-block pt-0 pb-0";
-                                                }
-                                            }
-                                        }else{
-                                            for ($x = 0; $x < $largoSchemaInfo; $x++) {
-                                                $schemaInfo = explode(" |", $schemaInfoSec[$x]);
-                                                $schemaInfo = $schemaInfo[5];
-                                                $schemaInfo = explode(" ",$schemaInfo);
-                                                $schemaInfo = $schemaInfo[1]." ".$schemaInfo[2];;
+
+                                    if ($carpeta == "cndmh/") {
+                                        for ($x = 0; $x < $largoSchemaInfoAct; $x++) {
+                                            $schemaInfo = explode(" |", $schemaInfoAct[$x]);
+                                            $schemaInfo = $schemaInfo[5];
+                                            $schemaInfo = explode(" ", $schemaInfo);
+                                            $schemaInfo = $schemaInfo[1] . " " . $schemaInfo[2];
+                                            if ($largoSchemaInfoAct >= 2) {
+                                                $mensajeSchema = "OK";
+                                                $color = "badge bg-success p-2 btn-block pt-0 pb-0";
                                                 print_r($schemaInfo);
-                                                if($schemaInfo != ""  || $schemaInfo != " " && $largoSchemaInfo > 2){
-                                                    $mensajeSchema = "OK";
-                                                    $color = "badge bg-success p-2 btn-block pt-0 pb-0";
-                                                }else{
-                                                    $mensajeSchema = "Warning";
-                                                    $color = "badge bg-warning p-2 btn-block pt-0 pb-0";
-                                                }
+                                            } else {
+                                                $mensajeSchema = "Warning";
+                                                $color = "badge bg-warning p-2 btn-block pt-0 pb-0";
+                                                echo "Sin acceso";
                                             }
                                         }
+                                    } else {
+                                        for ($x = 0; $x < $largoSchemaInfo; $x++) {
+                                            $schemaInfo = explode(" |", $schemaInfoSec[$x]);
+                                            $schemaInfo = $schemaInfo[5];
+                                            $schemaInfo = explode(" ", $schemaInfo);
+                                            $schemaInfo = $schemaInfo[1] . " " . $schemaInfo[2];;
+                                            if ($largoSchemaInfo >= 2) {
+                                                $mensajeSchema = "OK";
+                                                $color = "badge bg-success p-2 btn-block pt-0 pb-0";
+                                                print_r($schemaInfo);
+                                            } else {
+                                                $mensajeSchema = "Warning";
+                                                $color = "badge bg-warning p-2 btn-block pt-0 pb-0";
+                                                echo "Sin acceso";
+                                            }
+                                        }
+                                    }
                                     ?>
                                 </td>
                                 <td>
                                     <span class="<?php echo $color ?> "> <?php echo $mensajeSchema ?> </span>
                                 </td>
                             </tr>
-                                            
+
                         </tbody>
                     </table>
 
@@ -804,7 +790,7 @@ for ($x = 0; $x < $largoSchemaInfoAct; $x++) {
                                         <?php
 
                                                 break;
-                                            case $validarSumarizador[2] == 1 && $validarSumarizador[3] == 0:
+                                            case   $validarSumarizador[3] == 1:
                                                 echo "Manual";
                                                 $validarSumm = "Warning";
                                                 $colorEstadoSum = "badge bg-warning p-2";
@@ -888,10 +874,10 @@ for ($x = 0; $x < $largoSchemaInfoAct; $x++) {
                                             //$subject = 'Problemas con ' . $carpeta;
                                             //$message = 'Error en el Daily de manera periodica';
                                             //enviarEmail($subject, $message);
-                                            if($validarDailyDiario != "OK"){
-                                                $system -> alertaSonora(120000);
+                                            if ($validarDailyDiario != "OK") {
+                                                $system->alertaSonora(120000);
                                             }
-                                            
+
                                             ?>
                                         </b>
                                     </p>
@@ -920,7 +906,7 @@ for ($x = 0; $x < $largoSchemaInfoAct; $x++) {
                 <div class="col-md-12">
                     <div class='<?php echo $colorbordeTamanoLogs ?>'>
                         <div class="card-header">
-                            <h3 class="card-title">Archivos más Pesados <?php echo $system->validarLog($tamanoArchivos, 20) ?></h3>
+                            <h3 class="card-title">Archivos más Pesados <?php echo $system->validarConexion($tamanoArchivos, $tamanoArchivosSec, 20) ?></h3>
                             <div class="card-tools">
                                 <span class="badge" style='font-size: 1.0em'><?php echo $dataTimeVisual ?></span>
                             </div>
@@ -937,12 +923,15 @@ for ($x = 0; $x < $largoSchemaInfoAct; $x++) {
                                         <tr>
                                             <th>
                                                 <?php echo $system->validarLog($tamanoArchivos, 20); ?>
+                                                <?php //echo print_r($tamanoArchivos); 
+                                                ?>
                                                 Primario</th>
                                             <td style="overflow-x: auto;">
 
                                                 <?php
                                                 $contLP = 0;
                                                 $tamanoArchivos = $system->procesaLog($tamanoArchivos);
+
                                                 $datatimeLogAux = $tamanoArchivos[0];
                                                 $tamanoArchivos = $tamanoArchivos[1];
                                                 $carpetaTamanoArchivoArray = array();
@@ -950,11 +939,11 @@ for ($x = 0; $x < $largoSchemaInfoAct; $x++) {
 
 
                                                 $tituloAux = "";
+                                                if (count($tamanoArchivos) == 0) {
+                                                    echo "No se encontraron logs mayores a 1GB";
+                                                } else {
+                                                    foreach ($tamanoArchivos as $x) {
 
-                                                foreach ($tamanoArchivos as $x) {
-                                                    if (count($tamanoArchivos) == 0) {
-                                                        echo "No se encontraron logs mayores a 1GB";
-                                                    } else {
 
                                                         //if ($contLP == 0) echo "<ul>";
                                                         $contLP++;
@@ -993,11 +982,11 @@ for ($x = 0; $x < $largoSchemaInfoAct; $x++) {
 
 
                                                 $tituloAux = "";
+                                                if (count($tamanoArchivosSec) == 0) {
+                                                    echo "No se encontraron logs mayores a 1GB";
+                                                } else {
+                                                    foreach ($tamanoArchivosSec as $x) {
 
-                                                foreach ($tamanoArchivosSec as $x) {
-                                                    if (count($tamanoArchivosSec) == 0) {
-                                                        echo "No se encontraron logs mayores a 1GB";
-                                                    } else {
 
                                                         //if ($contLP == 0) echo "<ul>";
                                                         $contLP++;

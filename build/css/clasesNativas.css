@@ -1,0 +1,29 @@
+/* Estilo similar a dangerRRM (clase padre) */
+.dangerRRM {
+    /* border-top: 3px solid #080808; Borde rojo similar al de danger en Bootstrap */
+    background-color: #df0719; /* Fondo rojo claro similar al de danger en Bootstrap */
+    color: #ffffff; /* Texto rojo similar al de danger en Bootstrap */
+  
+  }
+  
+  /* Estilo específico para card-header dentro de dangerRRM */
+.dangerRRM .card-header {
+    background-color: #dc3545; /* Fondo rojo claro para card-header */
+    color: #ffffff; /* Texto rojo para card-header */
+  /*  border :0px  1px solid #000000;  Borde inferior rojo para card-header */
+  }
+  
+  /* Estilo específico para card-body dentro de dangerRRM */
+  .dangerRRM .card-body {
+    background-color: #fff6f7;; /* Fondo blanco para card-body */
+    color: #333; /* Texto negro para card-body */
+    filter: grayscale(100%); 
+  }
+  
+  /* Estilo específico para card-footer dentro de dangerRRM */
+  .dangerRRM .card-footer {
+    /* background-color: #f8d7da; Fondo rojo claro para card-footer */
+    color: #000000; /* Texto rojo para card-footer */
+    /*border-top: 1px solid #dc3545;  Borde superior rojo para card-footer */
+  }
+  
