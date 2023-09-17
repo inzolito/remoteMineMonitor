@@ -6,7 +6,7 @@ class conectionClass
 
     function __construct()
     {
-        $configFile = '../../.config.json';
+        $configFile = $configFile = __DIR__ . '/../../.config.json';
 
         if (file_exists($configFile)) {
             $this->config = json_decode(file_get_contents($configFile), true);
