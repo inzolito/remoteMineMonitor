@@ -493,9 +493,11 @@ foreach (array("ramS1", "ramS2") as $key) {
 
  
 //-------------------------------------- Ping servidores -----------------
+// se comenta la validacion del ping porque en codelco no funciona.
+/*
 $servidorActOnline=false;
 foreach ($pingServerActLectura as $linea) {
-  
+  echo $linea."<br>";
     if (preg_match("/64 bytes from .* time=.* ms/", $linea)) {
         $servidorActOnline = true; 
     } elseif (preg_match("/Request timeout for icmp_seq \d+/", $linea)) {
@@ -511,7 +513,7 @@ foreach ($pingServerSecLectura as $linea) {
     } elseif (preg_match("/Request timeout for icmp_seq \d+/", $linea)) {
     }
 }
-
+*/
  
 
  
@@ -577,6 +579,25 @@ for ($x=0; $x<=count($jamsClusterLog); $x++ ) {
 }
 */
 //--------------------------------------------------------------------------------------------------------------------------------------
+$puntoOnlineLoadAverageServAct=$system->validarLog($TopC, 6, "right");
+$puntoOnlineLoadAverageServSec=$system->validarLog($TopCSec, 6, "right");
+
+if(strpos($puntoOnlineLoadAverageServAct, "danger")>0 )
+{
+    $servidorActOnline=false;
+}else{
+    $servidorActOnline=true;
+}
+if(strpos($puntoOnlineLoadAverageServSec, "danger")>0 )
+{
+    $servidorSecOnline=false;
+}else{
+    $servidorSecOnline=true;
+}
+
+
+
+// $nuevaVariable ahora contiene el valor adecuado según el caso
 
 
 
