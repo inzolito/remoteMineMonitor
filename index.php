@@ -2,12 +2,12 @@
 require_once("../soporte/build/controller/controller-functions.php");
 $system = new systemClass();
 $system->validarSesion();
- 
+
 
 $configuracionJson = '.config.json';
 $arrayConfig = json_decode(file_get_contents($configuracionJson), true);
- $entorno=$arrayConfig["APP_ENV"];
- $mensajeEntornoDesarrollo = '<div class="alert alert-warning test-message" role="alert" style="position: sticky; top:
+$entorno = $arrayConfig["APP_ENV"];
+$mensajeEntornoDesarrollo = '<div class="alert alert-warning test-message" role="alert" style="position: sticky; top:
   0;margin-bottom:-5px; background-color: yellow; text-align: center; z-index: 9999;">Entorno de desarrollo del
    sistema de monitoreon Hexagon Minning.</div>';
 ?>
@@ -80,9 +80,9 @@ $arrayConfig = json_decode(file_get_contents($configuracionJson), true);
 
 
 <body class="hold-transition sidebar-mini layout-fixed">
-  <?php if($entorno=="development") echo $mensajeEntornoDesarrollo; ?>
+  <?php if ($entorno == "development") echo $mensajeEntornoDesarrollo; ?>
   <div class="wrapper">
- 
+
     <!-- Preloader -->
     <div class="preloader flex-column justify-content-center align-items-center">
       <img class="animation__shake" src="dist/img/system/logohxg.jpg" alt="AdminLTELogo" height="60" width="60">
@@ -137,18 +137,27 @@ $arrayConfig = json_decode(file_get_contents($configuracionJson), true);
 
 
 
-        <li class="nav-item">
-          <!-- Sidebar user panel (optional) -->
-          <div class="user-panel   d-flex">
-            <div class="image">
+        <li class="nav-item dropdown user-menu">
+          <a href="#" class="nav-link dropdown-toggle" data-toggle="dropdown">
+            <i class="fas fa-user"></i>
+            <span class="hidden-xs"><?php echo $_SESSION['user'] ?></span>
+          </a>
+          <ul class="dropdown-menu dropdown-menu-lg dropdown-menu-right">
+            <li class="dropdown-header"><?php echo $_SESSION['nombre'] . " " . $_SESSION['apellido'] ?></li>
+            <li class="dropdown-divider"></li>
+            <a href="#" id="cerrarSesionButton">
+              <li class="dropdown-item">
 
+                <i class="fas fa-sign-out-alt mr-2"></i> Cerrar sesión
 
-              <i class="fa-sharp fa-solid fa-user-gear" class="img-circle  " alt="User Image" style=" font-size:20px; padding-top: 8px;"></i>
-            </div>
-            <div class="info">
-              <span class="d-block"> <?php echo $_SESSION['user'] ?></span>
-            </div>
-          </div>
+              </li>
+
+            </a>
+            <li class="dropdown-divider"></li>
+            <li class="dropdown-item dropdown-footer">
+              <span class="float-right text-muted text-sm"><?php echo ""; ?></span>
+            </li>
+          </ul>
         </li>
 
 
@@ -222,7 +231,7 @@ $arrayConfig = json_decode(file_get_contents($configuracionJson), true);
       <!-- /.sidebar -->
     </aside>
 
- 
+
 
 
     <!-- Content Wrapper. Contains page content -->
@@ -412,6 +421,41 @@ $arrayConfig = json_decode(file_get_contents($configuracionJson), true);
       background: rgba(255, 255, 255, 0.7);
     }
   </style>
+
+
+  <script>
+    document.getElementById("cerrarSesionButton").addEventListener("click", function(e) {
+      e.preventDefault();
+      Swal.fire({
+        title: '¿Estás seguro?',
+        text: "¿Deseas cerrar sesión?",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#3085d6',
+        cancelButtonColor: '#d33',
+        confirmButtonText: 'Sí, cerrar sesión',
+        cancelButtonText: 'Cancelar'
+      }).then((result) => {
+        if (result.isConfirmed) {
+
+          $.ajax({
+            url: 'pages/scripts/closeSession.php',
+            success: function(data) {
+              location.reload();
+            }
+          });
+
+
+        }
+      });
+    });
+  </script>
+
+
+
+
+
+
   <script>
     function titulo(titulo, ruta) {
       $("#htitle").html(titulo)
@@ -552,13 +596,13 @@ $arrayConfig = json_decode(file_get_contents($configuracionJson), true);
 
     //----------------------------
 
- 
+
     $(document).ready(function() {
 
 
       lista_faenas2()
 
-   
+
 
     });
   </Script>

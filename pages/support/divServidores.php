@@ -154,6 +154,7 @@ $nombreServidorActivo = $estadoDisco[2];
 //estado servidor activo
 $estadoServidorActivo = $estadoDisco[1];
 
+
 //Obtencion de fecha
 $fechaHoraAux = $estadoDisco[0];
 $fechaHoraAux = explode(" ", $fechaHoraAux);
@@ -489,38 +490,31 @@ foreach (array("ramS1", "ramS2") as $key) {
 }
 
 //validar ping server activo
-$largoPing = count($pingServerAct);
-/*
-$validarPing = explode("%", $pingServerAct[9]);
-$validarPing = explode(",",$validarPing[0]);
-$validarPing = $validarPing[2];
-    if ($validarPing <= 40 && $validarPing !="") {
-        $icono= "<p class='float-right' style='font-size:14px'><i class='fa-solid text-success fa-circle ml-3'></i> </p>";
-        $colorborde="card card-navy";
-    }else{
-        $icono = "<p class='float-right' style='font-size:14px'><i class='fa-solid text-danger fa-circle ml-3'></i> </p>";
-        $colorborde="card card-light";
+
+ 
+//-------------------------------------- Ping servidores -----------------
+$servidorActOnline=false;
+foreach ($pingServerActLectura as $linea) {
+  
+    if (preg_match("/64 bytes from .* time=.* ms/", $linea)) {
+        $servidorActOnline = true; 
+    } elseif (preg_match("/Request timeout for icmp_seq \d+/", $linea)) {
     }
+}
+$servidorSecOnline=false;
 
-*/
+foreach ($pingServerSecLectura as $linea) {
+    //echo $linea."<br>";
+    if (preg_match("/64 bytes from .* time=.* ms/", $linea)) {
+        $servidorSecOnline = true; 
+         
+    } elseif (preg_match("/Request timeout for icmp_seq \d+/", $linea)) {
+    }
+}
 
+ 
 
-//validar ping server secundario
-$largoPingSec = count($pingServerSec);
-/*
-$validarPingSec = explode("%", $pingServerSec[9]);
-$validarPingSec = explode(",",$validarPingSec[0]);
-$validarPingSec = $validarPingSec[2];
-  if ($validarPingSec <= 40 && $validarPingSec !="") {
-      $iconoSec= "<p class='float-right' style='font-size:14px'><i class='fa-solid text-success fa-circle ml-3'></i> </p>";
-      $colorbordeSec="card card-navy"; 
-  }else{
-      $iconoSec = "<p class='float-right' style='font-size:14px'><i class='fa-solid text-danger fa-circle ml-3'></i> </p>";
-      $colorbordeSec="card card-light";
-  }
-*/
-
-
+ 
 // hay que cambiar esta logica // lo comente de momento ya que al momento de cambiar la funcion oculta los DIV
 
 $claseIcono = $system->iconStatusConexionFaena($faenaDatosS->alias);
@@ -539,55 +533,71 @@ $largoEstadoDiscoSec = count($estadoDiscoSecundario);
 // ------------------------- Validador para detectar si el servidor está caido. en stopped o success- --------------------
 // --Aún falta afinar mas condiciones para el server caido, como los log.
 
-$claseDiv = "card card-navy";
+$claseDivServerAct = "card card-navy";
+$claseDivServerSec = "card card-navy";
 $puntoAuxPrim = $system->validarLog($estadoDisco, 20);
-$puntoAux = $system->validarLog($estadoDiscoSecundario, 20);
+$puntoAuxSec = $system->validarLog($estadoDiscoSecundario, 20);
 
 // ---Variables utiles----- active ,stopped, backup,standby
 
-// Secundario
-if (strpos($puntoAux, "success") !== false) {
+// ------------------------------   Activo $system->validarLog($TopC, 6, "right")
+ 
+ if(count(explode(" ", $system->validarLog($TopC, 6, "right")))>0)
+{
+    //caido 
+}else{
+
+}
+
+// ---------------------------------------------------------------------   Secundario validar jamcluser caido 
+if (strpos($puntoAuxSec, "success") !== false) {
     if (strpos($estadoServidorSecundario, "stopped") !== false) {
-        $claseDiv = "card card-gray";
+        $claseDivServerSec = "card card-gray";
         $estadoServidorSecundario="stopped";
     } else {
     }
 } else {
-    $claseDiv = "card dangerRRM";
-    $estadoSrevidorActivo="down";
+    $claseDivServerSec = "card dangerRRM";
+    $servidorSecOnline=false;
+   // $estadoSrevidorActivo="down";
 }
 
+
+
+/*
 for ($x=0; $x<=count($jamsClusterLog); $x++ ) {
-   
+    echo $jamsClusterLog[$x]."<br>";
     if( count(explode("No route to host",$jamsClusterLog[$x]))>0 ||  count(explode("Could not resolve hostname",$jamsClusterLog[$x]))>0  )
     {
-    
+
         $estadoServidorSecundario="down";
+        $servidorSecOnline=false;
+
     }
-    
+}
+*/
+//--------------------------------------------------------------------------------------------------------------------------------------
+
+
+
+ 
+
+if($servidorActOnline==false)
+{
+    $claseDivServerAct="card dangerRRM";
 }
 
-
-// Activo
-$claseDivPrim = "card card-navy";
-if (strpos($puntoAuxPrim, "success") !== false) {
-} else {
-    $claseDivPrim = "card card-light";
-    $estadoSrevidorActivo="down";
+if($servidorSecOnline==false)
+{
+    $claseDivServerSec="card dangerRRM";
 }
-//No route to host
-//Could not resolve hostname
-
-
-
-
 ?>
 
 
 <div class="row">
     <!-- Servidor 1 x 2  .... Server primario-->
     <div class="col-md-6">
-        <div class='<?php echo $claseDivPrim ?>'>
+        <div class='<?php echo $claseDivServerAct ?>'>
             <div class="card-header">
                 <h3 class="card-title">Servidor primario <?php echo $system->validarLog($estadoDisco, 20) ?> </h3>
                 <div class="card-tools">
@@ -719,7 +729,7 @@ if (strpos($puntoAuxPrim, "success") !== false) {
 
     <!------------------------------------------------------ Servidor 1 x 2  .... Server Secundario----------------------------------------->
     <div class="col-md-6">
-        <div class='<?php echo $claseDiv ?>'>
+        <div class='<?php echo $claseDivServerSec ?>'>
             <div class="card-header">
                 <h3 class="card-title">Servidor secundario <?php echo $system->validarLog($estadoDiscoSecundario, 20) ?></h3>
                 <div class="card-tools">
@@ -729,8 +739,7 @@ if (strpos($puntoAuxPrim, "success") !== false) {
 
             <div class="card-body">
 
-            <?php echo $estadoServidorSecundario; //if($estadoServidorSecundario=="down") echo $system->divAlert() ?>
-                
+                 
             <div class="row">
                     <div class="col-md-3">
                         <div class="text-left">Disco Duro</div>

@@ -32,7 +32,7 @@ class systemClass
         } else {
             session_start();
             if ($_SESSION["user"] == false) {
-                echo '<meta http-equiv="refresh" content="0; url=' . $conn->urlSystem() . '/pages/login/login.php">';
+                echo '<meta http-equiv="refresh" content="0; url=' . $conn->urlSystem() . 'pages/login/login.php">';
                 return 1;
             }
         }

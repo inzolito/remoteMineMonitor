@@ -906,7 +906,8 @@ $largoSchemaInfoAct = count($schemaInfoAct);
                 <div class="col-md-12">
                     <div class='<?php echo $colorbordeTamanoLogs ?>'>
                         <div class="card-header">
-                            <h3 class="card-title">Archivos más Pesados <?php echo $system->validarConexion($tamanoArchivos, $tamanoArchivosSec, 20) ?></h3>
+                            <h3 class="card-title">Archivos más Pesados <?php echo $system->validarLog($tamanoArchivos, 20) ?>
+                                 </h3>
                             <div class="card-tools">
                                 <span class="badge" style='font-size: 1.0em'><?php echo $dataTimeVisual ?></span>
                             </div>
