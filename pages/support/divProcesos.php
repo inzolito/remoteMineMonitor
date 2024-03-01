@@ -273,10 +273,12 @@ if(strpos("ERROR",strtolower($reconcile)) !== false || strpos("warning",strtolow
             <div class="row">
                 <!-- SQLServer -->
                 <?php
+
                 $colorAux = "bg-success";
                 $valorAux = "Success: ";
                 $largoAux = $largoSqlServer;
-                if ($largoAux > 1 ) {
+
+                if ($largoAux ==3 ) {
                     $colorAux = "bg-warning";
                     $valorAux = "Warning: ";
                 }
@@ -296,6 +298,7 @@ if(strpos("ERROR",strtolower($reconcile)) !== false || strpos("warning",strtolow
                     sleep(90);
                 }*/
                 ?>
+
 
                 <div class="col-lg-4 col-6" style="cursor: pointer" onclick="verInfo('divSqlServerVista')">
 
@@ -318,20 +321,13 @@ if(strpos("ERROR",strtolower($reconcile)) !== false || strpos("warning",strtolow
                 $colorAux = "bg-success";
                 $valorAux = "Success: ";
                 $largoAux = $largoSummarizador;
-                if ($largoAux >= 1 || $largoAux < 2) {
+                if ($largoAux==3 || $largoAux==1)  {
                     $colorAux = "bg-warning";
                     $valorAux = "Warning: ";
-                    
                 }
-                if ($largoAux >= 6 || $largoAux <= 2 && $validarCrontab == "*" || $validarManual == 1) {
-                    $colorAux = "bg-success";
-                    $valorAux = "Success: ";
-                }
-                if ($largoAux >= 6 || $largoAux < 1 && $validarCrontab != "*") {
-
+                if ($largoAux >= 6 || ( $largoAux < 1 && $validarCrontab != "*" ) ) {
                     $colorAux = "bg-danger";
                     $valorAux = "Danger: ";
-
                     $mensajeAlerta="Se detectó que no se está realizando el proceso de sumarización.  " ;
                     $alertas->insertAlert($id_faena,"HCXSD011",$mensajeAlerta);
                 
