@@ -1,5 +1,9 @@
 <?php
-require_once("../soporte/build/controller/controller-functions.php");
+$configuracionJson = '.config.json';
+$arrayConfig = json_decode(file_get_contents($configuracionJson), true);
+$entorno = $arrayConfig["APP_ENV"];
+require_once("../".$arrayConfig["APP_DIR"]."/build/controller/controller-functions.php");
+
 $system = new systemClass();
 $system->validarSesion();
 
@@ -93,7 +97,7 @@ $mensajeEntornoDesarrollo = '<div class="alert alert-warning test-message" role=
       <!-- Left navbar links -->
       <ul class="navbar-nav">
         <li class="nav-item">
-          <a class="nav-link" data-widget="pushmenu" href="#" role="button"><i class="fas fa-bars"></i></a>
+          <a class="nav-link" id="btn_menu" data-widget="pushmenu" href="#" role="button"><i class="fas fa-bars"></i></a>
         </li>
 
       </ul>
@@ -136,7 +140,7 @@ $mensajeEntornoDesarrollo = '<div class="alert alert-warning test-message" role=
  -->
 
 
-
+        <!-- Menu para cerrar sesion -->
         <li class="nav-item dropdown user-menu">
           <a href="#" class="nav-link dropdown-toggle" data-toggle="dropdown">
             <i class="fas fa-user"></i>
@@ -161,6 +165,10 @@ $mensajeEntornoDesarrollo = '<div class="alert alert-warning test-message" role=
         </li>
 
 
+        <!-- Menu para notificaciones -->
+        <li class="nav-item dropdown" id="divContenedorNotificaciones">
+
+        </li>
 
         <li class="nav-item">
           <a class="nav-link" data-widget="fullscreen" href="#" role="button">
@@ -344,7 +352,7 @@ $mensajeEntornoDesarrollo = '<div class="alert alert-warning test-message" role=
 
 
       <strong><a href="<?php echo $system->urlSystem(); ?>">Sistema de monitoreo remoto.</a></strong>
-      By MaikolSalas
+      Developed by Maikol Salas.
       <div class="float-right d-none d-sm-inline-block">
         <b>Version</b> 1.0
       </div>
@@ -420,11 +428,19 @@ $mensajeEntornoDesarrollo = '<div class="alert alert-warning test-message" role=
       height: 100%;
       background: rgba(255, 255, 255, 0.7);
     }
+
+    .dropdown-menu-xl {
+      width: 100%;
+      max-width: 1000px;
+    }
   </style>
 
 
   <script>
     document.getElementById("cerrarSesionButton").addEventListener("click", function(e) {
+
+
+
       e.preventDefault();
       Swal.fire({
         title: '¿Estás seguro?',
@@ -478,7 +494,7 @@ $mensajeEntornoDesarrollo = '<div class="alert alert-warning test-message" role=
           if (resultado.value) {
             // Hicieron click en "Sí"
             //alert("se elimina la venta*");
-            location.reload()
+             window.location.href = "<?php echo $system->urlSystem() ?>";
           } else {
             // Dijeron que no
           }
@@ -500,6 +516,89 @@ $mensajeEntornoDesarrollo = '<div class="alert alert-warning test-message" role=
 
     }
 
+    function verAlerta(ida) {
+
+      $("body").append("<span id='btnModalAlerta' data-toggle='modal' data-target='#modalStandard'>  </span>");
+      $("#btnModalAlerta").click();
+      $("#btnModalAlerta").remove();
+
+      $("#modalStandarOk")
+        .removeClass("btn-primary")
+        .addClass("btn-danger")
+        .text("Resuelto")
+        .click(function() {
+          alerta_solucionada(ida);
+        });
+
+      // Cambiar el texto del botón "Cerrar"
+      $("#modalStandarClose").text("Cancelar");
+
+      // Centrar ambos botones horizontalmente
+      $("#modalStandardFooter button").addClass("mx-auto");
+
+      $("#modalStandardFooter").addClass("pl-10");
+
+      $("#modalStandardBody").load("pages/scripts/scriptVentanaNotificacion.php", {
+        ida: ida
+      });
+    }
+
+
+    function alerta_solucionada(idAlerta) {
+
+
+
+      Swal
+        .fire({
+          title: "Cerrar alerta",
+          text: "La alerta se cerrará y no aparecerá en las notificaciones",
+          icon: 'warning',
+          showCancelButton: true,
+          confirmButtonText: "Cerrar alerta",
+          cancelButtonText: "Cancelar",
+        })
+        .then(resultado => {
+
+          if (resultado.value) {
+            var formDataAlerta = new FormData();
+            formDataAlerta.append('accion', 'alertaSolucionada');
+            formDataAlerta.append('ida', idAlerta);
+            $.ajax({
+              url: "build/model/model-alerta.php",
+              dataType: 'text',
+              cache: false,
+              contentType: false,
+              processData: false,
+              data: formDataAlerta,
+              type: 'post',
+              success: function(data) {
+                Swal.fire({
+                  icon: 'success',
+                  title: 'Alerta Cerrada',
+                  text: 'La alerta se cerró correctamente.',
+                });
+                notificaciones_alertas()
+                $("#modalStandarClose").click();
+                Swal.close()
+
+              }
+            });
+
+
+            //location.reload()
+          } else {
+
+          }
+        });
+
+
+    }
+
+    function notificaciones_alertas() {
+
+      $("#divContenedorNotificaciones").load("pages/scripts/scriptNotificaciones.php");
+
+    }
 
 
 
@@ -523,6 +622,11 @@ $mensajeEntornoDesarrollo = '<div class="alert alert-warning test-message" role=
 
     }
 
+
+
+
+
+
     function ssh() {
       $("#div-container").load("pages/ssh/ssh.php");
       titulo("Problemas comunes Soporte", "Problemas");
@@ -534,13 +638,42 @@ $mensajeEntornoDesarrollo = '<div class="alert alert-warning test-message" role=
 
     }
 
-    function cargaMonitoreo2(id, al) {
+    /*
+    function cargaMonitoreoDos(id, al) {
+      $("#div-container").load("pages/support/monitoreoTwo.php?id=" + id);
+      titulo("", "faena");
+
+    }
+*/
+    function cargaMonitoreoDos(id, al) {
       $("#div-container").load("pages/support/monitoreoTwo.php?id=" + id);
       titulo("", "faena");
 
     }
 
+    function cargaMonitoreo2(id, alias) {
+      var ruta = "pages/support/monitoreoTwo.php";
+      var url = 'router.php?url=' + ruta + '&alias=' + alias + '&id=' + id;
+      $("#div-container").load("pages/support/monitoreoTwo.php?id=" + id);
+      window.history.pushState({}, '', 'http://10.40.90.99/monitoreoLaboratorio/' + alias)
+
+
+    }
+
+
     function cargaServidoresWindows() {
+      $("#div-container").load("pages/servWindows/monitoreoWin.php");
+      titulo("", "Servidores Codelco");
+
+    }
+
+    function monitoreoCAS(mc) {
+      $("#div-container").load("pages/servWindows/monitoreoCAS.php?mc=" + mc);
+      titulo("", "Servidores " + mc);
+
+    }
+
+    function casCodelco() {
       $("#div-container").load("pages/servWindows/monitoreoWin.php");
       titulo("", "Servidores Codelco");
 
@@ -593,14 +726,103 @@ $mensajeEntornoDesarrollo = '<div class="alert alert-warning test-message" role=
       });
     }
 
+    function reproducirMensajeVoz(mensaje) {
+
+      var utterance = new SpeechSynthesisUtterance(mensaje);
+      var synth = window.speechSynthesis;
+      var vocesDisponibles = synth.getVoices();
+      utterance.voice = vocesDisponibles[1]; // Selecciona la primera voz
+      synth.speak(utterance);
+
+
+    }
+
+
+    function reproducirAlertaSWA(mensajeAlertConfirm, idf) {
+       Swal.fire({
+        id:'swalAlert',
+        title: 'Alerta!',
+        html: mensajeAlertConfirm,
+        icon: 'error',
+        confirmButtonColor: 'rgb(214 48 48)',
+        confirmButtonText: 'Visto',
+        backdrop: `
+        rgba(255, 0, 0, 0.8)
+                  left top
+                  no-repeat
+                `
+      }).then((result) => {
+        if (result.isConfirmed) {
+
+          var formDataAlerta = new FormData();
+          formDataAlerta.append('accion', 'alertaVista');
+          formDataAlerta.append('idf', idf);
+          $.ajax({
+            url: "build/model/model-alerta.php",
+            dataType: 'text',
+            cache: false,
+            contentType: false,
+            processData: false,
+            data: formDataAlerta,
+            type: 'post',
+            success: function(response) {
+
+              if (response == 1) {
+
+              } else {
+                alert(response)
+              }
+            },
+          });
+
+
+
+        }
+      })
+    }
 
     //----------------------------
 
 
     $(document).ready(function() {
+      setInterval(notificaciones_alertas(), 3000);
+      $("#btn_menu").click()
+      var urlSegments = window.location.pathname.split('/');
+      var alias = urlSegments[2];
+
+      var formDataAlerta = new FormData();
+      formDataAlerta.append('accion', 'cargarRuta');
+      formDataAlerta.append('alias', alias);
+      $.ajax({
+        url: "router.php",
+        dataType: 'text',
+        cache: false,
+        contentType: false,
+        processData: false,
+        data: formDataAlerta,
+        type: 'post',
+        success: function(data) {
+       
+          if (data==0) {
+         
+
+          } else {
+
+             //cargaMonitoreoDos()
+             $("#div-container").load(data);
+
+
+          }
+        }
+
+
+      });
+
 
 
       lista_faenas2()
+      notificaciones_alertas()
+
 
 
 

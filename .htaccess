@@ -1,0 +1,16 @@
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Si no es un archivo existente
+    RewriteCond %{REQUEST_FILENAME} !-f
+
+    # Si no es un directorio existente
+    RewriteCond %{REQUEST_FILENAME} !-d
+
+    # Redirige todo a index.php
+    RewriteRule ^(.*)$ index.php?url=$1 [QSA,L]
+
+    # Evitar redirección visible
+    RewriteCond %{REQUEST_URI} !^/index\.php
+    RewriteRule ^index\.php$ - [L]
+</IfModule>

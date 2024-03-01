@@ -1,9 +1,11 @@
 <?php
 require_once("../../build/controller/controller-functions.php");
 require_once("../../build/controller/controller-faena.php");
+require_once("../../build/controller/controller-alerta.php");
 
 $system = new systemClass();
 $faenaCl = new faena();
+$alertas = new alertas();
 
 $system->validarSesion();
 $conn = $system->conectaDB();
@@ -56,10 +58,10 @@ $arrayFaenasDatos = array(
         "cpuMedioSec" => 2.6
     ),
     "cndrt" => array(
-        "cpuLimite" => 4.6,
-        "cpuMedio" => 3,
-        "cpuLimiteSec" => 4,
-        "cpuMedioSec" => 2.6
+        "cpuLimite" => 6,
+        "cpuMedio" => 4,
+        "cpuLimiteSec" => 6,
+        "cpuMedioSec" => 4
     ),
     "cndmh" => array(
         "cpuLimite" => 4.6,
@@ -86,10 +88,10 @@ $arrayFaenasDatos = array(
         "cpuMedioSec" => 2.6
     ),
     "magsa" => array(
-        "cpuLimite" => 4, 6,
-        "cpuMedio" => 2,
-        "cpuLimiteSec" => 4,
-        "cpuMedioSec" => 2, 6
+        "cpuLimite" => 6,
+        "cpuMedio" => 3,
+        "cpuLimiteSec" => 6,
+        "cpuMedioSec" => 3
     ),
 
     "amcen" => array(
@@ -111,6 +113,12 @@ $arrayFaenasDatos = array(
         "cpuMedioSec" => 2.6
     ),
     "capcnn" => array(
+        "cpuLimite" => 4.6,
+        "cpuMedio" => 3,
+        "cpuLimiteSec" => 4,
+        "cpuMedioSec" => 2.6
+    ),
+    "amzal" => array(
         "cpuLimite" => 4.6,
         "cpuMedio" => 3,
         "cpuLimiteSec" => 4,
@@ -138,8 +146,10 @@ $RamMemUsadaPrimario = file($rutaS . "MemUsadaMon.log");
 $RamMemUsadaSecundario = file($rutaS . "MemUsadaSecMon.log");
 $cpuGraficoPrimario = file($rutaS . "cpuGraficoMon.log");
 $cpuGraficoSecundario = file($rutaS . "cpuGraficoSecMon.log");
+
 $TopC = file($rutaS . "TopCMon.log");
 $TopCSec = file($rutaS . "TopCSecMon.log");/**/
+
 $versionRuby = file($rutaS . "versionRubyMon.log");
 $jamsClusterLog = file($rutaS . "JamsClusterMon.log");
 // ---Variables utiles----- active ,stopped, backup,standby
@@ -579,25 +589,28 @@ for ($x=0; $x<=count($jamsClusterLog); $x++ ) {
 }
 */
 //--------------------------------------------------------------------------------------------------------------------------------------
-$puntoOnlineLoadAverageServAct=$system->validarLog($TopC, 6, "right");
-$puntoOnlineLoadAverageServSec=$system->validarLog($TopCSec, 6, "right");
+//$puntoOnlineLoadAverageServAct=$system->validarLog($TopC, 8, "right");
+//$puntoOnlineLoadAverageServSec=$system->validarLog($TopCSec, 8, "right");
 
-if(strpos($puntoOnlineLoadAverageServAct, "danger")>0 )
+$estadoConexionServidorActivo= $system->iconStatusConexionFaena($faenaDatosS->alias,1);
+$estadoConexionServidorSecundario= $system->iconStatusConexionFaena($faenaDatosS->alias,1,2);
+
+if($estadoConexionServidorActivo==1 )
 {
-    $servidorActOnline=false;
-}else{
     $servidorActOnline=true;
-}
-if(strpos($puntoOnlineLoadAverageServSec, "danger")>0 )
-{
-    $servidorSecOnline=false;
 }else{
-    $servidorSecOnline=true;
+    $servidorActOnline=false;
 }
-
+if($estadoConexionServidorSecundario==1 )
+{
+    $servidorSecOnline=true;
+}else{
+    $servidorSecOnline=false;
+}
 
 
 // $nuevaVariable ahora contiene el valor adecuado según el caso
+
 
 
 
@@ -606,11 +619,26 @@ if(strpos($puntoOnlineLoadAverageServSec, "danger")>0 )
 if($servidorActOnline==false)
 {
     $claseDivServerAct="card dangerRRM";
-}
+    
+    $mensajeAlerta="Sin conexion al servidor activo FMS " ;
+    $alertas->insertAlert($idFaenaS,"HCXSCF001",$mensajeAlerta);
+
+
+}else{
+    $claseDivServerAct = "card card-navy";
+ }
+
 
 if($servidorSecOnline==false)
 {
     $claseDivServerSec="card dangerRRM";
+    
+    $mensajeAlerta="Sin conexion al servidor secundario FMS " ;
+    $alertas->insertAlert($idFaenaS,"HCXSCF002",$mensajeAlerta);
+
+
+}else{
+    $claseDivServerSec = "card card-navy";
 }
 ?>
 
@@ -620,7 +648,7 @@ if($servidorSecOnline==false)
     <div class="col-md-6">
         <div class='<?php echo $claseDivServerAct ?>'>
             <div class="card-header">
-                <h3 class="card-title">Servidor primario <?php echo $system->validarLog($estadoDisco, 20) ?> </h3>
+                <h3 class="card-title">Servidor primario  </h3>
                 <div class="card-tools">
                     <span class="badge" style='font-size: 1.0em'><?php echo $dataTimeVisual ?></span>
                 </div>
@@ -629,7 +657,7 @@ if($servidorSecOnline==false)
             <div class="card-body">
                 <div class="row">
                     <div class="col-md-3">
-                        <div class="text-left">Disco Duro </div>
+                        <div class="text-left"><?php echo $system->validarLog($estadoDisco, 20) ?>  Disco Duro </div>
                         <input type="text" value=<?php echo $porc  ?> class="<?php echo $graficoDonutColor["discoS1"] ?>" data-width="150" data-height="150" data-fgcolor="#3c8dbc" data-readonly="true">
 
                         <table class="table table-bordered">
@@ -647,7 +675,7 @@ if($servidorSecOnline==false)
 
                     </div>
                     <div class="col-md-3">
-                        <div class="text-left">Memoria Ram</div>
+                        <div class="text-left"><?php echo $system->validarLog($estadoDisco, 20) ?>  Memoria Ram</div>
                         <input type="text" value=<?php echo $porcentajeRam  ?> class="<?php echo $graficoDonutColor["ramS1"] ?>" data-width="150" data-height="150" data-fgcolor="#3c8dbc" data-readonly="true">
                         <table class="table table-bordered">
                             <tbody>
@@ -752,7 +780,7 @@ if($servidorSecOnline==false)
     <div class="col-md-6">
         <div class='<?php echo $claseDivServerSec ?>'>
             <div class="card-header">
-                <h3 class="card-title">Servidor secundario <?php echo $system->validarLog($estadoDiscoSecundario, 20) ?></h3>
+                <h3 class="card-title">Servidor secundario </h3>
                 <div class="card-tools">
                     <span class="badge" style='font-size: 1.0em'><?php echo $dataTimeVisual ?></span>
                 </div>
@@ -763,7 +791,7 @@ if($servidorSecOnline==false)
                  
             <div class="row">
                     <div class="col-md-3">
-                        <div class="text-left">Disco Duro</div>
+                        <div class="text-left"> <?php echo $system->validarLog($estadoDiscoSecundario, 20) ?>Disco Duro</div>
                         <input type="text" value=<?php echo $porcSec  ?> class="<?php echo $graficoDonutColor["discoS2"] ?>" data-width="150" data-height="150" data-fgcolor="#3c8dbc" data-readonly="true">
                         <table class="table table-bordered">
                             <tbody>
@@ -781,7 +809,7 @@ if($servidorSecOnline==false)
                     </div>
 
                     <div class="col-md-3">
-                        <div class="text-left">Memoria Ram</div>
+                        <div class="text-left"> <?php echo $system->validarLog($estadoDiscoSecundario, 20) ?>Memoria Ram</div>
                         <input type="text" value=<?php echo $porcentajeRamSec  ?> class="<?php echo $graficoDonutColor["ramS2"] ?>" data-width="150" data-height="150" data-fgcolor="#3c8dbc" data-readonly="true">
                         <table class="table table-bordered">
                             <tbody>
@@ -883,7 +911,38 @@ if($servidorSecOnline==false)
 
 
 
+<?php
 
+//--------------------- Pasos para insertar una alerta ----------------------------------//
+//prueba
+ //$mensajeAlerta="aparece el siguiente mensaje en el sumarizador : mensajemensajemensaje " ;
+ //$alertas->insertAlert($idFaenaS,"HCXES011",$mensajeAlerta);
+//fin prueba
+
+//$alertaSistemaDatos=$alertas->codigoAlerta(0,"HCXSCF011");
+//$alertaSistemaDatos=$alertaSistemaDatos->fetch_assoc();
+//$alertas->insertAlert($idFaenaS,"HCXSCF011",$mensajeAlerta);
+//function insertAlert($idFaena,$codigoAlerta,$idAlertaSistema , $mensajeAlerta)
+
+//--------------------------------------------------------------------------------------//
+
+
+$alertasActivasFaena= $alertas->alerta($idFaenaS,0,1,0);
+$mensajeAlertaReproducir="";
+$mensajeAlertaReproducirVoz="";
+
+if($alertasActivasFaena->num_rows>0){
+    $mensajeAlertaReproducir="En $faenaDatosS->faena . <ul>";
+    $mensajeAlertaReproducirVoz="En $faenaDatosS->faena . ";
+
+    while ($alertaActivasFaenaDatos = $alertasActivasFaena->fetch_assoc()) {
+         $mensajeAlertaReproducir.="<li>".$alertaActivasFaenaDatos["alerta"] . "</li> ";
+         $mensajeAlertaReproducirVoz.=$alertaActivasFaenaDatos["alerta"] . "  ";
+    }
+    $mensajeAlertaReproducir.="</ul>";
+}
+
+?>
 
 <style>
     input.GraficoVerde+div>div:nth-child(2):after {
@@ -897,7 +956,10 @@ if($servidorSecOnline==false)
     $(document).ready(function() {
         $("#divTopCVista").fadeOut()
         $("#divTopCSecVista").fadeOut()
-        // mensajeAlertasFaena()
+
+ 
+
+        //reproducirMensajeVoz("El sistema está online y funcionando")
     });
 
     function verInfo(id) {

@@ -20,13 +20,14 @@ $checkDatos = $faenaCl->datosCheck($id_faena);
 date_default_timezone_set('America/Santiago');
 
 $carpeta = $faenaDatos->alias . "/";
-$alias =$carpeta;
-$ruta = "/home/jigsaw/monitoreoRemoto/" . $carpeta;
-
+$alias = $carpeta;
+//$ruta = "/home/jigsaw/monitoreoRemoto/" . $carpeta;
+$ruta = $system->rutaDataSet() . $carpeta;
 $Ntp = file($ruta . "NtpMon.log");
+
 $pingServerAct = file($ruta . "pingServerAct.log");
-$estadoDisco = file($rutaS . "estadoServidorMon.log");
-$estadoDiscoSecundario = file($rutaS . "estadoServidorSecMon.log");
+$estadoDisco = file($ruta . "estadoServidorMon.log");
+$estadoDiscoSecundario = file($ruta . "estadoServidorSecMon.log");
 
 ?>
 
@@ -78,26 +79,30 @@ $estadoDiscoSecundario = file($rutaS . "estadoServidorSecMon.log");
   }
 
   titulo("", "monitoreo");
-/*
-  $(document).ready(function() {
-    // Función para hacer clic en el botón
+  /*
+    $(document).ready(function() {
+      // Función para hacer clic en el botón
 
-    // Configurar el intervalo de tiempo
-    var intervaloMinutos = 10;
-    var intervaloMilisegundos = intervaloMinutos * 60 * 1000;
+      // Configurar el intervalo de tiempo
+      var intervaloMinutos = 10;
+      var intervaloMilisegundos = intervaloMinutos * 60 * 1000;
 
-    // Hacer clic en el botón cada 10 minutos
-    setInterval(clickButton, intervaloMilisegundos);
-  });
-*/
+      // Hacer clic en el botón cada 10 minutos
+      setInterval(clickButton, intervaloMilisegundos);
+    });
+  */
 </script>
 
 <h1>
   <center>
-    <i id="IconoOnline" <?php echo $system -> iconStatusConexionFaena($alias)?>></i>Monitoreo
-    <?php echo $faenaDatos->faena ?>
-    <button id="btnRecarga"  class='btn btn-primary' onclick='cargaMonitoreo2(<?php echo $id_faena ?>)'><i class='fas fa-sync-alt'></i></button>
-    
+    <div style="font-size: 18px;">
+      <i id="IconoOnline" <?php echo $system->iconStatusConexionFaena($alias) ?>> <span style="font-family: Century Gothic">Online</span> </i>
+    </div>
+
+
+    <?php echo "Monitoreo " . $faenaDatos->faena ?>
+
+    <button id="btnRecarga" class='btn btn-primary' onclick='cargaMonitoreo2(<?php echo $id_faena ?>)'><i class='fas fa-sync-alt'></i></button>
   </center>
 </h1>
 
@@ -158,7 +163,40 @@ $estadoDiscoSecundario = file($rutaS . "estadoServidorSecMon.log");
         $('#divDatosProcesos').html(data);
       }
     });
+    notificaciones_alertas()
   }
+
+  function carga5() {
+
+    
+    Swal.close();
+
+
+    idf = '<?php echo $id_faena ?>'
+    var formDataAlarmaMensaje = new FormData();
+    formDataAlarmaMensaje.append('accion', 'swalAlarma');
+    formDataAlarmaMensaje.append('idf', idf);
+    $.ajax({
+      url: "pages/scripts/scriptAlertaSwal.php",
+      dataType: 'json',
+      cache: false,
+      contentType: false,
+      processData: false,
+      data: formDataAlarmaMensaje,
+      type: 'post',
+      success: function(response) {
+         if(response.valid>0)
+        {
+             reproducirAlertaSWA(response.texto, response.idf)
+             reproducirMensajeVoz(response.voz)
+        
+        }
+
+
+      },
+    });
+  }
+
 
   function iconoOnline(val) {
     //alert(val);
@@ -171,7 +209,7 @@ $estadoDiscoSecundario = file($rutaS . "estadoServidorSecMon.log");
     }
   }
 
-  
+
 
   $(document).ready(function() {
 
@@ -179,11 +217,13 @@ $estadoDiscoSecundario = file($rutaS . "estadoServidorSecMon.log");
     carga2()
     carga3()
     carga4()
+    carga5()
     setInterval(carga1, 20000);
     setInterval(carga2, 180000);
     setInterval(carga3, 180000);
     setInterval(carga4, 30000);
+    setInterval(carga5, 8000);
 
-
+    reproducirMensajeVoz("Monitoreando <?php echo $faenaDatos->faena  ?>")
   });
 </script>

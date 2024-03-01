@@ -31,6 +31,28 @@ if ($accion == "crearCheck") {
     }
 }
 
+
+
+
+if ($accion == "validarAlias") {
+
+    $aliasUrl=$_POST["alias"];
+    echo $aliasUrl;
+    $faenaCheckData = $faenaCl->datos(0,$aliasUrl);
+
+    if (is_object($faenaCheckData)) {
+
+    
+       echo $faenaCheckData->id;
+        
+    } else {
+
+        echo 0;
+    }
+}
+
+
+
 if ($accion == "guardarCheck") {
 
     $faenaCheckData = $faenaCl->datosCheck($idFaena);

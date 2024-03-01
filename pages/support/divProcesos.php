@@ -1,6 +1,8 @@
 <?php
 require_once("../../build/controller/controller-functions.php");
 require_once("../../build/controller/controller-faena.php");
+require_once("../../build/controller/controller-alerta.php");
+$alertas = new alertas();
 
 $system = new systemClass();
 $fenaCl = new faena();
@@ -187,7 +189,7 @@ if(strpos("ERROR",strtolower($reconcile)) !== false || strpos("warning",strtolow
 
                     <div class="small-box <?php echo $colorAux ?>">
                         <div class="inner">
-                            <h5>JAMS Primario <?php echo $system->validarLog($Jamms, 6, "right") ?></h5>
+                        <h5>JAMS Primario <?php echo $system->validarLog($Jamms, 10, "right") ?></h5>
                             <p><?php echo $valorAux ?></p>
                         </div>
                         <div class="icon">
@@ -220,7 +222,7 @@ if(strpos("ERROR",strtolower($reconcile)) !== false || strpos("warning",strtolow
                     <div class="small-box <?php echo $colorAux ?>">
                         <div class="inner">
                             <?php if($carpeta == "capcnn/"){echo "<h6>JAMS Secundario</h6>";} else{?>
-                            <h6>JAMS Secundario <?php echo $system->validarLog($jamsSec, 6, "right") ?></h6>
+                                <h6>JAMS Secundario <?php echo $system->validarLog($jamsSec, 10, "right") ?></h6>
                             <p><?php } echo $valorAux ?></p>
                         </div>
                         <div class="icon">
@@ -242,7 +244,7 @@ if(strpos("ERROR",strtolower($reconcile)) !== false || strpos("warning",strtolow
                     $colorAux = "bg-danger";
                     $valorAux = "Danger: ";
                     //echo $system->alerta("Error en Importadores","Demaciados procesos Impo");
-                    $system->alertaSonora(120000);
+                   // $system->alertaSonora(120000);
                 }
 
                 /*if($largoAux >= 7){
@@ -258,7 +260,7 @@ if(strpos("ERROR",strtolower($reconcile)) !== false || strpos("warning",strtolow
 
                     <div class="small-box <?php echo $colorAux  ?>">
                         <div class="inner">
-                            <h6>Importadores <?php echo $system->validarLog($impo, 6, "right") ?></h6>
+                            <h6>Importadores <?php echo $system->validarLog($impo, 10, "right") ?></h6>
                             <p> <?php echo $valorAux . $largoImpo ?></p>
                         </div>
                         <div class="icon">
@@ -281,7 +283,9 @@ if(strpos("ERROR",strtolower($reconcile)) !== false || strpos("warning",strtolow
                 if ($largoAux < 0 || $largoAux > 4) {
                     $colorAux = "bg-danger";
                     $valorAux = "Danger: ";
-                    $system->alertaSonora(120000);    
+                    //$system->alertaSonora(120000); 
+                    $alertas->insertAlert($id_faena,"HCXPES011", "En " .$faenaDatos->alias. ". Procesos encolados en la replica a s q l server.");
+   
                 }
 
                 /*if($largoAux >= 6){
@@ -317,21 +321,27 @@ if(strpos("ERROR",strtolower($reconcile)) !== false || strpos("warning",strtolow
                 if ($largoAux >= 1 || $largoAux < 2) {
                     $colorAux = "bg-warning";
                     $valorAux = "Warning: ";
+                    
                 }
                 if ($largoAux >= 6 || $largoAux <= 2 && $validarCrontab == "*" || $validarManual == 1) {
                     $colorAux = "bg-success";
                     $valorAux = "Success: ";
                 }
                 if ($largoAux >= 6 || $largoAux < 1 && $validarCrontab != "*") {
+
                     $colorAux = "bg-danger";
                     $valorAux = "Danger: ";
+
+                    $mensajeAlerta="Se detectó que no se está realizando el proceso de sumarización.  " ;
+                    $alertas->insertAlert($id_faena,"HCXSD011",$mensajeAlerta);
+                
                     //$message = "Problemas con el proceso de sumarizado en " . $carpeta;
                     //echo $system->enviarMensajeTelegram($message);
 
                     //$subject = 'Problemas con '.$carpeta;
                     //$message = 'Error en el Proceso de sumarizado';
                     //enviarEmail($subject, $message);
-                    $system->alertaSonora(120000);
+                   // $system->alertaSonora(120000);
                 }
 
                 /*if($largoAux >= 8 || $largoAux < 2 && $validarCrontab != "*"){
@@ -367,7 +377,7 @@ if(strpos("ERROR",strtolower($reconcile)) !== false || strpos("warning",strtolow
                     //$subject = 'Problemas con ' . $carpeta;
                     //$message = 'Problemas con el NTP';
                     //enviarEmail($subject, $message);
-                    $system -> alertaSonora(120000);
+                   // $system -> alertaSonora(120000);
                 }
 
                 /*if($validacionNtp == 2){
@@ -407,7 +417,7 @@ if(strpos("ERROR",strtolower($reconcile)) !== false || strpos("warning",strtolow
                 if ($largoAux < 0 || $largoAux >= 6) {
                     $colorAux = "bg-danger";
                     $valorAux = "Danger: ";
-                    $system->alertaSonora(120000);
+                  //  $system->alertaSonora(120000);
                 }
 
                 /*if($largoAux >= 8 || $largoAux < 0){
@@ -479,33 +489,6 @@ if(strpos("ERROR",strtolower($reconcile)) !== false || strpos("warning",strtolow
                 </div>
 
             </div>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
             <div class="row" style="display:none">
@@ -628,25 +611,50 @@ if(strpos("ERROR",strtolower($reconcile)) !== false || strpos("warning",strtolow
                 </div>
 
 
+                <?php
+                $colorAux = "bg-success";
+                $valorAux = "Success: ";
+                $largoAux = (int) $largoSummarizador;
+                 
+                if ($largoAux==3 || $largoAux==1)  {
+                    $colorAux = "bg-warning";
+                    $valorAux = "Warning: ";
+                }
+ 
+                if ($largoAux >= 6 || ( $largoAux < 1 && $validarCrontab != "*" ) ) {
+                    $colorAux = "bg-danger";
+                    $valorAux = "Danger: ";
+                    //$message = "Problemas con el proceso de sumarizado en " . $carpeta;
+                    //echo $system->enviarMensajeTelegram($message);
 
-                <!-- Summarizador -->
-                <div class="row">
-                    <div class="col-md-12">
-                        <b class="d-block">Summarizador: <?php echo $largoSummarizador ?> </b>
-                        <button type="button" class="btn btn-outline-info" onclick="verInfo('divSummVista')">Ver Info</button>
-                        <div class="row" id="divSummVista" tittle="Summarizador" style="overflow:auto;">
-                            <div class="col-md-12">
-                                <div class="container-fluid bg-dark text-white p-3" style="border-radius: 5px;overflow:auto;">
-                                    <?php foreach ($proceSumarizador as $x) {
-                                        $proceSumarizador   = $proceSumarizador;;
-                                        echo "<li>" . trim($x) . "</li>";
-                                    }
-                                    ?>
-                                </div>
-                            </div>
+                    //$subject = 'Problemas con '.$carpeta;
+                    //$message = 'Error en el Proceso de sumarizado';
+                    //enviarEmail($subject, $message);
+                    // $system->alertaSonora(120000);
+                }
+
+                /*if($largoAux >= 8 || $largoAux < 2 && $validarCrontab != "*"){
+                    echo '<audio autoplay>';
+                    echo '<source src="pages/support/sonido/ping_missing.mp3" type="audio/mp3">';
+                    echo '</audio>';
+
+                    sleep(90);
+                }*/
+                ?>
+
+                <div class="col-lg-4 col-6" style="cursor: pointer" onclick="verInfo('divSummVista')">
+
+                    <div class="small-box <?php echo $colorAux  ?>">
+                        <div class="inner">
+                            <h6>Sumarizador <?php echo $system->validarLog($proceSumarizador, 10, "right") ?></h6>
+                            <p><?php echo $valorAux . $largoSummarizador ?></p>
+                        </div>
+                        <div class="icon">
+                            <i class="fa-sharp fa-regular fa-bars-staggered" style="font-size:48px"></i>
                         </div>
                     </div>
                 </div>
+
                 <!-- NTP -->
                 <div class="row">
                     <div class="col-md-12">

@@ -7,13 +7,17 @@ class conectionClass
     function __construct()
     {
         $configFile = $configFile = __DIR__ . '/../../.config.json';
-
+        //echo $configFile;
+        //print_r(json_decode(file_get_contents($configFile), true));
         if (file_exists($configFile)) {
             $this->config = json_decode(file_get_contents($configFile), true);
+
         } else {
             echo $configFile ;
             die('El archivo de configuración no existe.');
         }
+
+        
     }
  
     function conectaDB2()
@@ -32,7 +36,7 @@ class conectionClass
 
     function urlSystem2()
     {
-       // return "http://10.40.90.99/soporte";
+        
        return $this->config['APP_INDEX'];
     }
 

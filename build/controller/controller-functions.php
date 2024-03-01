@@ -40,12 +40,16 @@ class systemClass
 
  
     
-    function formatoFecha($fecha, $tipoFecha)
+    function formatoFecha($fecha=0, $tipoFecha=0)
     {
+        if($fecha==0) $fecha=date("Y-m-d H:i:s");
 
         date_default_timezone_set('America/Santiago');
 
         switch ($tipoFecha) {
+            case 0:
+                    return $fecha;
+                    break;
             case 1:
             case "DB":
             case "BD":
@@ -197,27 +201,47 @@ class systemClass
 
 
 
-    function iconStatusConexionFaena($alias)
+    function iconStatusConexionFaena($alias,$retornarBinario=0,$servidor123=0)
     {
+        $system = new systemClass();
         $carpeta = $alias . "/";
-        $ruta = "/home/jigsaw/monitoreoRemoto/" . $carpeta;
-        $log = file($ruta . "ProcesosJamsMon.log");
 
-        if (file_exists($ruta . "/ProcesosJamsMon.log")) {
+        $ruta = $system->rutaDataSet() . $carpeta;
+        $nombreLog="ProcesosJamsMon.log";
+        if($servidor123==2) $nombreLog="ProcesosJamsSecMon.log";
+        $rutaLog=$ruta .$nombreLog ;
+         
+        $log = file($rutaLog);
+        //echo $rutaLog;
+       // if ($servidor123==2) $log=file($ruta . "ProcesosJamsSecMon.log");
+        
+        $onlineBinario=0;
+        if (file_exists($rutaLog)) {
 
             $fechaActual = new DateTime();
             $fechaLog = DateTime::createFromFormat("Y-m-d H:i:s", trim($log[0]));
             $diferencia = $fechaActual->diff($fechaLog)->i;
 
             $iconoOnline = " class='fas fa-wifi text-success mr-2' ";
-            if ($diferencia > 6) {
+            $onlineBinario=1;
+           //echo "diferencia $diferencia";
+            //en minutos
+            if ($diferencia > 8) {
                 $iconoOnline = " class='fas fa-wifi text-danger mr-2' ";
+                $onlineBinario=0;
                 //$system->alertaSonora(240000);
+            }else{
+                $onlineBinario=1;
             }
         } else {
             $iconoOnline = " class='fas fa-wifi text-danger mr-2' ";
+            $onlineBinario=0;
         }
-        return  $iconoOnline;
+        if($retornarBinario==0){
+            return  $iconoOnline;
+        }else{
+            return $onlineBinario;
+        }
     }
 
     function datatimeCargaDiv()

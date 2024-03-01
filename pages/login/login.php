@@ -52,7 +52,7 @@
           <div class="input-group mb-3">
             <div class="input-group mb-3">
 
-              <span id="span-error" class="text-danger" style="visibility:hidden"><i class="icon fas fa-ban"></i> Usuario o contraseña incorrectos.</span>
+            <span id="spanLoginError" name="spanLoginError" class="text-danger" style="display:none"><i class="icon fas fa-ban"></i> Usuario o contraseña incorrectos.</span>
 
             </div>
           </div>
@@ -81,7 +81,7 @@
 
       </div>
       <!-- /.login-card-body -->
-    </div>
+    </div><br>
   </div>
 
   <!-- /.login-box -->
@@ -107,6 +107,14 @@
 
           success: function(data) {
             if (data == 0) {
+              $("#spanLoginError")
+              .fadeIn(100)
+              .delay(20)
+              .animate({ marginLeft: '10px' }, 50)
+              .animate({ marginLeft: '-2px' }, 50)
+              .animate({ marginLeft: '2px' }, 50)
+              .animate({ marginLeft: '0px' }, 50);
+
 
             } else {
               

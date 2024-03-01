@@ -12,43 +12,41 @@ $firstday = date('Y-m-d', strtotime("this week"));
 $lastday = date("Y-m-d", strtotime($firstday . "+ 6 days"));
 
 //print_r($_SESSION);
-?>
+ ?>
 
 <?php
 if ($_SESSION["permiso"] == "Administrador" || $_SESSION["permiso"] == "Soporte") {
 ?>
 
-<div class="card">
-    <div class="card-header">
-        <h3 class="card-title"><i class="fa-solid fa-shovel"></i>Monitoreo especial </h3>
-    </div>
-
-
-
-    <div class="card-body">
-        <div class="row ">
-            <div class="col-md-2"></div>
-            <div class="col-md-2"></div>
-            <div class="col-md-2">
-                <a class="btn btn-app bg-info" onclick='cargaServidoresWindows()'>
-
-                    <i class="fas fa-hard-hat"></i> Codelco
-                </a>
-            </div>
-            <div class="col-md-2">
-                <a class="btn btn-app bg-info">
-
-                    <i class="fas fa-hard-hat"></i> Split
-                </a>
-            </div>
-            <div class="col-md-2"></div>
-            <div class="col-md-2"></div>
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title"><i class="fa-solid fa-shovel"></i>Monitoreo especial </h3>
         </div>
+
+
+
+        <div class="card-body">
+            <div class="row ">
+                <div class="col-md-3"></div>
+                <div class="col-md-4"> 
+                    <a class="btn btn-app bg-info" onclick='monitoreoCAS("Amsa")'>
+
+                        <i class="fas fa-hard-hat"></i> Amsa
+                    </a></div>
+                <div class="col-md-4">
+                    <a class="btn btn-app bg-info" onclick='monitoreoCAS("Codelco")'>
+
+                        <i class="fas fa-hard-hat"></i> Codelco
+                    </a>
+                </div>
+                 
+                <div class="col-md-3"></div>
+            </div>
+        </div>
+
     </div>
 
-</div>
-
- <?php
+<?php
 
 }
 
@@ -87,7 +85,7 @@ if ($_SESSION["permiso"] == "Administrador" || $_SESSION["permiso"] == "Soporte"
                 $sql_query = "select * from faenas  where estado=1 order by faena asc";
                 if ($_SESSION["permiso"] == "Administrador" || $_SESSION["permiso"] == "Soporte") {
                 } else {
-                    $sql_query = "select * from faenas f join permisos_faenas p on(f.id=p.id_faena) where estado=1 and id_permiso='".$_SESSION["id_permiso"]."' order by faena asc";
+                    $sql_query = "select f.id id, f.faena faena, f.estado estado, f.alias alias from faenas f join permisos_faenas p on(f.id=p.id_faena) where estado=1 and id_permiso='" . $_SESSION["id_permiso"] . "' order by faena asc";
                 }
 
                 $faenasSql = $conn->query($sql_query);
@@ -135,70 +133,29 @@ if ($_SESSION["permiso"] == "Administrador" || $_SESSION["permiso"] == "Soporte"
                         }
                     }
                     */
+                     $statusFaena = $system->iconStatusConexionFaena($faenaDatos["alias"] ,1,1);
 
-                    //---------------validar conexion--------------------------
-                    $carpeta = $faenaDatos["alias"] . "/";
-                    $ruta = "/home/jigsaw/monitoreoRemoto/" . $carpeta;
-                    $Ntp = file($ruta . "NtpMon.log");
-
-                    $horaActual = date("H:i");
-                    $diaActual = date("d");
-                    $largoNtp = count($Ntp);
-                    $contador = 0;
-                    for ($x = 0; $x < $largoNtp; $x++) {
-                        $horaNtp = $Ntp[$x];
-                        $contador++;
-                        if ($contador == 1) {
-                            $hNtp = date('H:i', strtotime($horaNtp));
-                            $dNtp = date("d", strtotime($horaNtp));
-                        } else {
-                            $contador = 0;
-                            break;
-                        }
-                    }
-                    $horaResta = date("H:i", strtotime($horaActual) - 6000);
-                    //----------------------------------
-
-
-                    //---------------validar conexion--------------------------
-                    /*
-                    $largoPing = count($pingServerAct);
-                    $validarPing = explode("%", $pingServerAct[8]);
-                    $validarPing = explode(",", $validarPing[0]);
-                    $validarPing = $validarPing[2];
-
-                    $iconoOnline = " <i class='fas fa-wifi text-success mr-2' ></i>";
-                    $claseBtnMonitoreo = 'bg-success';
-                  
-                      if ($validarPing == 0 && $validarPing !="") {
-                          
-                      }else{
-                        $iconoOnline = "<i class='fas fa-wifi text-danger mr-2'></i>";
-                        $claseBtnMonitoreo = 'btn-default';
-                      }*/
-                    //----------------------------------
-
-
-                    $iconoOnline = " <i class='fas fa-wifi text-success mr-2' ></i>";
-                    $claseBtnMonitoreo = 'bg-success';
-                    if ($dNtp < $diaActual || $hNtp < $horaResta || $contador > 0) {
-                        $iconoOnline = "<i class='fas fa-wifi text-danger mr-2'></i>";
+                     $claseBtnMonitoreo = 'bg-success';
+                    if ($statusFaena==0) {
+                        $iconoOnline = " <i class='fas fa-wifi text-danger mr-2' ></i>";
                         $claseBtnMonitoreo = 'btn-default disabled';
+                    }else{
+                        $iconoOnline = " <i class='fas fa-wifi text-success mr-2' ></i>";
                     }
 
                 ?>
                     <tr>
-                        <td><?php echo $faenaDatos["id"] ?></td>
+                        <td><?php echo $faenaDatos["id"] ; ?></td>
                         <td>
                             <div id="divIconoListaFaenasStatus_<?php echo $faenaDatos["id"] ?>"> </div>
-                            <?php echo  $faenaDatos["faena"] . " (" . $faenaDatos["alias"] . ")"; ?>
+                            <?php echo  $iconoOnline . $faenaDatos["faena"] . " (" . $faenaDatos["alias"] . ")"; ?>
                         </td>
                         <td><?php echo "-" ?> </td>
                         <td><?php echo "-" ?></td>
                         <td><?php echo "-" ?></td>
                         <td>
 
-                            <button type='button' onclick='cargaMonitoreo2(<?php echo $faenaDatos["id"] ?> ,"<?php echo $faenaDatos["faena"] ?>")' style='min-width:95px;' class='btn btn-sm d-inline-block <?php echo $claseBtnMonitoreo ?> -info mb-1'>
+                            <button type='button' onclick='cargaMonitoreo2(<?php echo $faenaDatos["id"] ?> ,"<?php echo $faenaDatos["alias"] ?>")' style='min-width:95px;' class='btn btn-sm d-inline-block <?php echo $claseBtnMonitoreo ?> -info mb-1'>
                                 <i class='fa-regular fa-play'></i> Monitoreo
                             </button>
                             <!--
@@ -216,8 +173,8 @@ if ($_SESSION["permiso"] == "Administrador" || $_SESSION["permiso"] == "Soporte"
                         </td>
                     </tr>
                     <script>
-                        // idDiv, sizeIcon = 0) 
-                        statusListaFaena(<?php echo $faenaDatos["id"] ?>, "divIconoListaFaenasStatus", 0)
+                        // idDiv, sizeIcon = 0) codigo Inhabilitado -evaluar
+                        //statusListaFaena(<?php //echo $faenaDatos["id"] ?>, "divIconoListaFaenasStatus", 0)
                     </script>
                 <?php
                 }

@@ -1,7 +1,10 @@
 <?php
 require_once("../../build/controller/controller-functions.php");
 require_once("../../build/controller/controller-faena.php");
+require_once("../../build/controller/controller-alerta.php");
 
+
+$alertas = new alertas();
 $system = new systemClass();
 $fenaCl = new faena();
 
@@ -53,7 +56,7 @@ $nombreServidorSecundario = $estadoDiscoSecundario[2];
 $largoSum = count($sumarizadorPrimario);
 $pos = strpos(strtolower($sumarizadorPrimario), " error ");
 $validarSumm = 0;
-$fechaActual = date("Y-m-d H:i:00");
+//$fechaActual = date("Y-m-d H:i");
 
 $fechaFormateada = date("d H:i");
 
@@ -119,8 +122,8 @@ for ($x = $largoDaily; $x > 0; $x--) {
 //obtener datos necesarios del daily  
 $contador = 0;
 $largoDailyFecha = count($dailyFecha);
-$fehcaActualSH = date("Y-m-d");
-$validarDailyDiario = 0;
+//$fechaActual = new DateTime();
+
 
 if ($carpeta == "magsa/") {
     for ($x = $largoDailyFecha; $x > 0; $x--) {
@@ -164,27 +167,39 @@ if ($carpeta == "cndrt/") {
     $fechaDaily = $fechaDaily[1];
 }
 
-if ($fechaDaily == $fehcaActualSH) {
-    //    $validarDaily = 1;
-    $validarDailyDiario = 1;
+// mejora fecha ultimo daily
+$datatimeUltimoDailyArray = explode(" ", $ultimoDaily);
+$cantCeldasUltimoDailyArray = count($datatimeUltimoDailyArray) - 1;
+$fechaUltimoAray = explode("-", $datatimeUltimoDailyArray[$cantCeldasUltimoDailyArray]);
+$diaUltimoDaily = substr($fechaUltimoAray[3], 0, 2);
+
+$datatimeUltimoDaily = $fechaUltimoAray[1] . "-" . $fechaUltimoAray[2] . "-" . $diaUltimoDaily . " " . $datatimeUltimoDailyArray[$cantCeldasUltimoDailyArray - 1] . ":00";
+//echo $ultimoDaily."<br>";
+//echo $datatimeUltimoDaily."<br>";
+$fechaActual = new DateTime();
+$fechaUltimoDailyObj = DateTime::createFromFormat('Y-m-d H:i:s', $datatimeUltimoDaily);
+
+if ($fechaUltimoDailyObj !== false) {
+    $intervalo = $fechaActual->diff($fechaUltimoDailyObj);
+
+    // Crear una cadena abreviada
+    $stringDatatimeCreacionDaily = sprintf("Creado hace %d hrs y %d min", $intervalo->h, $intervalo->i);
+
+    // Imprimir la cadena abreviada
+    // echo $stringDatatimeCreacionDaily;
+
+    // Verificar si han pasado más de 25 horas
+    if ($intervalo->h > 25 || $intervalo->days > 0) {
+        $validarDailyDiario = 0;
+    } else {
+        $validarDailyDiario = 1;
+    }
 } else {
-    //    $validarDaily = 2;
-    $validarDailyDiario = 2;
+    $validarDailyDiario = 0;
 }
-//if ($validarDaily == 1) {
-//    $validarDaily = "OK";
-//} elseif ($validarDaily == 2) {
-//    $validarDaily = "Mal";
-//} else {
-//    $validarDaily = "Sin datos o datos incorrectos";
-//}
-if ($validarDailyDiario == 1) {
-    $validarDailyDiario = "OK";
-} elseif ($validarDailyDiario == 2) {
-    $validarDailyDiario = "Mal";
-} else {
-    $validarDailyDiario = "Sin datos o datos incorrectos";
-}
+
+
+
 
 $fechaLoadedDaily = explode("G", $ultimoDaily);
 $fechaLoadedDaily = explode("jmineops", $fechaLoadedDaily[1]);
@@ -225,8 +240,9 @@ for ($x = 1; $x < $largoSizeLog; $x++) {
 }
 
 //validar RLM
+
 $largoRlm = count($Rlm);
-if ($carpeta == "amant/" || $carpeta == "mlcc/") {
+if ($carpeta == "amant/" || $carpeta == "mlcc/" ) {
     for ($x = 1; $x < $largoRlm - 1; $x++) {
         $validarRlm = explode("M", $Rlm[$x]);
         $validarRlm = $validarRlm[0];
@@ -237,6 +253,7 @@ if ($carpeta == "amant/" || $carpeta == "mlcc/") {
         $validarRlm = $validarRlm[0];
     }
 }
+ 
 
 //largo Proceso sumarizador
 $largoSum = count($proceSumarizador);
@@ -277,12 +294,17 @@ $largoEstacionBase = count($pingEstacionBase);
 //validacion de ping estacion base
 $validarPing = explode("%", $pingEstacionBase[9]);
 $validarPing = explode(",", $validarPing[0]);
-$validarPing = $validarPing[2];
+//print_r($validarPing);
+//echo $validarPing[count($validarPing) - 1];
 
-if ($validarPing < 50 && $validarPing != "") {
+$validarPing = intval(preg_replace("/\s/", "", $validarPing[count($validarPing) - 1]));
+
+//echo $validarPing;
+if ($validarPing <= 50) {
     $validarAuxPing = 1;
+    //  echo "pasa";
 } else {
-    $validarAuxPing = 2;
+    $validarAuxPing = 0;
 }
 
 
@@ -348,17 +370,26 @@ switch ($validarIdle) {
 
 //Validar ping
 switch ($validarAuxPing) {
-    case 2:
-        $colorValidar = "badge bg-danger p-2 btn-block";
-        $mensajeValidacion = "Offline";
-        break;
-    default:
+    case 1:
         $colorValidar = "badge bg-success p-2 btn-block";
         $mensajeValidacion = "Online";
-}
 
+        break;
+    default:
+        $colorValidar = "badge bg-danger p-2 btn-block";
+        $mensajeValidacion = "Offline";
+}
+echo $validarRlm;
 //cambio color Rlm
+
 switch (true) {
+    case ($faenaDatos->alias == "amant" || $faenaDatos->alias == "amzal"):
+        $ColorTextoRlm = "badge bg-success p-2 btn-block";
+        $mensajeRlm = "Version sin RLM";
+         
+ 
+        break;
+
     case ($validarRlm >= 700 && $validarRlm <= 899):
         $ColorTextoRlm = "badge bg-warning p-2 btn-block";
         $mensajeRlm = "Warning";
@@ -366,10 +397,10 @@ switch (true) {
     case ($validarRlm >= 900  || $validarRlm == ""):
         $ColorTextoRlm = "badge bg-danger p-2 btn-block";
         $mensajeRlm = "Danger";
-        //echo '<audio autoplay>';
-        //echo '<source src="pages/support/sonido/ping_missing.mp3" type="audio/mp3">';
-        //echo '</audio>';
+        $alertas->insertAlert($id_faena,"HCXLR011","Tamaño excedido en el rlm.log ");
+
         break;
+
     default:
         $ColorTextoRlm = "badge bg-success p-2 btn-block";
         $mensajeRlm = "OK";
@@ -377,7 +408,7 @@ switch (true) {
 
 // validacion Daily diario
 switch ($validarDailyDiario) {
-    case "OK":
+    case 1:
         $colorDailyDiario = "badge bg-success p-2";
         break;
     default:
@@ -579,10 +610,11 @@ $largoSchemaInfoAct = count($schemaInfoAct);
                             <tr>
                                 <td>
                                     <?php echo $validScriptRepc = $system->validarLog($equiposConectados, 20);
-                                    if (strpos($validScriptRepc, "text-danger") !== false) $botonRepc  = "btn btn-block btn-default disabled btn-sm pt-0 pb-0";
+                                    if (strpos($validScriptRepc, "text-danger") !== false ||  $largoRepc < 1) $botonRepc  = "btn btn-block btn-danger  btn-sm pt-0 pb-0";
 
                                     ?>
-                                    Equipos conectados</td>
+
+                                    Equipos conectados </td>
                                 <td>
                                     <?php
                                     echo $mensajeRepc;
@@ -616,8 +648,8 @@ $largoSchemaInfoAct = count($schemaInfoAct);
                                     JamsCluster (corriendo)
                                 </td>
                                 <td>
-                                    <?php echo "Desde: " . $nombreServidorActivo . "<i class='fa-solid fa-arrow-right'></i>" . $clusterPrimario ?><br>
-                                    <?php echo "Desde: " . $nombreServidorSecundario . "<i class='fa-solid fa-arrow-right'></i>" . $clusterSecundario; ?>
+                                    <?php echo  $nombreServidorActivo . "<i class='fa-solid fa-arrow-right'></i>" . $clusterPrimario ?><br>
+                                    <?php echo   $nombreServidorSecundario . "<i class='fa-solid fa-arrow-right'></i>" . $clusterSecundario; ?>
                                 </td>
                                 <td>
                                     <span class="<?php echo $colorCluster ?> "> <?php echo $mensajeCuster ?> </span>
@@ -636,39 +668,100 @@ $largoSchemaInfoAct = count($schemaInfoAct);
                                 <td>
                                     <?php
 
-                                    if ($carpeta == "cndmh/") {
-                                        for ($x = 0; $x < $largoSchemaInfoAct; $x++) {
-                                            $schemaInfo = explode(" |", $schemaInfoAct[$x]);
-                                            $schemaInfo = $schemaInfo[5];
-                                            $schemaInfo = explode(" ", $schemaInfo);
-                                            $schemaInfo = $schemaInfo[1] . " " . $schemaInfo[2];
-                                            if ($largoSchemaInfoAct >= 2) {
-                                                $mensajeSchema = "OK";
-                                                $color = "badge bg-success p-2 btn-block pt-0 pb-0";
-                                                print_r($schemaInfo);
-                                            } else {
-                                                $mensajeSchema = "Warning";
-                                                $color = "badge bg-warning p-2 btn-block pt-0 pb-0";
-                                                echo "Sin acceso";
-                                            }
-                                        }
+
+
+                                    $pattern = '/\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/';
+                                    $columnas = explode('|', $schemaInfoSec[3]);
+                                    $fechaSchemaInfo = ($columnas[count($columnas) - 1]);
+
+                                    //  echo $fechaSchemaInfo;
+
+                                    $currentDateTime = new DateTime();
+                                    $schemaDateTime = new DateTime($fechaSchemaInfo);
+                                    $schemaDateTime->setTimezone(new DateTimeZone('America/New_York')); // Cambia 'America/New_York' por tu zona horaria
+
+                                    $schemaDateTime = date_create($fechaSchemaInfo, new DateTimeZone('UTC'));
+                                    date_timezone_set($schemaDateTime, new DateTimeZone('America/Santiago'));
+                                    echo date_format($schemaDateTime, 'Y-m-d H:i:s');
+
+
+                                    $interval = $currentDateTime->diff($schemaDateTime);
+                                    $minutesPassed = $interval->i + $interval->h * 60 + $interval->d * 24 * 60;
+                                    if ($minutesPassed >= 0 && $minutesPassed <= 10) {
+                                        $mensajeSchema = "Hace  " . $minutesPassed . " Min.";
+                                        //$mensajeSchema = "currentDateTime  " . $currentDateTime->format('Y-m-d H:i:s')."   schemaDateTime" . $schemaDateTime;
+
+                                        $color = "badge bg-success p-2 btn-block pt-0 pb-0";
                                     } else {
-                                        for ($x = 0; $x < $largoSchemaInfo; $x++) {
-                                            $schemaInfo = explode(" |", $schemaInfoSec[$x]);
-                                            $schemaInfo = $schemaInfo[5];
-                                            $schemaInfo = explode(" ", $schemaInfo);
-                                            $schemaInfo = $schemaInfo[1] . " " . $schemaInfo[2];;
-                                            if ($largoSchemaInfo >= 2) {
-                                                $mensajeSchema = "OK";
-                                                $color = "badge bg-success p-2 btn-block pt-0 pb-0";
-                                                print_r($schemaInfo);
-                                            } else {
-                                                $mensajeSchema = "Warning";
-                                                $color = "badge bg-warning p-2 btn-block pt-0 pb-0";
-                                                echo "Sin acceso";
-                                            }
-                                        }
+
+                                        $mensajeSchema = "Hace  " . $minutesPassed . " Min.";
+                                        $color = "badge bg-danger p-2 btn-block pt-0 pb-0";
                                     }
+
+
+
+                                    /*
+if ($carpeta == "cndmh/") {
+    for ($x = 0; $x < $largoSchemaInfo; $x++) {
+        $schemaInfo = explode(" |", $schemaInfoSec[$x]);
+        $schemaInfo = $schemaInfo[5];
+        $schemaInfo = explode(" ", $schemaInfo);
+        $schemaInfo = $schemaInfo[1] . " " . $schemaInfo[2];
+
+        if ($largoSchemaInfo >= 2) {
+
+            $currentDateTime = new DateTime();
+            $schemaDateTime = new DateTime($schemaInfo);
+            $interval = $currentDateTime->diff($schemaDateTime);
+            $secondsPassed = $currentDateTime->getTimestamp() - $schemaDateTime->getTimestamp();
+
+
+            $mensajeSchema = "Hace $secondsPassed Min.";
+            $color = "badge bg-success p-2 btn-block pt-0 pb-0";
+
+
+            print_r($schemaInfo);
+        } else {
+            $mensajeSchema = "Warning";
+            $color = "badge bg-warning p-2 btn-block pt-0 pb-0";
+            echo "Sin acceso";
+        }
+    }
+} else {
+
+
+    //print_r($schemaInfoSec)
+
+
+
+    for ($x = 0; $x < $largoSchemaInfo; $x++) {
+        $schemaInfo = explode(" |", $schemaInfoSec[$x]);
+        $schemaInfo = $schemaInfo[5];
+        $schemaInfo = explode(" ", $schemaInfo);
+        $schemaInfo = $schemaInfo[1] . " " . $schemaInfo[2];
+        $schemaInfo = strval($schemaInfo);
+        if ($largoSchemaInfo >= 2) {
+
+            $currentDateTime = new DateTime();
+            $schemaDateTime = new DateTime($fechaSchemaInfo);
+            $interval = $currentDateTime->diff($schemaDateTime);
+            $secondsPassed = $schemaDateTime->getTimestamp() - $currentDateTime->getTimestamp();
+
+
+            $mensajeSchema = "Hace  " . round($secondsPassed / 3600) . " Min.";
+            $color = "badge bg-success p-2 btn-block pt-0 pb-0";
+            //echo  "-->" . ($schemaInfo);
+            //print_r($schemaInfo);
+
+        } else {
+            $mensajeSchema = "Warning";
+            $color = "badge bg-warning p-2 btn-block pt-0 pb-0";
+            echo "Sin acceso";
+        }
+    }
+}
+
+*/
                                     ?>
                                 </td>
                                 <td>
@@ -717,7 +810,7 @@ $largoSchemaInfoAct = count($schemaInfoAct);
                                         $largoSum = count($proceSumarizador);
                                         $validarSumarizador = array(0, 0, 0);
                                         for ($x = 0; $x < $largoSum; $x++) {
-                                            $proceSumarizadorArray = explode("/opt/Jigsaw/Services/JAMSSummarizer start", $proceSumarizador[$x]);
+                                            $proceSumarizadorArray = explode("/JAMSSummarizer start", $proceSumarizador[$x]);
                                             if (count($proceSumarizadorArray) > 1) {
                                                 $validarSumarizador[0] = 1;
                                                 break;
@@ -799,6 +892,10 @@ $largoSchemaInfoAct = count($schemaInfoAct);
                                                 echo "Detenido";
                                                 $validarSumm = "Danger";
                                                 $colorEstadoSum = "badge bg-danger p-2";
+
+
+                                                $mensajeAlerta = "Se detectó que no se está realizando el proceso de sumarización.  ";
+                                               // $alertas->insertAlert($id_faena, "HCXSD011", $mensajeAlerta);
                                         }
 
                                         ?>
@@ -866,19 +963,8 @@ $largoSchemaInfoAct = count($schemaInfoAct);
                                 <div class="col-md-4">
                                     <p class="text-sm  ">Backup Diario:
                                         <b class="d-block">
-                                            <td> <span class="<?php echo $colorDailyDiario ?>"> <?php echo $validarDailyDiario ?></span> </td>
-                                            <?php
-                                            //$message = "Problemas con el Daily en ".$carpeta;
-                                            //enviarMensajeTelegram($message);
+                                            <td> <span class="<?php echo $colorDailyDiario ?>"> <?php echo $stringDatatimeCreacionDaily ?></span> </td>
 
-                                            //$subject = 'Problemas con ' . $carpeta;
-                                            //$message = 'Error en el Daily de manera periodica';
-                                            //enviarEmail($subject, $message);
-                                            if ($validarDailyDiario != "OK") {
-                                                $system->alertaSonora(120000);
-                                            }
-
-                                            ?>
                                         </b>
                                     </p>
                                 </div>
@@ -907,7 +993,7 @@ $largoSchemaInfoAct = count($schemaInfoAct);
                     <div class='<?php echo $colorbordeTamanoLogs ?>'>
                         <div class="card-header">
                             <h3 class="card-title">Archivos más Pesados <?php echo $system->validarLog($tamanoArchivos, 20) ?>
-                                 </h3>
+                            </h3>
                             <div class="card-tools">
                                 <span class="badge" style='font-size: 1.0em'><?php echo $dataTimeVisual ?></span>
                             </div>

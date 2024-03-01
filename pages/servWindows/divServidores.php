@@ -6,17 +6,20 @@ date_default_timezone_set('America/Santiago');
 $system = new systemClass();
 $faenaCl = new faena();
 
+$casEmpresa=$_REQUEST["mc"];
+
 $system->validarSesion();
 $conn = $system->conectaDB();
 
 
-
+echo "asdasdasd ---->".$casEmpresa;
 
 
 
 //----------------------------------------------------------------------
+
 // Leer el archivo JSON
-$monitoreoWindows = file_get_contents('../../data/monitoreoWindows.json');
+$monitoreoWindows = file_get_contents('../../data/cas'.$casEmpresa.'.json');
 
 //print_r($monitoreoWindows);
 

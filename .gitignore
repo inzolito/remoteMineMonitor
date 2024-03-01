@@ -14,7 +14,7 @@ nbproject
 nbproject/private
 .vscode/
 .vs/
-
+.config.json
 # Node / Bower
 node_modules/
 bower_components/
