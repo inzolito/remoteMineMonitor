@@ -2,7 +2,7 @@
 $configuracionJson = '.config.json';
 $arrayConfig = json_decode(file_get_contents($configuracionJson), true);
 $entorno = $arrayConfig["APP_ENV"];
-require_once("../".$arrayConfig["APP_DIR"]."/build/controller/controller-functions.php");
+require_once("../" . $arrayConfig["APP_DIR"] . "/build/controller/controller-functions.php");
 
 $system = new systemClass();
 $system->validarSesion();
@@ -494,7 +494,7 @@ $mensajeEntornoDesarrollo = '<div class="alert alert-warning test-message" role=
           if (resultado.value) {
             // Hicieron click en "Sí"
             //alert("se elimina la venta*");
-             window.location.href = "<?php echo $system->urlSystem() ?>";
+            window.location.href = "<?php echo $system->urlSystem() ?>";
           } else {
             // Dijeron que no
           }
@@ -739,8 +739,8 @@ $mensajeEntornoDesarrollo = '<div class="alert alert-warning test-message" role=
 
 
     function reproducirAlertaSWA(mensajeAlertConfirm, idf) {
-       Swal.fire({
-        id:'swalAlert',
+      Swal.fire({
+        id: 'swalAlert',
         title: 'Alerta!',
         html: mensajeAlertConfirm,
         icon: 'error',
@@ -785,6 +785,8 @@ $mensajeEntornoDesarrollo = '<div class="alert alert-warning test-message" role=
 
 
     $(document).ready(function() {
+
+      //$('[data-toggle="tooltip"]').tooltip();
       setInterval(notificaciones_alertas(), 3000);
       $("#btn_menu").click()
       var urlSegments = window.location.pathname.split('/');
@@ -802,14 +804,14 @@ $mensajeEntornoDesarrollo = '<div class="alert alert-warning test-message" role=
         data: formDataAlerta,
         type: 'post',
         success: function(data) {
-       
-          if (data==0) {
-         
+
+          if (data == 0) {
+
 
           } else {
 
-             //cargaMonitoreoDos()
-             $("#div-container").load(data);
+            //cargaMonitoreoDos()
+            $("#div-container").load(data);
 
 
           }

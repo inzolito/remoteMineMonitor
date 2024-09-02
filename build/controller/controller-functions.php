@@ -220,13 +220,14 @@ class systemClass
 
             $fechaActual = new DateTime();
             $fechaLog = DateTime::createFromFormat("Y-m-d H:i:s", trim($log[0]));
+            
             $diferencia = $fechaActual->diff($fechaLog)->i;
 
             $iconoOnline = " class='fas fa-wifi text-success mr-2' ";
             $onlineBinario=1;
            //echo "diferencia $diferencia";
             //en minutos
-            if ($diferencia > 8) {
+            if ($diferencia > 3) {
                 $iconoOnline = " class='fas fa-wifi text-danger mr-2' ";
                 $onlineBinario=0;
                 //$system->alertaSonora(240000);
@@ -331,4 +332,18 @@ class systemClass
                      <i class='fa-solid fa-triangle-exclamation' style='font-size:50px'></i>
                 </div>";
     }
+
+    function buttonClass($typeButton)
+    {
+        // 1 - success
+        // 2 - warning
+        // 3 - danger
+        // 4 - disabled
+        // 5 - default
+        
+        return  "btn btn-$typeButton btn-block";
+
+    }
+
+    
 }

@@ -12,7 +12,7 @@ $firstday = date('Y-m-d', strtotime("this week"));
 $lastday = date("Y-m-d", strtotime($firstday . "+ 6 days"));
 
 //print_r($_SESSION);
- ?>
+?>
 
 <?php
 if ($_SESSION["permiso"] == "Administrador" || $_SESSION["permiso"] == "Soporte") {
@@ -28,18 +28,19 @@ if ($_SESSION["permiso"] == "Administrador" || $_SESSION["permiso"] == "Soporte"
         <div class="card-body">
             <div class="row ">
                 <div class="col-md-3"></div>
-                <div class="col-md-4"> 
+                <div class="col-md-4">
                     <a class="btn btn-app bg-info" onclick='monitoreoCAS("Amsa")'>
 
                         <i class="fas fa-hard-hat"></i> Amsa
-                    </a></div>
+                    </a>
+                </div>
                 <div class="col-md-4">
                     <a class="btn btn-app bg-info" onclick='monitoreoCAS("Codelco")'>
 
                         <i class="fas fa-hard-hat"></i> Codelco
                     </a>
                 </div>
-                 
+
                 <div class="col-md-3"></div>
             </div>
         </div>
@@ -82,10 +83,11 @@ if ($_SESSION["permiso"] == "Administrador" || $_SESSION["permiso"] == "Soporte"
             <tbody>
                 <?php
 
-                $sql_query = "select * from faenas  where estado=1 order by faena asc";
+                $sql_query = "select distinct f.id id, f.faena faena, f.estado estado, f.alias alias from faenas f join permisos_faenas p on(f.id=p.id_faena) where   f.id in( select DISTINCT fs.id_faena from conexiones c left join servidores s on (c.id_servidor=s.id) left join faenas_servidores fs on (fs.id_servidor=s.id) where c.estado=1 ) ";
                 if ($_SESSION["permiso"] == "Administrador" || $_SESSION["permiso"] == "Soporte") {
                 } else {
-                    $sql_query = "select f.id id, f.faena faena, f.estado estado, f.alias alias from faenas f join permisos_faenas p on(f.id=p.id_faena) where estado=1 and id_permiso='" . $_SESSION["id_permiso"] . "' order by faena asc";
+                    //$sql_query = "select f.id id, f.faena faena, f.estado estado, f.alias alias from faenas f join permisos_faenas p on(f.id=p.id_faena) where estado=1 and id_permiso='" . $_SESSION["id_permiso"] . "' order by faena asc";
+                    $sql_query = "select distinct f.id id, f.faena faena, f.estado estado, f.alias alias from faenas f join permisos_faenas p on(f.id=p.id_faena) where id_permiso='" . $_SESSION["id_permiso"] . "'  and  f.id in( select DISTINCT fs.id_faena from conexiones c left join servidores s on (c.id_servidor=s.id) left join faenas_servidores fs on (fs.id_servidor=s.id) where c.estado=1 ) ";
                 }
 
                 $faenasSql = $conn->query($sql_query);
@@ -133,19 +135,19 @@ if ($_SESSION["permiso"] == "Administrador" || $_SESSION["permiso"] == "Soporte"
                         }
                     }
                     */
-                     $statusFaena = $system->iconStatusConexionFaena($faenaDatos["alias"] ,1,1);
+                    $statusFaena = $system->iconStatusConexionFaena($faenaDatos["alias"], 1, 1);
 
-                     $claseBtnMonitoreo = 'bg-success';
-                    if ($statusFaena==0) {
+                    $claseBtnMonitoreo = 'bg-success';
+                    if ($statusFaena == 0) {
                         $iconoOnline = " <i class='fas fa-wifi text-danger mr-2' ></i>";
                         $claseBtnMonitoreo = 'btn-default disabled';
-                    }else{
+                    } else {
                         $iconoOnline = " <i class='fas fa-wifi text-success mr-2' ></i>";
                     }
 
                 ?>
                     <tr>
-                        <td><?php echo $faenaDatos["id"] ; ?></td>
+                        <td><?php echo $faenaDatos["id"]; ?></td>
                         <td>
                             <div id="divIconoListaFaenasStatus_<?php echo $faenaDatos["id"] ?>"> </div>
                             <?php echo  $iconoOnline . $faenaDatos["faena"] . " (" . $faenaDatos["alias"] . ")"; ?>
@@ -174,7 +176,8 @@ if ($_SESSION["permiso"] == "Administrador" || $_SESSION["permiso"] == "Soporte"
                     </tr>
                     <script>
                         // idDiv, sizeIcon = 0) codigo Inhabilitado -evaluar
-                        //statusListaFaena(<?php //echo $faenaDatos["id"] ?>, "divIconoListaFaenasStatus", 0)
+                        //statusListaFaena(<?php //echo $faenaDatos["id"] 
+                                            ?>, "divIconoListaFaenasStatus", 0)
                     </script>
                 <?php
                 }

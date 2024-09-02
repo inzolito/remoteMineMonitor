@@ -23,8 +23,8 @@ $checkDatosS = $faenaCl->datosCheck($idFaenaS);
 
 // --------------------------------------------------refresco cada una hora para liberar la ram del videowall----------------
 $minutoActualLiberarRam = (int)date("i");
- 
- 
+
+
 //echo $minutoActualLiberarRam."<br>";
 if ($minutoActualLiberarRam >= 6 && $minutoActualLiberarRam <= 8) {
     if (isset($_REQUEST["r"])) {
@@ -33,17 +33,16 @@ if ($minutoActualLiberarRam >= 6 && $minutoActualLiberarRam <= 8) {
         $r = 1;
     }
 
-    if ($r ==1) {
-       //implementar luego
+    if ($r == 1) {
+        //implementar luego
         // header("Location: " . $_SERVER['PHP_SELF'] . "?id=$idFaenaS&r=0");
-       // exit();        
-    }else{
-
+        // exit();        
+    } else {
     }
 } else {
     $r = 2;
 }
- 
+
 //echo " r=$r ";
 // -------------------------------------------------------------------------------------------------------------------------
 
@@ -147,14 +146,17 @@ $RamMemUsadaSecundario = file($rutaS . "MemUsadaSecMon.log");
 $cpuGraficoPrimario = file($rutaS . "cpuGraficoMon.log");
 $cpuGraficoSecundario = file($rutaS . "cpuGraficoSecMon.log");
 
+$crontabActivo = file($rutaS . "crontabMon.log");
+$crontabSecundario = file($rutaS . "crontabSecMon.log");
+
 $TopC = file($rutaS . "TopCMon.log");
 $TopCSec = file($rutaS . "TopCSecMon.log");/**/
 
 $versionRuby = file($rutaS . "versionRubyMon.log");
 $jamsClusterLog = file($rutaS . "JamsClusterMon.log");
 // ---Variables utiles----- active ,stopped, backup,standby
-$estadoSrevidorActivo="active";
-$estadoSrevidorSecundario="backup";
+$estadoSrevidorActivo = "active";
+$estadoSrevidorSecundario = "backup";
 
 $i = 0;
 
@@ -501,7 +503,7 @@ foreach (array("ramS1", "ramS2") as $key) {
 
 //validar ping server activo
 
- 
+
 //-------------------------------------- Ping servidores -----------------
 // se comenta la validacion del ping porque en codelco no funciona.
 /*
@@ -524,9 +526,9 @@ foreach ($pingServerSecLectura as $linea) {
     }
 }
 */
- 
 
- 
+
+
 // hay que cambiar esta logica // lo comente de momento ya que al momento de cambiar la funcion oculta los DIV
 
 $claseIcono = $system->iconStatusConexionFaena($faenaDatosS->alias);
@@ -553,25 +555,23 @@ $puntoAuxSec = $system->validarLog($estadoDiscoSecundario, 20);
 // ---Variables utiles----- active ,stopped, backup,standby
 
 // ------------------------------   Activo $system->validarLog($TopC, 6, "right")
- 
- if(count(explode(" ", $system->validarLog($TopC, 6, "right")))>0)
-{
-    //caido 
-}else{
 
+if (count(explode(" ", $system->validarLog($TopC, 6, "right"))) > 0) {
+    //caido 
+} else {
 }
 
 // ---------------------------------------------------------------------   Secundario validar jamcluser caido 
 if (strpos($puntoAuxSec, "success") !== false) {
     if (strpos($estadoServidorSecundario, "stopped") !== false) {
         $claseDivServerSec = "card card-gray";
-        $estadoServidorSecundario="stopped";
+        $estadoServidorSecundario = "stopped";
     } else {
     }
 } else {
     $claseDivServerSec = "card dangerRRM";
-    $servidorSecOnline=false;
-   // $estadoSrevidorActivo="down";
+    $servidorSecOnline = false;
+    // $estadoSrevidorActivo="down";
 }
 
 
@@ -592,20 +592,18 @@ for ($x=0; $x<=count($jamsClusterLog); $x++ ) {
 //$puntoOnlineLoadAverageServAct=$system->validarLog($TopC, 8, "right");
 //$puntoOnlineLoadAverageServSec=$system->validarLog($TopCSec, 8, "right");
 
-$estadoConexionServidorActivo= $system->iconStatusConexionFaena($faenaDatosS->alias,1);
-$estadoConexionServidorSecundario= $system->iconStatusConexionFaena($faenaDatosS->alias,1,2);
+$estadoConexionServidorActivo = $system->iconStatusConexionFaena($faenaDatosS->alias, 1);
+$estadoConexionServidorSecundario = $system->iconStatusConexionFaena($faenaDatosS->alias, 1, 2);
 
-if($estadoConexionServidorActivo==1 )
-{
-    $servidorActOnline=true;
-}else{
-    $servidorActOnline=false;
+if ($estadoConexionServidorActivo == 1) {
+    $servidorActOnline = true;
+} else {
+    $servidorActOnline = false;
 }
-if($estadoConexionServidorSecundario==1 )
-{
-    $servidorSecOnline=true;
-}else{
-    $servidorSecOnline=false;
+if ($estadoConexionServidorSecundario == 1) {
+    $servidorSecOnline = true;
+} else {
+    $servidorSecOnline = false;
 }
 
 
@@ -614,30 +612,24 @@ if($estadoConexionServidorSecundario==1 )
 
 
 
- 
-
-if($servidorActOnline==false)
-{
-    $claseDivServerAct="card dangerRRM";
-    
-    $mensajeAlerta="Sin conexion al servidor activo FMS " ;
-    $alertas->insertAlert($idFaenaS,"HCXSCF001",$mensajeAlerta);
 
 
-}else{
+if ($servidorActOnline == false) {
+    $claseDivServerAct = "card dangerRRM";
+
+    $mensajeAlerta = "Sin conexion al servidor activo FMS ";
+    $alertas->insertAlert($idFaenaS, "HCXSCF001", $mensajeAlerta);
+} else {
     $claseDivServerAct = "card card-navy";
- }
+}
 
 
-if($servidorSecOnline==false)
-{
-    $claseDivServerSec="card dangerRRM";
-    
-    $mensajeAlerta="Sin conexion al servidor secundario FMS " ;
-    $alertas->insertAlert($idFaenaS,"HCXSCF002",$mensajeAlerta);
+if ($servidorSecOnline == false) {
+    $claseDivServerSec = "card dangerRRM";
 
-
-}else{
+    $mensajeAlerta = "Sin conexion al servidor secundario FMS ";
+    $alertas->insertAlert($idFaenaS, "HCXSCF002", $mensajeAlerta);
+} else {
     $claseDivServerSec = "card card-navy";
 }
 ?>
@@ -648,7 +640,7 @@ if($servidorSecOnline==false)
     <div class="col-md-6">
         <div class='<?php echo $claseDivServerAct ?>'>
             <div class="card-header">
-                <h3 class="card-title">Servidor primario  </h3>
+                <h3 class="card-title">Servidor primario </h3>
                 <div class="card-tools">
                     <span class="badge" style='font-size: 1.0em'><?php echo $dataTimeVisual ?></span>
                 </div>
@@ -657,7 +649,7 @@ if($servidorSecOnline==false)
             <div class="card-body">
                 <div class="row">
                     <div class="col-md-3">
-                        <div class="text-left"><?php echo $system->validarLog($estadoDisco, 20) ?>  Disco Duro </div>
+                        <div class="text-left"><?php echo $system->validarLog($estadoDisco, 20) ?> Disco Duro </div>
                         <input type="text" value=<?php echo $porc  ?> class="<?php echo $graficoDonutColor["discoS1"] ?>" data-width="150" data-height="150" data-fgcolor="#3c8dbc" data-readonly="true">
 
                         <table class="table table-bordered">
@@ -675,7 +667,7 @@ if($servidorSecOnline==false)
 
                     </div>
                     <div class="col-md-3">
-                        <div class="text-left"><?php echo $system->validarLog($estadoDisco, 20) ?>  Memoria Ram</div>
+                        <div class="text-left"><?php echo $system->validarLog($estadoDisco, 20) ?> Memoria Ram</div>
                         <input type="text" value=<?php echo $porcentajeRam  ?> class="<?php echo $graficoDonutColor["ramS1"] ?>" data-width="150" data-height="150" data-fgcolor="#3c8dbc" data-readonly="true">
                         <table class="table table-bordered">
                             <tbody>
@@ -744,6 +736,48 @@ if($servidorSecOnline==false)
                                 </div>
                             </div>
                         </div>
+
+                        <div style="display:none">
+                            <div class="row" id="crontabActivoVista" tittle="TopC" style="overflow:auto;">
+                                <div class="col-md-12">
+                                    <div class="container-fluid bg-dark text-white p-3" style="border-radius: 5px;overflow:auto;">
+
+
+                                        <?php
+                                        foreach ($crontabActivo as $x) {
+                                            echo "<li>" . trim($x) . "</li>";
+                                        }
+
+                                        ?>
+
+
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+
+
+                        <div style="display:none">
+                            <div class="row" id="crontabSecundarioVista" tittle="TopC" style="overflow:auto;">
+                                <div class="col-md-12">
+                                    <div class="container-fluid bg-dark text-white p-3" style="border-radius: 5px;overflow:auto;">
+
+
+                                        <?php
+                                        foreach ($crontabSecundario as $x) {
+                                            echo "<li>" . trim($x) . "</li>";
+                                        }
+
+                                        ?>
+
+
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+
                     </div>
                 </div>
 
@@ -751,22 +785,43 @@ if($servidorSecOnline==false)
 
 
             </div>
+            
+            <?php
+            // *** Consulta para saber si hubo switcheo de servidores
+
+            //if ($ipServerPrimario == && $estadoServidorActivo==)
+
+
+            //$mensajeAlerta = "Sin conexion al servidor activo FMS ";
+            //$alertas->insertAlert($idFaenaS, "HCXSCF001", $mensajeAlerta);
+
+            ?>
+
+
+
+
             <div class="card-footer">
                 <div class="row">
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <p class="text-sm  ">Nom. Server
                             <b class="d-block"> <?php echo $nombreServidorActivo   ?></b>
                         </p>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <p class="text-sm  ">IP
                             <b class="d-block"><?php echo $ipServerPrimario   ?> </b>
                         </p>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <p class="text-sm  ">Status
                             <b class="d-block"><?php echo $estadoServidorActivo  ?> </b>
                         </p>
+                    </div>
+                    <div class="col-md-3">
+                    <p class="text-sm  ">
+                        Crontab <br>
+                        <button type="button" id="btnTopC" onclick="verInfo('crontabActivoVista')" class="btn btn-outline-light btn-sm pt-0 pb-0 ml-1"> <i class='fas fa-eye fa-solid mr-1 fa-eye'></i></button>
+                    </p>
                     </div>
                 </div>
             </div>
@@ -788,8 +843,8 @@ if($servidorSecOnline==false)
 
             <div class="card-body">
 
-                 
-            <div class="row">
+
+                <div class="row">
                     <div class="col-md-3">
                         <div class="text-left"> <?php echo $system->validarLog($estadoDiscoSecundario, 20) ?>Disco Duro</div>
                         <input type="text" value=<?php echo $porcSec  ?> class="<?php echo $graficoDonutColor["discoS2"] ?>" data-width="150" data-height="150" data-fgcolor="#3c8dbc" data-readonly="true">
@@ -884,19 +939,26 @@ if($servidorSecOnline==false)
             </div>
             <div class="card-footer">
                 <div class="row">
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <p class="text-sm  ">Nom. Server
                             <b class="d-block"><?php echo $nombreServidorSecundario   ?> </b>
                         </p>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <p class="text-sm  ">IP
                             <b class="d-block"><?php echo $ipServerSec   ?> </b>
                         </p>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <p class="text-sm  ">status
                             <b class="d-block"><?php echo $estadoServidorSecundario   ?> </b>
+                        </p>
+                    </div>
+
+                    <div class="col-md-3">
+                        <p class="text-sm  ">
+                            Crontab <br>
+                            <button type="button" id="btnTopC" onclick="verInfo('crontabSecundarioVista')" class="btn btn-outline-light btn-sm pt-0 pb-0 ml-1"> <i class='fas fa-eye fa-solid mr-1 fa-eye'></i></button>
                         </p>
                     </div>
                 </div>
@@ -915,8 +977,8 @@ if($servidorSecOnline==false)
 
 //--------------------- Pasos para insertar una alerta ----------------------------------//
 //prueba
- //$mensajeAlerta="aparece el siguiente mensaje en el sumarizador : mensajemensajemensaje " ;
- //$alertas->insertAlert($idFaenaS,"HCXES011",$mensajeAlerta);
+//$mensajeAlerta="aparece el siguiente mensaje en el sumarizador : mensajemensajemensaje " ;
+//$alertas->insertAlert($idFaenaS,"HCXES011",$mensajeAlerta);
 //fin prueba
 
 //$alertaSistemaDatos=$alertas->codigoAlerta(0,"HCXSCF011");
@@ -927,19 +989,19 @@ if($servidorSecOnline==false)
 //--------------------------------------------------------------------------------------//
 
 
-$alertasActivasFaena= $alertas->alerta($idFaenaS,0,1,0);
-$mensajeAlertaReproducir="";
-$mensajeAlertaReproducirVoz="";
+$alertasActivasFaena = $alertas->alerta($idFaenaS, 0, 1, 0);
+$mensajeAlertaReproducir = "";
+$mensajeAlertaReproducirVoz = "";
 
-if($alertasActivasFaena->num_rows>0){
-    $mensajeAlertaReproducir="En $faenaDatosS->faena . <ul>";
-    $mensajeAlertaReproducirVoz="En $faenaDatosS->faena . ";
+if ($alertasActivasFaena->num_rows > 0) {
+    $mensajeAlertaReproducir = "En $faenaDatosS->faena . <ul>";
+    $mensajeAlertaReproducirVoz = "En $faenaDatosS->faena . ";
 
     while ($alertaActivasFaenaDatos = $alertasActivasFaena->fetch_assoc()) {
-         $mensajeAlertaReproducir.="<li>".$alertaActivasFaenaDatos["alerta"] . "</li> ";
-         $mensajeAlertaReproducirVoz.=$alertaActivasFaenaDatos["alerta"] . "  ";
+        $mensajeAlertaReproducir .= "<li>" . $alertaActivasFaenaDatos["alerta"] . "</li> ";
+        $mensajeAlertaReproducirVoz .= $alertaActivasFaenaDatos["alerta"] . "  ";
     }
-    $mensajeAlertaReproducir.="</ul>";
+    $mensajeAlertaReproducir .= "</ul>";
 }
 
 ?>
@@ -957,7 +1019,7 @@ if($alertasActivasFaena->num_rows>0){
         $("#divTopCVista").fadeOut()
         $("#divTopCSecVista").fadeOut()
 
- 
+
 
         //reproducirMensajeVoz("El sistema está online y funcionando")
     });

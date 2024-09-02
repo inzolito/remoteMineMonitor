@@ -28,8 +28,11 @@ $ruta = "/home/jigsaw/monitoreoRemoto/" . $carpeta;
 $impo = file($ruta . "ProcesoImpoMon.log");
 $sqlServer = file($ruta . "ProcesoSqlMon.log");
 $sql_Back = file($ruta . "ProcesoSqlBackMon.log");
-$proceSumarizador = file($ruta . "ProcesosSumarizadorMon.log");
-$Jamms = file($ruta . "ProcesosJamsMon.log");
+$sumarizadorLog = file($ruta . "ProcesosSumarizadorMon.log");
+
+$logSumarizadorDatos = file($ruta . "SummarizerMon.log");
+
+$jamsActivoLog = file($ruta . "ProcesosJamsMon.log");
 $jamsSec = file($ruta . "ProcesosJamsSecMon.log");
 $Ntp = file($ruta . "NtpMon.log");
 $reconcile = file($ruta . "ReconcileMon.log");
@@ -37,6 +40,7 @@ $BackupSec = file($ruta . "BackupSecMon.log");
 $procSumCrontab = file($ruta . "crontabSummMon.log");
 $listaJams = file($ruta . "ListaJamsMon.log");
 
+$reiniciosJAMS = file($ruta . "reiniciosJAMSMon.log");
 
 
 //count de lineas Impo
@@ -46,23 +50,36 @@ $largoSqlServer = count($sqlServer) - 3;
 //count sql back
 $largoSqlBack = count($sql_Back) - 3;
 //count Summ
-$largoSummarizador = count($proceSumarizador) - 3;
+$largoSummarizador = count($sumarizadorLog) - 3;
 //count Ntp
 $largoNtp = count($Ntp) - 2;
 //count reconcile
 $largoReconcile = count($reconcile) - 5;
 
-//largo sum por Crontab
-$largoValidarCrontab = count($procSumCrontab);
 
+// Validacion importador por tiempo
+
+
+
+
+
+
+
+
+
+
+
+
+//largo sum por Crontab
+//$largoValidarCrontab = count($procSumCrontab);
 //for para obtener si esta corriendo por crontab
-for ($x = 1; $x < $largoValidarCrontab; $x++) {
-    $validarCrontab = $procSumCrontab[$x];
-    $validarCrontab  = substr($validarCrontab, 0, 1);
-    if ($validarCrontab == "*") {
-        $validarCrontabOK = "Crontab";
-    }
-}
+//for ($x = 1; $x < $largoValidarCrontab; $x++) {
+//   $validarCrontab = $procSumCrontab[$x];
+//   $validarCrontab  = substr($validarCrontab, 0, 1);
+//   if ($validarCrontab == "*") {
+//       $validarCrontabOK = "Crontab";
+//   }
+//}
 
 
 
@@ -108,11 +125,11 @@ $dataTimeVisual = $fechaActualVisual . " " . $horaActualVsual;
 
 
 //validar Jams
-$largoJams = count($Jamms);
+$largoJams = count($jamsActivoLog);
 
-if (strpos($Jamms, "JAMSRouter start") !== false && strpos($Jamms, "JAMSCluster run") !== false && $largoJams > 3) {
+if (strpos($jamsActivoLog, "JAMSRouter start") !== false && strpos($jamsActivoLog, "JAMSCluster run") !== false && $largoJams > 3) {
     $validarJams = 1;
-} else if(strpos($Jamms,"JAMSRun -config config.jams -log JAMS,error")!==false || $largoJams < 4) {
+} else if (strpos($jamsActivoLog, "JAMSRun -config config.jams -log JAMS,error") !== false || $largoJams < 4) {
     $validarJams = 2;
 }
 
@@ -133,17 +150,41 @@ if (strpos($Ntp, "/usr/sbin/ntpd -p") !== false) {
 }
 
 //validar manual 
-if (strpos("-force -start", $proceSumarizador) !== false) {
+if (strpos("-force -start", $sumarizadorLog) !== false) {
     $validarManual = 1;
 } else {
     $validarManual = 2;
 }
 
 //validar reconcile
-if(strpos("ERROR",strtolower($reconcile)) !== false || strpos("warning",strtolower($reconcile)) !== false){
-    $validarReconcile = 1;
-}else{
-    $validarReconcile = 0;
+$validarReconcile = 1;
+foreach ($reconcile as $item) {
+    if (stripos($item, 'ERROR') !== false || stripos($item, 'warning') !== false) {
+        $validarReconcile = 0;
+        break;
+    }
+}
+
+//validar log sumarizador
+$validarLogSummarizer = 1;
+foreach ($logSumarizadorDatos as $item) {
+    if (stripos($item, 'ERROR') !== false || stripos($item, 'exception') !== false || stripos($item, 'grouping') !== false) {
+        $validarLogSummarizer = 0;
+        break;
+    }
+}
+
+
+//largo Proceso sumarizador
+//print_r($procSumCrontab);
+$largoSum = count($proceSumarizador);
+$largoValidarCrontab = count($procSumCrontab);
+$lineaCrontabSumarizador = explode("*", $procSumCrontab[1])[0];
+$estadoCrontabSumarizador = 0;
+if (preg_match("/#/", $lineaCrontabSumarizador)) {
+    $estadoCrontabSumarizador = 0;
+} else {
+    $estadoCrontabSumarizador = 1;
 }
 
 ?>
@@ -164,10 +205,98 @@ if(strpos("ERROR",strtolower($reconcile)) !== false || strpos("warning",strtolow
             <!-- ----------- Row Datos procesos------------->
             <div class="row">
 
-                <!-- JAMS -->
+
+
+
+
+                <!--------------------- Reinicios del JAMS------------------------------->
+                <?php
+
+                $lines = explode("\n", trim($reiniciosJAMS));
+
+                // Usar una expresión regular para extraer la fecha y hora de los nombres de archivo
+                $pattern = "/JAMS\.(\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2})_UTC\.log/";
+                $dates = [];
+
+                foreach ($lines as $line) {
+                    if (preg_match($pattern, $line, $matches)) {
+                        $dates[] = new DateTime(str_replace('-', ':', $matches[1]));
+                    }
+                }
+
+                $fiveMinCounter = 0;
+                $fiveMinutesInSeconds = 300; // 5 minutos en segundos
+
+                for ($i = 1; $i < count($dates); $i++) {
+                    $diffInSeconds = abs($dates[$i]->getTimestamp() - $dates[$i - 1]->getTimestamp());
+
+                    // Comprobar si la diferencia es de aproximadamente 5 minutos
+                    if ($diffInSeconds >= (5 * 60) - 10 && $diffInSeconds <= (5 * 60) + 10) {
+                        $fiveMinCounter++;
+                    }
+                }
+
+                $colorAux = "bg-success";
+                $valorAux = "Success";
+
+
+
+
+
+                if (count($reiniciosJAMS) >= 4) {
+                    $colorAux = "bg-warning";
+                    $valorAux = "Warning";
+                    //$subject = 'Problemas con ' . $carpeta;
+                    //$message = 'problemas en el Proceso Jams';
+                    //enviarEmail($subject, $message);
+                    // ---- Insert Alerta
+                    //$mensajeAlerta = "Se detectó que el JAMS se ha reiniciado mas de 2 veces.  ";
+                    //$alertas->insertAlert($id_faena, "HCXAL001", $mensajeAlerta);
+                    //--------------------
+                }
+                if (count($reiniciosJAMS) >= 5) {
+                    $colorAux = "bg-danger";
+                    $valorAux = "Danger";
+                    //$subject = 'Problemas con ' . $carpeta;
+                    //$message = 'problemas en el Proceso Jams';
+                    //enviarEmail($subject, $message);
+                    // ---- Insert Alerta
+                    $mensajeAlerta = "Se detectó que el JAMS se ha reiniciado mas de 4 veces.  ";
+                    $alertas->insertAlert($id_faena, "HCXAL001", $mensajeAlerta);
+                    //--------------------
+                }
+
+
+                ?>
+                <!-- Reinicios  PRimario -->
+
+
+                <div class="col-lg-4 col-6" style="cursor: pointer" onclick="verInfo('divReiniciosJams')">
+
+                    <div class="small-box small-box-2 <?php echo $colorAux ?>">
+                        <div class="inner">
+                            <h5>reinicios de JAMS <?php echo $system->validarLog($reiniciosJAMS, 4, "right") ?></h5>
+                            <p>reincios: <?php echo count($reiniciosJAMS) - 1  ?></p>
+                        </div>
+                        <div class="icon">
+                            <i class="ion ion-refresh"></i>
+                        </div>
+                    </div>
+                </div>
+                <!--------------------------------------------------------------------->
+
+
+
+
+
+
+
+
+                <!--------------------- JAMS primario ------------------------------->
                 <?php
                 $colorAux = "bg-success";
                 $valorAux = "Success";
+
                 if ($validarJams == 2) {
                     $colorAux = "bg-danger";
                     $valorAux = "Danger";
@@ -177,19 +306,14 @@ if(strpos("ERROR",strtolower($reconcile)) !== false || strpos("warning",strtolow
 
                 }
 
-                //if($validarJams == 2){
-                    //echo '<audio autoplay>';
-                    //echo '<source src="pages/support/sonido/ping_missing.mp3" type="audio/mp3">';
-                    //echo '</audio>';
-
-                    //sleep(90);
-                //}
                 ?>
+                <!-- JAMS PRimario -->
+
                 <div class="col-lg-4 col-6" style="cursor: pointer" onclick="verInfo('divJamsVista')">
 
-                    <div class="small-box <?php echo $colorAux ?>">
+                    <div class="small-box small-box-2 <?php echo $colorAux ?>">
                         <div class="inner">
-                        <h5>JAMS Primario <?php echo $system->validarLog($Jamms, 10, "right") ?></h5>
+                            <h5>JAMS Primario <?php echo $system->validarLog($jamsActivoLog, 4, "right") ?></h5>
                             <p><?php echo $valorAux ?></p>
                         </div>
                         <div class="icon">
@@ -197,6 +321,10 @@ if(strpos("ERROR",strtolower($reconcile)) !== false || strpos("warning",strtolow
                         </div>
                     </div>
                 </div>
+                <!--------------------------------------------------------------------->
+
+                <!--------------------- JAMS Secundario ------------------------------->
+
 
                 <!-- JAMS Sec -->
                 <?php
@@ -205,62 +333,130 @@ if(strpos("ERROR",strtolower($reconcile)) !== false || strpos("warning",strtolow
                 if ($validarJamsSec == 2) {
                     $colorAux = "bg-danger";
                     $valorAux = "Danger";
-                    //$subject = 'Problemas con ' . $carpeta;
-                    //$message = 'problemas en el Proceso Jams';
-                    //enviarEmail($subject, $message);
-                    //echo '<audio autoplay>';
-                    //echo '<source src="pages/support/sonido/ping_missing.mp3" type="audio/mp3">';
-                    //echo '</audio>';
+
+                    // ---- Insert Alerta
+                    $mensajeAlerta = "Se detectó un error en el JAMS Servidor Backup.  ";
+                    $alertas->insertAlert($id_faena, "HCXAL001", $mensajeAlerta);
+                    //--------------------
                 }
-                if($carpeta == "capcnn/"){
+                if ($carpeta == "capcnn/") {
                     $colorAux = "bg-gray";
                     $valorAux = "Stopped";
                 }
                 ?>
-                <div class="col-lg-4 col-6" style="cursor: pointer" onclick="verInfo('divJamsSecVista')">
 
-                    <div class="small-box <?php echo $colorAux ?>">
+                <div class="col-lg-4 col-6" style="cursor: pointer" onclick="verInfo('divJamsSecVista')" data-toggle="tooltip" title="Este es un tooltip">
+
+                    <div class="small-box small-box-2 <?php echo $colorAux ?>">
                         <div class="inner">
-                            <?php if($carpeta == "capcnn/"){echo "<h6>JAMS Secundario</h6>";} else{?>
-                                <h6>JAMS Secundario <?php echo $system->validarLog($jamsSec, 10, "right") ?></h6>
-                            <p><?php } echo $valorAux ?></p>
+                            <?php if ($carpeta == "capcnn/") {
+                                echo "JAMS Secundario";
+                            } else { ?>
+                                <h6>JAMS Secundario <?php echo $system->validarLog($jamsSec, 4, "right") ?></h6>
+                                <p><?php }
+                                echo $valorAux ?></p>
                         </div>
                         <div class="icon">
                             <i class="ion ion-stats-bars"></i>
                         </div>
+
                     </div>
                 </div>
-                
-                <!-- Importadores -->
+                <!------------------------------------------------------------------------>
+
+                <!--------------------------- importadores ------------------------------->
+                <?php
+                $caux = 0;
+                foreach ($impo as $x) {
+                    $importadores = $impo;
+                    if ($caux == 0) {
+                    } else {
+
+                        $parts = explode(' ', $x);
+                        $parts = array_filter($parts, function ($part) {
+                            return trim($part) !== '';
+                        });
+                        $parts = array_values($parts);
+                        $dataTimeEjecucion = $parts[8];
+                        $currentTime = new DateTime();
+
+
+
+                        if (strpos($dataTimeEjecucion, ':') !== false) {
+                            $logTime = DateTime::createFromFormat('H:i', $dataTimeEjecucion);
+                            $logTime->setDate($currentTime->format('Y'), $currentTime->format('m'), $currentTime->format('d'));
+                        } else {
+                            // Verificar si $dataTimeEjecucion es una fecha válida (YYYY-MM-DD)
+                            $logTime = DateTime::createFromFormat('Y-m-d H:i', $dataTimeEjecucion . ' ' . $parts[9]);
+                            if (!$logTime) {
+                                // Caso fecha en otro formato, la hora está en $parts[9]
+                                $logTime = DateTime::createFromFormat('M d H:i', $dataTimeEjecucion . ' ' . $parts[9]);
+                            }
+                        }
+
+
+
+                        $interval = $currentTime->diff($logTime);
+                        $minutesPassed = ($interval->days * 24 * 60) + ($interval->h * 60) + $interval->i;
+
+                        // Verificar si el intervalo es menor o igual a 10 minutos
+
+                        if ($faenaDatos->alias == "magsa") {
+                            if ($minutesPassed <= 70) {
+                                $largoAux = 1;
+
+                                //echo 'Dentro de los 10 minutos.';
+                            } else {
+                                $largoAux = 10;
+
+                                break;
+                            }
+                        } else {
+
+                            if ($minutesPassed <= 10) {
+                                $largoAux = 1;
+
+                                //echo 'Dentro de los 10 minutos.';
+                            } else {
+                                $largoAux = 10;
+
+                                break;
+                            }
+                        }
+                    }
+                    $caux++;
+                    #echo  "RMM@sistemaDeMonitoreo : ~ ". $lineaImportador . "<br>";
+                }
+                $caux = 0;
+                ?>
+
+
                 <?php
                 $colorAux = "bg-success";
                 $valorAux = "Success: ";
-                $largoAux = $largoImpo;
+
                 if ($largoAux >= 3 && $largoAux <= 4) {
                     $colorAux = "bg-warning";
                     $valorAux = "Warning: ";
                 }
-                if ($largoAux >= 5 || $largoAux < 0) {
+                if ($largoAux >= 5) {
                     $colorAux = "bg-danger";
                     $valorAux = "Danger: ";
                     //echo $system->alerta("Error en Importadores","Demaciados procesos Impo");
-                   // $system->alertaSonora(120000);
+                    // $system->alertaSonora(120000);
+                    // ---- Insert Alerta
+                    $mensajeAlerta = "Se detectó importadores pegados ";
+                    $alertas->insertAlert($id_faena, "HCXAL001", $mensajeAlerta);
+                    //--------------------
                 }
 
-                /*if($largoAux >= 7){
-                    echo '<audio autoplay>';
-                    echo '<source src="pages/support/sonido/ping_missing.mp3" type="audio/mp3">';
-                    echo '</audio>';
-
-                    sleep(90);
-                }*/
                 ?>
 
                 <div class="col-lg-4 col-6" style="cursor: pointer" onclick="verInfo('divImpoVista')">
 
-                    <div class="small-box <?php echo $colorAux  ?>">
+                    <div class="small-box small-box-2 <?php echo $colorAux  ?>">
                         <div class="inner">
-                            <h6>Importadores <?php echo $system->validarLog($impo, 10, "right") ?></h6>
+                            <h6>Importadores <?php echo $system->validarLog($impo, 4, "right") ?></h6>
                             <p> <?php echo $valorAux . $largoImpo ?></p>
                         </div>
                         <div class="icon">
@@ -268,9 +464,11 @@ if(strpos("ERROR",strtolower($reconcile)) !== false || strpos("warning",strtolow
                         </div>
                     </div>
                 </div>
-            </div>
 
-            <div class="row">
+                <!------------------------------------------------------------------------>
+
+                <!--------------------------- Sql Server ------------------------------->
+
                 <!-- SQLServer -->
                 <?php
 
@@ -278,7 +476,7 @@ if(strpos("ERROR",strtolower($reconcile)) !== false || strpos("warning",strtolow
                 $valorAux = "Success: ";
                 $largoAux = $largoSqlServer;
 
-                if ($largoAux ==3 ) {
+                if ($largoAux == 3) {
                     $colorAux = "bg-warning";
                     $valorAux = "Warning: ";
                 }
@@ -286,25 +484,17 @@ if(strpos("ERROR",strtolower($reconcile)) !== false || strpos("warning",strtolow
                     $colorAux = "bg-danger";
                     $valorAux = "Danger: ";
                     //$system->alertaSonora(120000); 
-                    $alertas->insertAlert($id_faena,"HCXPES011", "En " .$faenaDatos->alias. ". Procesos encolados en la replica a s q l server.");
-   
+                    $alertas->insertAlert($id_faena, "HCXPES011", "En " . $faenaDatos->alias . ". Procesos encolados en la replica a s q l server.");
                 }
 
-                /*if($largoAux >= 6){
-                    echo '<audio autoplay>';
-                    echo '<source src="pages/support/sonido/ping_missing.mp3" type="audio/mp3">';
-                    echo '</audio>';
-
-                    sleep(90);
-                }*/
                 ?>
 
 
                 <div class="col-lg-4 col-6" style="cursor: pointer" onclick="verInfo('divSqlServerVista')">
 
-                    <div class="small-box <?php echo $colorAux  ?>">
+                    <div class="small-box small-box-2 <?php echo $colorAux  ?>">
                         <div class="inner">
-                            <h5>SQL server <?php echo $system->validarLog($sqlServer, 6, "right") ?></h5>
+                            <h5>SQL server <?php echo $system->validarLog($sqlServer, 4, "right") ?></h5>
                             <p><?php echo $valorAux . $largoSqlServer ?></p>
                         </div>
                         <div class="icon">
@@ -313,94 +503,13 @@ if(strpos("ERROR",strtolower($reconcile)) !== false || strpos("warning",strtolow
                     </div>
                 </div>
 
-            
 
-                <!-- Sumarizador -->
-            
-                <?php
-                $colorAux = "bg-success";
-                $valorAux = "Success: ";
-                $largoAux = $largoSummarizador;
-                if ($largoAux==3 || $largoAux==1)  {
-                    $colorAux = "bg-warning";
-                    $valorAux = "Warning: ";
-                }
-                if ($largoAux >= 6 || ( $largoAux < 1 && $validarCrontab != "*" ) ) {
-                    $colorAux = "bg-danger";
-                    $valorAux = "Danger: ";
-                    $mensajeAlerta="Se detectó que no se está realizando el proceso de sumarización.  " ;
-                    $alertas->insertAlert($id_faena,"HCXSD011",$mensajeAlerta);
-                
-                    //$message = "Problemas con el proceso de sumarizado en " . $carpeta;
-                    //echo $system->enviarMensajeTelegram($message);
 
-                    //$subject = 'Problemas con '.$carpeta;
-                    //$message = 'Error en el Proceso de sumarizado';
-                    //enviarEmail($subject, $message);
-                   // $system->alertaSonora(120000);
-                }
+                <!------------------------------------------------------------------------>
 
-                /*if($largoAux >= 8 || $largoAux < 2 && $validarCrontab != "*"){
-                    echo '<audio autoplay>';
-                    echo '<source src="pages/support/sonido/ping_missing.mp3" type="audio/mp3">';
-                    echo '</audio>';
+                <!--------------------------- Sql Back ------------------------------->
 
-                    sleep(90);
-                }*/
-                ?>
 
-                <div class="col-lg-4 col-6" style="cursor: pointer" onclick="verInfo('divSummVista')">
-
-                    <div class="small-box <?php echo $colorAux  ?>">
-                        <div class="inner">
-                            <h6>Sumarizador <?php echo $system->validarLog($proceSumarizador, 6, "right") ?></h6>
-                            <p><?php echo $valorAux . $largoSummarizador ?></p>
-                        </div>
-                        <div class="icon">
-                            <i class="fa-sharp fa-regular fa-bars-staggered" style="font-size:48px"></i>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- NTP -->
-                <?php
-                $colorAux = "bg-success";
-                $valorAux = "Success: ";
-                $largoAux = $largoNtp;
-                if ($validacionNtp == 2) {
-                    $colorAux = "bg-danger";
-                    $valorAux = "Danger: ";
-                    //$subject = 'Problemas con ' . $carpeta;
-                    //$message = 'Problemas con el NTP';
-                    //enviarEmail($subject, $message);
-                   // $system -> alertaSonora(120000);
-                }
-
-                /*if($validacionNtp == 2){
-                    echo '<audio autoplay>';
-                    echo '<source src="pages/support/sonido/ping_missing.mp3" type="audio/mp3">';
-                    echo '</audio>';
-
-                    sleep(90);
-                }*/
-                ?>
-
-                <div class="col-lg-4 col-6" style="cursor: pointer" onclick="verInfo('divNtpVista')">
-
-                    <div class="small-box <?php echo $colorAux  ?>">
-                        <div class="inner">
-                            <h6>Ntp <?php echo $system->validarLog($Ntp, 6, "right") ?></h6>
-                            <p> <?php echo $valorAux . $largoNtp ?></p>
-                        </div>
-                        <div class="icon">
-                            <i class="fa-regular fa-clock" style="font-size:48px"></i>
-                        </div>
-                    </div>
-                </div>
-
-            </div>
-
-            <div class="row">
                 <!-- Sql_Back -->
                 <?php
                 $colorAux = "bg-success";
@@ -413,23 +522,17 @@ if(strpos("ERROR",strtolower($reconcile)) !== false || strpos("warning",strtolow
                 if ($largoAux < 0 || $largoAux >= 6) {
                     $colorAux = "bg-danger";
                     $valorAux = "Danger: ";
-                  //  $system->alertaSonora(120000);
+                    //  $system->alertaSonora(120000);
+
                 }
 
-                /*if($largoAux >= 8 || $largoAux < 0){
-                    echo '<audio autoplay>';
-                    echo '<source src="pages/support/sonido/ping_missing.mp3" type="audio/mp3">';
-                    echo '</audio>';
-
-                    sleep(90);
-                }*/
                 ?>
 
                 <div class="col-lg-4 col-6" style="cursor: pointer" onclick="verInfo('divSqlBackVista')">
 
-                    <div class="small-box <?php echo $colorAux  ?>">
+                    <div class="small-box small-box-2  <?php echo $colorAux  ?>">
                         <div class="inner">
-                            <h5>sql_back <?php echo $system->validarLog($sql_Back, 6, "right") ?></h5>
+                            <h5>sql_back <?php echo $system->validarLog($sql_Back, 4, "right") ?></h5>
                             <p> <?php echo $valorAux . $largoSqlBack ?></p>
                         </div>
                         <div class="icon">
@@ -438,23 +541,127 @@ if(strpos("ERROR",strtolower($reconcile)) !== false || strpos("warning",strtolow
                     </div>
                 </div>
 
+                <!------------------------------------------------------------------------>
+
+                <!--------------------------- Sql Sumarizador ------------------------------->
+
+
+                <?php
+                $colorAux = "bg-success";
+                $valorAux = "Success: ";
+                $largoAux = $largoSummarizador;
+                if ($largoAux == 3 || $largoAux == 1) {
+                    $colorAux = "bg-warning";
+                    $valorAux = "Warning: ";
+                }
+                if (($largoAux < 1 && $estadoCrontabSumarizador == 0)) {
+                    $colorAux = "bg-danger";
+                    $valorAux = "Danger: ";
+                    // ---- Insert Alerta
+                    $mensajeAlerta = "Se detectó que no se está realizando el proceso de sumarización.  ";
+                    $alertas->insertAlert($id_faena, "HCXSD011", $mensajeAlerta);
+                    //--------------------
+                }
+
+                if ($largoAux >= 6) {
+                    $colorAux = "bg-danger";
+                    $valorAux = "Danger: ";
+                    // ---- Insert Alerta
+                    $mensajeAlerta = "Se detectó que el sumarizador está encolado  ";
+                    $alertas->insertAlert($id_faena, "HCXSD011", $mensajeAlerta);
+                    //--------------------
+                }
+
+
+
+                if ($validarLogSummarizer == 0) {
+                    $colorAux = "bg-danger";
+                    $textoAux = "Danger";
+                    // ---- Insert Alerta
+                    $mensajeAlerta = "Se detectó un error en el log del sumarizador.  ";
+                    $alertas->insertAlert($id_faena, "HCXSD011", $mensajeAlerta);
+                    //--------------------
+                }
+
+                ?>
+
+                <div class="col-lg-4 col-6" style="cursor: pointer" onclick="verInfo('divSummVista')">
+
+                    <div class="small-box small-box-2 <?php echo $colorAux  ?>">
+                        <div class="inner">
+                            <h6>Sumarizador <?php echo $system->validarLog($sumarizadorLog, 6, "right") ?></h6>
+                            <p><?php echo $valorAux . $largoSummarizador ?></p>
+                        </div>
+                        <div class="icon">
+                            <i class="fa-sharp fa-regular fa-bars-staggered" style="font-size:48px"></i>
+                        </div>
+                    </div>
+                </div>
+
+
+                <!------------------------------------------------------------------------>
+
+                <!--------------------------- Sql NTP ------------------------------->
+
+                <!-- NTP -->
+                <?php
+                $colorAux = "bg-success";
+                $valorAux = "Success: ";
+                $largoAux = $largoNtp;
+                if ($validacionNtp == 2) {
+                    $colorAux = "bg-danger";
+                    $valorAux = "Danger: ";
+                    // ---- Insert Alerta
+                    $mensajeAlerta = "Se detectó un error en el NTP.  ";
+                    $alertas->insertAlert($id_faena, "HCXAL001", $mensajeAlerta);
+                    //--------------------
+                }
+
+
+                ?>
+
+                <div class="col-lg-4 col-6" style="cursor: pointer" onclick="verInfo('divNtpVista')">
+
+                    <div class="small-box small-box-2 <?php echo $colorAux  ?>">
+                        <div class="inner">
+                            <h6>Ntp <?php echo $system->validarLog($Ntp, 4, "right") ?></h6>
+                            <p> <?php echo $valorAux . $largoNtp ?></p>
+                        </div>
+                        <div class="icon">
+                            <i class="fa-regular fa-clock" style="font-size:48px"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <!------------------------------------------------------------------------>
+
+                <!--------------------------- Reconcilie ------------------------------->
                 <!-- Reconcile-->
                 <?php
                 $colorAux = "bg-success";
                 $textoAux = "Success";
                 $largoAux = $largoReconcile;
-                if($largoReconcile < 2){
+                if ($largoReconcile < 2) {
                     $colorAux = "bg-warning";
                     $textoAux = "Warning";
                 }
+                if ($validarReconcile == 0) {
+                    $colorAux = "bg-danger";
+                    $textoAux = "Danger";
+                    // ---- Insert Alerta
+                    $mensajeAlerta = "Se detectó un error en el Reconciliador.  ";
+                    $alertas->insertAlert($id_faena, "HCXAL001", $mensajeAlerta);
+                    //--------------------
+                }
+
                 ?>
-                
+
                 <div class="col-lg-4 col-6" style="cursor: pointer" onclick="verInfo('divReconcileVista')">
 
-                    <div class="small-box <?php echo $colorAux  ?>">
+                    <div class="small-box small-box-2  <?php echo $colorAux  ?>">
                         <div class="inner">
-                            <h5>Reconcile  <?php echo $system->validarLog($reconcile, 6, "right") ?></h5>
-                            <p><?php echo $textoAux?></p>
+                            <h5>Reconcile <?php echo $system->validarLog($reconcile, 4, "right") ?></h5>
+                            <p><?php echo $textoAux ?></p>
                         </div>
                         <div class="icon">
                             <i class="ion ion-stats-bars"></i>
@@ -464,57 +671,59 @@ if(strpos("ERROR",strtolower($reconcile)) !== false || strpos("warning",strtolow
 
 
 
-                <!-- ################################### Display none  ###################################-->
-                
 
-                <?php
-                $colorAux = "bg-success";
-                ?>
-                <!-- Backup sec -->
-                <div class="col-lg-3 col-6" style="display:none">
 
-                    <div class="small-box <?php echo $colorAux  ?>">
-                        <div class="inner">
-                            <h5>Backup Secundario</h5>
-                            <p>Success</p>
-                        </div>
-                        <div class="icon">
-                            <i class="ion ion-stats-bars"></i>
-                        </div>
-                    </div>
-                </div>
 
             </div>
+            <!---------------------------------------------- Fin row datos procesos ------------------------------------------------->
+            <!----------------------------------------------------------------------------------------------------------------------->
 
+
+
+
+
+            <!----------------------------------------------------Display vistas------------------------------------------------------------------->
 
             <div class="row" style="display:none">
 
-                <!-- Fin row datos procesos -->
-
+                <!-- JAMS servidor activo -->
 
                 <div class="row">
                     <div class="col-md-12">
-                        <b class="d-block">JAMS </b><button type="button" class="btn btn-outline-info" onclick="verInfo('divJamsVista')">Ver Info</button>
-
-                        <div class="row" id="divJamsVista" tittle="JAMS corriendo." style="overflow:auto;">
+                        <div class="row" id="divReiniciosJams" tittle="JAMS servidor activo." style="overflow:auto;">
                             <div class="col-md-12">
 
                                 <div class="container-fluid bg-dark text-white p-3" style="border-radius: 5px;overflow:auto;">
-                                    <?php foreach ($Jamms as $x) {
-                                        $ProcesoJamms = $Jamms;
+                                    <?php foreach ($reiniciosJAMS as $x) {
                                         echo "<li>" . trim($x) . "</li>";
-                                    }   ?>
+                                    } ?>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
-            
+
+                <!-- JAMS servidor activo -->
+
                 <div class="row">
                     <div class="col-md-12">
-                        <b class="d-block">JAMS Secundario </b><button type="button" class="btn btn-outline-info" onclick="verInfo('divJamsSecVista')">Ver Info</button>
+                        <div class="row" id="divJamsVista" tittle="JAMS servidor activo." style="overflow:auto;">
+                            <div class="col-md-12">
 
-                        <div class="row" id="divJamsSecVista" tittle="JAMS corriendo." style="overflow:auto;">
+                                <div class="container-fluid bg-dark text-white p-3" style="border-radius: 5px;overflow:auto;">
+                                    <?php foreach ($jamsActivoLog as $x) {
+                                        echo "<li>" . trim($x) . "</li>";
+                                    } ?>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- JAMS servidor secundario -->
+
+                <div class="row">
+                    <div class="col-md-12">
+                        <div class="row" id="divJamsSecVista" tittle="JAMS servidor Backup." style="overflow:auto;">
                             <div class="col-md-12">
 
                                 <div class="container-fluid bg-dark text-white p-3" style="border-radius: 5px;overflow:auto;">
@@ -527,26 +736,74 @@ if(strpos("ERROR",strtolower($reconcile)) !== false || strpos("warning",strtolow
                         </div>
                     </div>
                 </div>
-                <!-- Importadores -->
+                <!-- Importadores  div donde se muestra el log -->
 
                 <div class="row">
                     <div class="col-md-12">
-                        <?php
-                        $colorAux = "bg-success";
-                        if ($largoImpo > 1 && $largoImpo < 9)  $colorAux = "bg-warning";
-                        if ($largoImpo >= 9)  $colorAux = "bg-danger";
-                        ?>
-                        <b class="d-block">Importadores: <?php echo "<span class='badge " . $colorAux . "''>" . $largoImpo . "</span>"  ?> </b>
-                        <button type="button" class="btn btn-outline-info" onclick="verInfo('divImpoVista')">Ver Info</button>
-
-                        <div class="row" id="divImpoVista" tittle="Importadores." style="overflow:auto;">
+                        <div class="row" id="divImpoVista" tittle="Procesos de importadores." style="overflow:auto;">
                             <div class="col-md-12">
                                 <div class="container-fluid bg-dark text-white p-3" style="border-radius: 5px;overflow:auto;">
-                                    <?php foreach ($impo as $x) {
+                                    <?php
+                                    $caux = 0;
+                                    foreach ($impo as $x) {
                                         $importadores = $impo;
-                                        echo "<li>" . trim($x) . "</li>";
-                                    }
+                                        if ($caux == 0) {
+                                            echo trim($x) . "<br><br>";
+                                        } else {
 
+                                            $parts = explode(' ', $x);
+                                            $parts = array_filter($parts, function ($part) {
+                                                return trim($part) !== '';
+                                            });
+                                            $parts = array_values($parts);
+                                            $dataTimeEjecucion = $parts[8];
+                                            $currentTime = new DateTime();
+
+
+
+                                            if (strpos($dataTimeEjecucion, ':') !== false) {
+                                                $logTime = DateTime::createFromFormat('H:i', $dataTimeEjecucion);
+                                                $logTime->setDate($currentTime->format('Y'), $currentTime->format('m'), $currentTime->format('d'));
+                                            } else {
+                                                // Verificar si $dataTimeEjecucion es una fecha válida (YYYY-MM-DD)
+                                                $logTime = DateTime::createFromFormat('Y-m-d H:i', $dataTimeEjecucion . ' ' . $parts[9]);
+                                                if (!$logTime) {
+                                                    // Caso fecha en otro formato, la hora está en $parts[9]
+                                                    $logTime = DateTime::createFromFormat('M d H:i', $dataTimeEjecucion . ' ' . $parts[9]);
+                                                }
+                                            }
+
+
+
+                                            $interval = $currentTime->diff($logTime);
+                                            $minutesPassed = ($interval->days * 24 * 60) + ($interval->h * 60) + $interval->i;
+                                            $colorTiempoEjecucion = "yellow";
+                                            // Verificar si el intervalo es menor o igual a 10 minutos
+                                            if ($minutesPassed <= 10) {
+
+                                                //echo 'Dentro de los 10 minutos.';
+                                            } else {
+                                                $colorTiempoEjecucion = "red";
+                                                //echo 'Fuera de los 10 minutos.';
+                                                $mensajeAlerta = "Se detectó un importador que lleva mas de 10 minutos ejecutandose ";
+                                                $alertas->insertAlert($id_faena, "HCXAL001", $mensajeAlerta);
+                                            }
+
+
+
+
+
+                                            echo implode(" ", array_slice($parts, 0, 7)) .
+                                                " <span style='color:" . $colorTiempoEjecucion . "' class='ml-2'> " . $parts[8] . " </span> " .
+                                                implode(" ", array_slice($parts, 9));
+
+                                            # echo "<span style='color:red'class='ml-2'> Hora ejecución  : ".$dataTimeEjecucion."</span>";
+                                            echo "<br>";
+                                        }
+                                        $caux++;
+                                        #echo  "RMM@sistemaDeMonitoreo : ~ ". $lineaImportador . "<br>";
+                                    }
+                                    $caux = 0;
                                     ?>
                                 </div>
                             </div>
@@ -559,19 +816,30 @@ if(strpos("ERROR",strtolower($reconcile)) !== false || strpos("warning",strtolow
 
                 <div class="row">
                     <div class="col-md-12">
-                        <?php
-                        $colorAux = "bg-success";
-                        if ($largoSqlServer > 1 && $largoSqlServer < 9)  $colorAux = "bg-warning";
-                        if ($largoSqlServer >= 9)  $colorAux = "bg-danger";
-                        ?>
-                        <b class="d-block">SqlServer: <?php echo "<span class='badge " . $colorAux . "''>" . $largoSqlServer . "</span>" ?> </b>
-                        <button type="button" class="btn btn-outline-info" onclick="verInfo('divSqlServerVista')">Ver Info</button>
                         <div class="row" id="divSqlServerVista" tittle="Procesos SQL Server." style="overflow:auto;">
                             <div class="col-md-12">
                                 <div class="container-fluid bg-dark text-white p-3" style="border-radius: 5px;overflow:auto;">
                                     <?php foreach ($sqlServer as $x) {
                                         $sqlServer = $sqlServer;;
-                                        echo "<li>" . trim($x) . "</li>";
+                                        if ($caux == 0) {
+                                            echo trim($x) . "<br><br>";
+                                        } else {
+
+                                            $parts = explode(' ', $x);
+                                            $parts = array_filter($parts, function ($part) {
+                                                return trim($part) !== '';
+                                            });
+                                            $parts = array_values($parts);
+                                            $dataTimeEjecucion = $parts[8];
+
+                                            echo implode(" ", array_slice($parts, 0, 7)) .
+                                                " <span style='color:yellow' class='ml-2'> " . $parts[8] . " </span> " .
+                                                implode(" ", array_slice($parts, 9));
+
+                                            # echo "<span style='color:red'class='ml-2'> Hora ejecución  : ".$dataTimeEjecucion."</span>";
+                                            echo "<br>";
+                                        }
+                                        $caux++;
                                     }  ?>
                                 </div>
                             </div>
@@ -585,19 +853,31 @@ if(strpos("ERROR",strtolower($reconcile)) !== false || strpos("warning",strtolow
 
                 <div class="row">
                     <div class="col-md-12">
-                        <?php
-                        $colorAux = "bg-success";
-                        if ($largoSqlBack > 1 && $largoSqlBack <= 5)  $colorAux = "bg-warning";
-                        if ($largoSqlBack >= 6)  $colorAux = "bg-danger";
-                        ?>
-                        <b class="d-block">sql_back: <?php echo "<span class='badge " . $colorAux . "''>" . $largoSqlBack . "</span>" ?> </b>
-                        <button type="button" class="btn btn-outline-info" onclick="verInfo('divSqlBackVista')">Ver Info</button>
                         <div class="row" id="divSqlBackVista" tittle="Procesos sql_back." style="overflow:auto;">
                             <div class="col-md-12">
                                 <div class="container-fluid bg-dark text-white p-3" style="border-radius: 5px;overflow:auto;">
                                     <?php foreach ($sql_Back as $x) {
                                         $sql_Back = $sql_Back;;
-                                        echo "<li>" . trim($x) . "</li>";
+                                        $sqlServer = $sqlServer;;
+                                        if ($caux == 0) {
+                                            echo trim($x) . "<br><br>";
+                                        } else {
+
+                                            $parts = explode(' ', $x);
+                                            $parts = array_filter($parts, function ($part) {
+                                                return trim($part) !== '';
+                                            });
+                                            $parts = array_values($parts);
+                                            $dataTimeEjecucion = $parts[8];
+
+                                            echo implode(" ", array_slice($parts, 0, 7)) .
+                                                " <span style='color:yellow' class='ml-2'> " . $parts[8] . " </span> " .
+                                                implode(" ", array_slice($parts, 9));
+
+                                            # echo "<span style='color:red'class='ml-2'> Hora ejecución  : ".$dataTimeEjecucion."</span>";
+                                            echo "<br>";
+                                        }
+                                        $caux++;
                                     }  ?>
                                 </div>
                             </div>
@@ -606,47 +886,20 @@ if(strpos("ERROR",strtolower($reconcile)) !== false || strpos("warning",strtolow
                     </div>
                 </div>
 
+                <!-- Summarizador -->
 
-                <?php
-                $colorAux = "bg-success";
-                $valorAux = "Success: ";
-                $largoAux = (int) $largoSummarizador;
-                 
-                if ($largoAux==3 || $largoAux==1)  {
-                    $colorAux = "bg-warning";
-                    $valorAux = "Warning: ";
-                }
- 
-                if ($largoAux >= 6 || ( $largoAux < 1 && $validarCrontab != "*" ) ) {
-                    $colorAux = "bg-danger";
-                    $valorAux = "Danger: ";
-                    //$message = "Problemas con el proceso de sumarizado en " . $carpeta;
-                    //echo $system->enviarMensajeTelegram($message);
+                <div class="row">
+                    <div class="col-md-12">
+                        <div class="row" id="divSummVista" tittle="proceso de Sumarizador " style="overflow:auto;">
+                            <div class="col-md-12">
+                                <div class="container-fluid bg-dark text-white p-3" style="border-radius: 5px;overflow:auto;">
+                                    <?php foreach ($sumarizadorLog as $x) {
 
-                    //$subject = 'Problemas con '.$carpeta;
-                    //$message = 'Error en el Proceso de sumarizado';
-                    //enviarEmail($subject, $message);
-                    // $system->alertaSonora(120000);
-                }
-
-                /*if($largoAux >= 8 || $largoAux < 2 && $validarCrontab != "*"){
-                    echo '<audio autoplay>';
-                    echo '<source src="pages/support/sonido/ping_missing.mp3" type="audio/mp3">';
-                    echo '</audio>';
-
-                    sleep(90);
-                }*/
-                ?>
-
-                <div class="col-lg-4 col-6" style="cursor: pointer" onclick="verInfo('divSummVista')">
-
-                    <div class="small-box <?php echo $colorAux  ?>">
-                        <div class="inner">
-                            <h6>Sumarizador <?php echo $system->validarLog($proceSumarizador, 10, "right") ?></h6>
-                            <p><?php echo $valorAux . $largoSummarizador ?></p>
-                        </div>
-                        <div class="icon">
-                            <i class="fa-sharp fa-regular fa-bars-staggered" style="font-size:48px"></i>
+                                        echo " <li>" . trim($x) . "</li>";
+                                    }
+                                    ?>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -654,14 +907,6 @@ if(strpos("ERROR",strtolower($reconcile)) !== false || strpos("warning",strtolow
                 <!-- NTP -->
                 <div class="row">
                     <div class="col-md-12">
-                        <?php
-                        $colorAux = "bg-success";
-                        if ($largoNtp > 3 && $largoNtp < 3)  $colorAux = "bg-warning";
-                        if ($largoNtp >= 6 || $largoNtp < 2)  $colorAux = "bg-danger";
-                        ?>
-                        <b class="d-block">Ntp: <?php echo "<span class='badge " . $colorAux . "''>" . $largoNtp . "</span>" ?> </b>
-                        <button type="button" class="btn btn-outline-info" onclick="verInfo('divNtpVista')">Ver Info</button>
-
                         <div class="row" id="divNtpVista" tittle="NTP" style="overflow:auto;">
                             <div class="col-md-12">
                                 <div class="container-fluid bg-dark text-white p-3" style="border-radius: 5px;overflow:auto;">
@@ -727,7 +972,6 @@ if(strpos("ERROR",strtolower($reconcile)) !== false || strpos("warning",strtolow
 
 
 
-
 <script>
     $("#divJamsVista").fadeOut()
     $("#divImpoVista").fadeOut()
@@ -741,11 +985,39 @@ if(strpos("ERROR",strtolower($reconcile)) !== false || strpos("warning",strtolow
 
 
     function verInfo(id) {
+
+
         // $("#" + id + "").toggle() //cambiar luego a fadeIn
         $("body").append("<span id='btnModalFaena' data-toggle='modal' data-target='#modalLarge'>  </span>");
         $("#btnModalFaena").click();
         $("#btnModalFaena").remove();
         $("#modalLargeBody").html($("#" + id).html());
         $("#modalLargeTittle").html($("#" + id).attr("tittle"));
+    }
+
+
+    function vistaTerminal(contjson, titulo) {
+        alert("Función vistaTerminal() llamada");
+
+        var lista = "<ul>";
+        contenido = JSON.parse(contjson);
+        contenido.forEach(function(item) {
+            lista += "<li>" + item + "</li>";
+        });
+        lista += "</ul>";
+
+        alert(lista)
+
+        $("body").append("<span id='btnModalFaena' data-toggle='modal' data-target='#modalLarge'>  </span>");
+        $("#btnModalFaena").click();
+        $("#btnModalFaena").remove();
+
+        $("#modalLargeBody").html(lista);
+        $("#modalLargeTittle").html(titulo);
+
+
+
+
+
     }
 </script>

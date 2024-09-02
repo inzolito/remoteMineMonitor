@@ -61,5 +61,7 @@ $cantNotificaciones=$alertasSql->num_rows;
     ?>
 
     <div class="dropdown-divider"></div>
-    <a href="#" class="dropdown-item dropdown-footer"> </a>
+    <div class="dropdown-footer"> 
+        Las notificaciones deben sacarse solo cuando se haya resuelto el problema.
+    </div>
 </div>

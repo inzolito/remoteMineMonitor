@@ -32,7 +32,6 @@ $Rlm = file($ruta . "RlmMon.log");
 $SizeLog = file($ruta . "SizeLogMon.log");
 $SizeLogSec = file($ruta . "SizeLogSecMon.log");
 $dailyFecha = file($ruta . "DailyFechaSecMon.log");
-$consultaIdle = file($ruta . "consultasIdle.log");
 $proceSumarizador = file($ruta . "ProcesosSumarizadorMon.log");
 $procSumCrontab = file($ruta . "crontabSummMon.log");
 $equiposConectados = file($ruta . "RepcMon.log");
@@ -43,9 +42,7 @@ $tamanoArchivos = file($ruta . "SizeLogTotalMon.log");
 $tamanoArchivosSec = file($ruta . "SizeLogTotalSecMon.log");
 $jamsCluster = file($ruta . "ProcesosJamsMon.log");
 $jamsClusterSec = file($ruta . "ProcesosJamsSecMon.log");
-$schemaInfoSec = file($ruta . "schemaInfoSec.log");
-$schemaInfoAct = file($ruta . "schemaInfo.log");
-
+ 
 //nombre del servidor primario activo
 $nombreServidorActivo = $estadoDisco[2];
 
@@ -57,6 +54,9 @@ $largoSum = count($sumarizadorPrimario);
 $pos = strpos(strtolower($sumarizadorPrimario), " error ");
 $validarSumm = 0;
 //$fechaActual = date("Y-m-d H:i");
+
+///opt/Jigsaw/Tools/Summarizer
+
 
 $fechaFormateada = date("d H:i");
 
@@ -125,23 +125,13 @@ $largoDailyFecha = count($dailyFecha);
 //$fechaActual = new DateTime();
 
 
-if ($carpeta == "magsa/") {
-    for ($x = $largoDailyFecha; $x > 0; $x--) {
-        if ($contador == 1) {
-            $ultimoDaily = $dailyFecha[$x];
-            $x = -1;
-        }
-        $contador = +1;
+for ($x = $largoDailyFecha; $x > 0; $x--) {
+    if ($contador == 1) {
+        $ultimoDaily = explode("jigsaw", $dailyFecha[$x]);
+        $ultimoDaily = $ultimoDaily[2];
+        $x = -1;
     }
-} else {
-    for ($x = $largoDailyFecha; $x > 0; $x--) {
-        if ($contador == 1) {
-            $ultimoDaily = explode("jigsaw", $dailyFecha[$x]);
-            $ultimoDaily = $ultimoDaily[2];
-            $x = -1;
-        }
-        $contador = +1;
-    }
+    $contador = +1;
 }
 
 if ($carpeta == "cndrt/") {
@@ -179,17 +169,21 @@ $datatimeUltimoDaily = $fechaUltimoAray[1] . "-" . $fechaUltimoAray[2] . "-" . $
 $fechaActual = new DateTime();
 $fechaUltimoDailyObj = DateTime::createFromFormat('Y-m-d H:i:s', $datatimeUltimoDaily);
 
+
+
+
 if ($fechaUltimoDailyObj !== false) {
+    // Calcular la diferencia entre las fechas
     $intervalo = $fechaActual->diff($fechaUltimoDailyObj);
 
-    // Crear una cadena abreviada
-    $stringDatatimeCreacionDaily = sprintf("Creado hace %d hrs y %d min", $intervalo->h, $intervalo->i);
+    // Calcular la diferencia total en horas
+    $diffHoras = ($intervalo->days * 24) + $intervalo->h + ($intervalo->i / 60);
 
-    // Imprimir la cadena abreviada
-    // echo $stringDatatimeCreacionDaily;
+    // Mostrar la diferencia en horas y minutos
+    $stringDatatimeCreacionDaily=sprintf("Creado hace %.2f horas", $diffHoras);
 
     // Verificar si han pasado más de 25 horas
-    if ($intervalo->h > 25 || $intervalo->days > 0) {
+    if ($diffHoras > 25) {
         $validarDailyDiario = 0;
     } else {
         $validarDailyDiario = 1;
@@ -201,29 +195,13 @@ if ($fechaUltimoDailyObj !== false) {
 
 
 
+
+
 $fechaLoadedDaily = explode("G", $ultimoDaily);
 $fechaLoadedDaily = explode("jmineops", $fechaLoadedDaily[1]);
 $fechaLoadedDaily = $fechaLoadedDaily[0];
 
-//count Consulta Idle
-$largoIdle = count($consultaIdle);
-if ($largoIdle < 2) {
-    $cantidadIdle = $largoIdle - 1;
-} else {
-    $cantidadIdle = $largoIdle - 5;
-}
-
-if ($cantidadIdle >= 20) {
-    $validarIdle = 1;
-} else {
-    $validarIdle = 2;
-}
-
-if ($validarIdle == 1) {
-    $validarIdle = "MAL";
-} else {
-    $validarIdle = "OK";
-}
+ 
 
 //validacion Size log
 $largoSizeLog = count($SizeLog);
@@ -256,8 +234,16 @@ if ($carpeta == "amant/" || $carpeta == "mlcc/" ) {
  
 
 //largo Proceso sumarizador
+//print_r($procSumCrontab);
 $largoSum = count($proceSumarizador);
 $largoValidarCrontab = count($procSumCrontab);
+$lineaCrontabSumarizador=explode("*",$procSumCrontab[1])[0]; 
+$estadoCrontabSumarizador=0;
+if (preg_match("/#/", $lineaCrontabSumarizador)) {
+    $estadoCrontabSumarizador=0;
+} else {
+    $estadoCrontabSumarizador=1;
+}
 $validarAux = 0;
 
 //largo Repc
@@ -354,19 +340,11 @@ if ($validarClusterPrimario == 1 && $validarClusterSecundario == 1) {
     $mensajeCuster = "OK";
 } else {
     $ver = "<i class='fa-solid fa-ban' style = 'font-size: 1.5em;'></i>";
-    $colorCluster = "badge bg-danger p-2 btn-block pt-0 pb-0";
-    $mensajeCuster = "Danger";
+    $colorCluster = "badge bg-warning p-2 btn-block pt-0 pb-0";
+    $mensajeCuster = "Warning";
 }
 
-
-//cambio de color boton IDLE
-switch ($validarIdle) {
-    case "OK":
-        $botonIdle = "btn btn-success btn-block btn-sm pt-0 pb-0";
-        break;
-    default:
-        $botonIdle = "btn btn-danger btn-block pt-0 pb-0";
-}
+ 
 
 //Validar ping
 switch ($validarAuxPing) {
@@ -378,12 +356,20 @@ switch ($validarAuxPing) {
     default:
         $colorValidar = "badge bg-danger p-2 btn-block";
         $mensajeValidacion = "Offline";
+
+        // ---- Insert Alerta
+        $mensajeAlerta = "No hay ping a la estacion base.  ";
+        $alertas->insertAlert($id_faena, "HCXAL001", $mensajeAlerta);
+        //--------------------
 }
-echo $validarRlm;
+//echo $validarRlm;
 //cambio color Rlm
 
+
+// Cambiar esto a consultar la version en la base de datos
+
 switch (true) {
-    case ($faenaDatos->alias == "amant" || $faenaDatos->alias == "amzal"):
+    case ($faenaDatos->alias == "amant" || $faenaDatos->alias == "amzal" || $faenaDatos->alias == "amcen" ):
         $ColorTextoRlm = "badge bg-success p-2 btn-block";
         $mensajeRlm = "Version sin RLM";
          
@@ -394,7 +380,7 @@ switch (true) {
         $ColorTextoRlm = "badge bg-warning p-2 btn-block";
         $mensajeRlm = "Warning";
         break;
-    case ($validarRlm >= 900  || $validarRlm == ""):
+    case ($validarRlm >= 900 ):
         $ColorTextoRlm = "badge bg-danger p-2 btn-block";
         $mensajeRlm = "Danger";
         $alertas->insertAlert($id_faena,"HCXLR011","Tamaño excedido en el rlm.log ");
@@ -413,6 +399,10 @@ switch ($validarDailyDiario) {
         break;
     default:
         $colorDailyDiario = "badge bg-danger p-2";
+        // ---- Insert Alerta
+        $mensajeAlerta = "Se detectó que el daily no se realiza hace mas de 25 horas.  ";
+        $alertas->insertAlert($id_faena, "HCXAL001", $mensajeAlerta);
+        //--------------------
 }
 
 //validar estado sumarizador
@@ -429,6 +419,13 @@ switch ($validarRepc) {
         $mensajeRepc = "No se encontraron datos";
         $botonRepc = "btn btn-block btn-default disabled btn-sm pt-0 pb-0";
         $clickBotonRepc = "";
+ 
+        // ---- Insert Alerta
+        $mensajeAlerta = "No hay equipos conectados.";
+        $alertas->insertAlert($id_faena, "HCXAL001", $mensajeAlerta);
+        //--------------------
+
+
         break;
     case "OK":
         $mensajeRepc = "La cantidad es: " . $largoRepc;
@@ -462,11 +459,7 @@ if (strpos($sumarizadorPrimario, " JAMS: Shutting down") !== false) {
     $estado = "OK";
 }
 
-//validar schema info
-$largoSchemaInfo = count($schemaInfoSec);
-$largoSchemaInfoAct = count($schemaInfoAct);
-
-
+ 
 ?>
 
 
@@ -544,69 +537,7 @@ $largoSchemaInfoAct = count($schemaInfoAct);
                                 <td> <span class="<?php echo $colorValidar ?>"> <?php echo $mensajeValidacion ?> </span></td>
                             </tr>
 
-                            <tr>
-                                <td>
-                                    <?php echo $validScriptIdle = $system->validarLog($consultaIdle, 10);
-                                    if (strpos($validScriptIdle, "text-danger") !== false) $botonIdle  = "btn btn-block btn-default disabled btn-sm pt-0 pb-0";
-
-                                    ?>
-                                    Consultas PostGres Pegadas (IDLE)</td>
-                                <td> La cantidad es:
-                                    <?php
-                                    echo $cantidadIdle
-                                    ?>
-                                </td>
-
-                                <td>
-                                    <button type="button" id="btnIdle" onclick="verInfo('divIdleVista')" class="<?php echo $botonIdle ?>"> <i class='fa-solid fa-eye mr-1'></i></button>
-                                    <?php
-                                    if ($cantidadIdle >= 20) {
-                                        //descomentar una vez este todo listo.
-                                        //$message = "Problemas con las consultas IDLE en ".$faenaDatos->alias." cantidad: ".$cantidadIdle;
-                                        //echo $system->enviarMensajeTelegram($message);
-
-                                        //$subject = 'Problemas con ' . $carpeta;
-                                        //$message = 'Problemas con la cantidad de consultas en IDLE: ' . $cantidadIdle;
-                                        //enviarEmail($subject, $message);
-
-
-                                    ?>
-                                        <script>
-                                            //agregarAlertaFaena("exceso consultas en idle","Demaciadas consultas en estado IDLE","error"); 
-                                        </script>
-                                    <?php
-                                    } else {
-                                    ?>
-                                        <script>
-                                            //eliminarAlertaFaena("exceso consultas en idle"); 
-                                        </script>
-                                    <?php
-                                    }
-                                    ?>
-                                </td>
-                                <div style="display:none">
-                                    <div class="row" id="divIdleVista" tittle="Idle" style="overflow:auto;">
-                                        <div class="col-md-12">
-                                            <div class="container-fluid bg-dark text-white p-3" style="border-radius: 5px;overflow:auto;">
-                                                <?php foreach ($consultaIdle as $x) {
-                                                    $consultaIdle = $consultaIdle;;
-                                                    echo "<li>" . trim($x) . "</li>";
-                                                }
-                                                echo "================ Comando para eliminar ==================" . "<br>";
-                                                $tablaAux = "";
-                                                $largoConsultaIdle = count($consultaIdle);
-                                                for ($x = 3; $x < $largoConsultaIdle - 2; $x++) {
-                                                    $tablaAux = explode("|", $consultaIdle[$x]);
-                                                    $consultaBorrarIdle = "SELECT pg_terminate_backend($tablaAux[0]);";
-                                                    echo $consultaBorrarIdle . "<br>";
-                                                }
-                                                ?>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </tr>
-
+                             
                             <tr>
                                 <td>
                                     <?php echo $validScriptRepc = $system->validarLog($equiposConectados, 20);
@@ -621,7 +552,7 @@ $largoSchemaInfoAct = count($schemaInfoAct);
                                     ?>
                                 </td>
                                 <td>
-                                    <button type="button" id="btnIdle" onclick="<?php echo $clickBotonRepc ?>" class="<?php echo $botonRepc ?>"> <i class='fas fa-eye fa-solid mr-1 fa-eye'></i></button>
+                                    <button type="button" id="btnRepc" onclick="<?php echo $clickBotonRepc ?>" class="<?php echo $botonRepc ?>"> <i class='fas fa-eye fa-solid mr-1 fa-eye'></i></button>
                                 </td>
                                 <div style="display:none">
                                     <div class="row" id="divRepcVista" tittle="Repc" style="overflow:auto;">
@@ -656,118 +587,7 @@ $largoSchemaInfoAct = count($schemaInfoAct);
                                 </td>
                             </tr>
 
-                            <tr>
-                                <td>
-                                    <?php echo $validarSchemaInfo = $system->validarLog($schemaInfoSec, 8);
-                                    if (strpos($validarSchemaInfo, "text-danger") !== false) $color  = "badge btn-default disabled p-2 btn-block";
-
-                                    ?>
-
-                                    Schema Info
-                                </td>
-                                <td>
-                                    <?php
-
-
-
-                                    $pattern = '/\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/';
-                                    $columnas = explode('|', $schemaInfoSec[3]);
-                                    $fechaSchemaInfo = ($columnas[count($columnas) - 1]);
-
-                                    //  echo $fechaSchemaInfo;
-
-                                    $currentDateTime = new DateTime();
-                                    $schemaDateTime = new DateTime($fechaSchemaInfo);
-                                    $schemaDateTime->setTimezone(new DateTimeZone('America/New_York')); // Cambia 'America/New_York' por tu zona horaria
-
-                                    $schemaDateTime = date_create($fechaSchemaInfo, new DateTimeZone('UTC'));
-                                    date_timezone_set($schemaDateTime, new DateTimeZone('America/Santiago'));
-                                    echo date_format($schemaDateTime, 'Y-m-d H:i:s');
-
-
-                                    $interval = $currentDateTime->diff($schemaDateTime);
-                                    $minutesPassed = $interval->i + $interval->h * 60 + $interval->d * 24 * 60;
-                                    if ($minutesPassed >= 0 && $minutesPassed <= 10) {
-                                        $mensajeSchema = "Hace  " . $minutesPassed . " Min.";
-                                        //$mensajeSchema = "currentDateTime  " . $currentDateTime->format('Y-m-d H:i:s')."   schemaDateTime" . $schemaDateTime;
-
-                                        $color = "badge bg-success p-2 btn-block pt-0 pb-0";
-                                    } else {
-
-                                        $mensajeSchema = "Hace  " . $minutesPassed . " Min.";
-                                        $color = "badge bg-danger p-2 btn-block pt-0 pb-0";
-                                    }
-
-
-
-                                    /*
-if ($carpeta == "cndmh/") {
-    for ($x = 0; $x < $largoSchemaInfo; $x++) {
-        $schemaInfo = explode(" |", $schemaInfoSec[$x]);
-        $schemaInfo = $schemaInfo[5];
-        $schemaInfo = explode(" ", $schemaInfo);
-        $schemaInfo = $schemaInfo[1] . " " . $schemaInfo[2];
-
-        if ($largoSchemaInfo >= 2) {
-
-            $currentDateTime = new DateTime();
-            $schemaDateTime = new DateTime($schemaInfo);
-            $interval = $currentDateTime->diff($schemaDateTime);
-            $secondsPassed = $currentDateTime->getTimestamp() - $schemaDateTime->getTimestamp();
-
-
-            $mensajeSchema = "Hace $secondsPassed Min.";
-            $color = "badge bg-success p-2 btn-block pt-0 pb-0";
-
-
-            print_r($schemaInfo);
-        } else {
-            $mensajeSchema = "Warning";
-            $color = "badge bg-warning p-2 btn-block pt-0 pb-0";
-            echo "Sin acceso";
-        }
-    }
-} else {
-
-
-    //print_r($schemaInfoSec)
-
-
-
-    for ($x = 0; $x < $largoSchemaInfo; $x++) {
-        $schemaInfo = explode(" |", $schemaInfoSec[$x]);
-        $schemaInfo = $schemaInfo[5];
-        $schemaInfo = explode(" ", $schemaInfo);
-        $schemaInfo = $schemaInfo[1] . " " . $schemaInfo[2];
-        $schemaInfo = strval($schemaInfo);
-        if ($largoSchemaInfo >= 2) {
-
-            $currentDateTime = new DateTime();
-            $schemaDateTime = new DateTime($fechaSchemaInfo);
-            $interval = $currentDateTime->diff($schemaDateTime);
-            $secondsPassed = $schemaDateTime->getTimestamp() - $currentDateTime->getTimestamp();
-
-
-            $mensajeSchema = "Hace  " . round($secondsPassed / 3600) . " Min.";
-            $color = "badge bg-success p-2 btn-block pt-0 pb-0";
-            //echo  "-->" . ($schemaInfo);
-            //print_r($schemaInfo);
-
-        } else {
-            $mensajeSchema = "Warning";
-            $color = "badge bg-warning p-2 btn-block pt-0 pb-0";
-            echo "Sin acceso";
-        }
-    }
-}
-
-*/
-                                    ?>
-                                </td>
-                                <td>
-                                    <span class="<?php echo $color ?> "> <?php echo $mensajeSchema ?> </span>
-                                </td>
-                            </tr>
+                             
 
                         </tbody>
                     </table>
@@ -816,11 +636,13 @@ if ($carpeta == "cndmh/") {
                                                 break;
                                             }
                                         }
+
+                                        
                                         // Corriendo como crontab - se pregunta por el proceso  descomentado en cron
                                         $largoSum = count($procSumCrontab);
                                         for ($x = 0; $x < $largoSum; $x++) {
-                                            $proceSumarizadorArray = explode("/opt/Jigsaw/Tools/Summarizer", $procSumCrontab[$x]);
-                                            if (count($proceSumarizadorArray) > 1) {
+                                           // $proceSumarizadorArray = explode("/opt/Jigsaw/Tools/Summarizer", $procSumCrontab[$x]);
+                                            if ($crontabDescomentado==1) {
                                                 $validarCrontab = $procSumCrontab[$x];
                                                 $validarCrontab  = substr($validarCrontab, 0, 1);
                                                 if ($validarCrontab == "*") {
@@ -848,23 +670,39 @@ if ($carpeta == "cndmh/") {
                                             }
                                         }
 
-                                        if ($contCantidadSumarizaciones == 1 && $contDateD == 0) {
-                                            $validarSumarizador[3] = 1;
-                                            $corriendoComoAux = "Manual";
-                                        }
-                                        if ($contCantidadSumarizaciones >= 1 && $contDateD == 1) {
-                                            $validarSumarizador[3] = 1;
-                                            $validarSumarizador[1] = 1;
+                                        
+
+                                        // Validador  Summarizer V3
+                                        $corriendoComoAux = "";
+                                        if ($estadoCrontabSumarizador==1) {
                                             $corriendoComoAux = "Crontab";
+                                            
                                         }
+                                        
+
+                                        $largoSum = count($proceSumarizador);
+                                        for ($x = 0; $x < $largoSum; $x++) {
+                                            $proceSumarizadorArray = explode("/JAMSSummarizer start", $proceSumarizador[$x]);
+ 
+                                            if (count($proceSumarizadorArray) > 1) {
+                                                if($corriendoComoAux==""){
+                                                    $corriendoComoAux="Servicio";
+                                                }else{
+                                                    $corriendoComoAux.=" y Servicio";
+                                                } 
+                                                                                         
+                                            }
+                                        }
+ 
+                                        if($corriendoComoAux=="") $corriendoComoAux="Detenido";
+                                        echo "$corriendoComoAux";
 
 
-                                        switch (true) {
-                                            case $validarSumarizador[0] == 1:
-                                                echo "Servicio";
-                                                break;
-                                            case $validarSumarizador[1] == 1 || $validarSumarizador[1] == 1 && $validarSumarizador[3] == 1:
-                                                echo "Crontab";
+
+
+
+
+
                                         ?>
                                                 <button type="button" class="btn-xs btn-outline-info ml-1" onclick="verInfo('divCrontabVista')"><i class='fa-solid fa-eye m-1'></i></button>
                                                 <div style="display:none">
@@ -882,21 +720,7 @@ if ($carpeta == "cndmh/") {
                                                 </div>
                                         <?php
 
-                                                break;
-                                            case   $validarSumarizador[3] == 1:
-                                                echo "Manual";
-                                                $validarSumm = "Warning";
-                                                $colorEstadoSum = "badge bg-warning p-2";
-                                                break;
-                                            default:
-                                                echo "Detenido";
-                                                $validarSumm = "Danger";
-                                                $colorEstadoSum = "badge bg-danger p-2";
-
-
-                                                $mensajeAlerta = "Se detectó que no se está realizando el proceso de sumarización.  ";
-                                               // $alertas->insertAlert($id_faena, "HCXSD011", $mensajeAlerta);
-                                        }
+                                            
 
                                         ?>
 
@@ -1037,8 +861,10 @@ if ($carpeta == "cndmh/") {
                                                         $tamanoAux = 0;
                                                         $carpetaAux = "";
                                                         $archivoAux = "";
-                                                        $logString = explode(" ", str_replace("/opt/Jigsaw/", "", trim($x)));
-                                                        $tamanoAux = $logString[0];
+                                                        #$logString = explode(" ", str_replace("/opt/Jigsaw/", "", trim($x)));
+                                                        $logString = explode(" ", preg_replace('/\s+/', ' ', str_replace("/opt/Jigsaw/", "", trim($x))));
+
+                                                        $tamanoAux = $logString[4];
                                                         $rutaArrayAux = explode("/", trim($x));
                                                         $carpetaAux = implode("/", array_slice($rutaArrayAux, 1, count($rutaArrayAux) - 2));
                                                         $archivoAux = $rutaArrayAux[count($rutaArrayAux) - 1];
@@ -1080,8 +906,9 @@ if ($carpeta == "cndmh/") {
                                                         $tamanoAux = 0;
                                                         $carpetaAux = "";
                                                         $archivoAux = "";
-                                                        $logString = explode(" ", str_replace("/opt/Jigsaw/", "", trim($x)));
-                                                        $tamanoAux = $logString[0];
+                                                        $logString = explode(" ", preg_replace('/\s+/', ' ', str_replace("/opt/Jigsaw/", "", trim($x))));
+
+                                                        $tamanoAux = $logString[4];
                                                         $rutaArrayAux = explode("/", trim($x));
                                                         $carpetaAux = implode("/", array_slice($rutaArrayAux, 1, count($rutaArrayAux) - 2));
                                                         $archivoAux = $rutaArrayAux[count($rutaArrayAux) - 1];

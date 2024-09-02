@@ -1,6 +1,9 @@
 <?php
 require_once("../../build/controller/controller-functions.php");
 require_once("../../build/controller/controller-faena.php");
+require_once("../../build/controller/controller-alerta.php");
+$alertas = new alertas(); 
+ 
 
 date_default_timezone_set('America/Santiago');
 $system = new systemClass();
@@ -12,7 +15,7 @@ $system->validarSesion();
 $conn = $system->conectaDB();
 
 
-echo "asdasdasd ---->".$casEmpresa;
+#echo "asdasdasd ---->".$casEmpresa;
 
 
 
@@ -43,7 +46,10 @@ $c = 0;
     <?php
 
     foreach ($monitoreoWindows["faenas"] as $faena) {
+    
+    $datosFaena= $faenaCl->datos(0,$faena["alias"]);
 
+    //print_r(($datosFaena));
     ?>
 
 
@@ -53,12 +59,12 @@ $c = 0;
 
             <div class="card card-widget shadow widget-user ">
 
-                <div class="widget-user-header bg-info">
+                <div class="widget-user-header bg-info "  style="height: 30%;" >
                     <h1 class="widget-user-username"><b><?php echo $faena["faena"] ?> </b></h1>
                     <h6 class="widget-user-desc"><?php echo $system->datatimeCargaDiv() ?></h6>
                 </div>
-                <div class="widget-user-image">
-                    <img class="img-circle elevation-2" src="dist/img/system/logohxg.jpg" alt="User Avatar">
+                <div class="widget-user-image" style="  margin-left:-27px; margin-top: -10px;" >
+                    <img class="img-circle "  style="width: 20%;" src="dist/img/system/logohxg.jpg" alt="User Avatar">
                 </div>
                 <!-- CAS,  Estado servidor y servicios -->
                 <div class="card-body" style="padding-top:50px;">
@@ -402,7 +408,11 @@ $c = 0;
                                                     $porcentajeUsado = round(($hdUsado / ($hdTotal)) * 100);
                                                     $claseDiscoDuro = "success";
                                                     $claseDiscoDuro = ($porcentajeUsado > 70 && $porcentajeUsado < 80) ? "warning" : "";
-                                                    if ($porcentajeUsado >= 80) $claseDiscoDuro = "danger";
+                                                    if ($porcentajeUsado >= 70) {
+                                                        $claseDiscoDuro = "danger";
+                                                       // $mensajeAlerta = "El Disco duro está sobre el 80%." ;
+                                                       // $alertas->insertAlert($datosFaena["id"], "HCXAL001", $mensajeAlerta);
+                                                    }
 
                                                     if ($hdTotal >= 1024) {
                                                         $hdTotal = round($hdTotal / 1024, 1) . " T";
@@ -490,7 +500,14 @@ $c = 0;
                                                 if ($datoLinea[0] == "NOMBRE_SERVICIO:" || $datoLinea[0] == "NOMBRE_DE_SERVICIO:") {
                                                     $classEstado = "success";
                                                     $lineaEstado = explode(" ", preg_replace('/\s+/', ' ', trim($LogServices[$y + 2])));
-                                                    if ($lineaEstado[3] != "RUNNING") $classEstado = "danger";
+                                                    if ($lineaEstado[3] != "RUNNING")
+                                                    {
+                                                         $classEstado = "danger";
+
+                                                         $mensajeAlerta = "El servicio de ".$nombreServicioArray[$nombreServicioLimpio]." está detenido." ;
+                                                         $alertas->insertAlert($datosFaena->id, "HCXAL001", $mensajeAlerta);
+                                                         //echo "Faenas ->".$datosFaena->id;
+                                                    }
                                                     $nombreServicioLimpio = preg_replace('/\s+/', ' ', trim($datoLinea[1]));
                                             ?>
                                                     <li class="nav-item">

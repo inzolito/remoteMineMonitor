@@ -88,16 +88,18 @@ class faena
     }
 
 
-    function datos($id_faena,$aliasFaena=0)
+    function datos($id_faena,$aliasFaena=null)
     {
         $system = new systemClass();
         $mysqli = $system->conectaDB();
-
-        if($aliasFaena==0){
+        
+        //echo "Alias Faena".$aliasFaena;
+        if($aliasFaena==null){
             $faenaSql = $mysqli->query("select *  from faenas  where id=" . $id_faena . " ");
-
+            //echo "select *  from faenas  where id=" . $id_faena . " ";
         }else{
-            $faenaSql = $mysqli->query("select *  from faenas  where alias=" . $aliasFaena . " ");
+            $faenaSql = $mysqli->query("select *  from faenas  where alias='" . $aliasFaena . "' ");
+            //echo "select *  from faenas  where alias='" . $aliasFaena . "' ";
         }
 
         if ($faenaSql->num_rows == 1) {
