@@ -1,0 +1,752 @@
+<?php
+// Ruta del archivo CSV
+$csv_file = "../../data/tickets.csv";
+
+// Leer el archivo CSV
+$csv_data = [];
+$ticket_status_count = [];
+$account_numbers = [];
+$product_name_count = [];
+$cantidad_monitoreo = 0; // Cantidad de ticket de monitoreo
+
+
+if (($handle = fopen($csv_file, "r")) !== FALSE) {
+    $headers = fgetcsv($handle, 1000, ",");
+
+    // Procesar las filas 
+    while (($row = fgetcsv($handle, 1000, ",")) !== FALSE) {
+        $case_id = $row[0]; // "Case ID"
+        $case_number = $row[1]; // "Case Number"
+        $status = $row[2]; // "Status"  
+        $owner_name = $row[3]; // "Owner Name"  
+        $account_name = $row[4]; // "Account Name"
+        $subject = $row[5]; // "Subject"
+        $case_resolution = $row[7]; // "Case Resolution"
+        $create_date = $row[8]; // "Create Date"
+        $closed_date = $row[9]; // "Closed Date"
+        $product_name = $row[10]; // "Product Name"
+        $product_family = $row[11]; // "Product Family"
+
+        $create_date = date('d-m-Y', strtotime($create_date));
+
+        if (strtotime($create_date) >= strtotime("2025-01-01") && strtotime($create_date) < strtotime("2025-02-01")) {
+
+            if (!isset($csv_data[$case_number])) {
+                $monitoring = (strpos($subject, 'Monitoreo') === 0) ? '1' : '0'; // Asignar el valor '1' o '0' a 'monitoring' dependiendo de si 'subject' empieza con 'Monitoreo'
+                $cantidad_monitoreo = $cantidad_monitoreo + (int) $monitoring;
+
+
+                if (preg_match('/sumarización|sumarizacion|sumarizar|rezumarizar/i', $subject)) { // Modificar 'product_name' si 'subject' contiene "sumarización"
+                    $product_name = 'Sumarización';
+                }
+
+                if (preg_match('/importador|importando/i', $subject)) { // Modificar 'product_name' si 'subject' contiene "importador"
+                    $product_name = 'Importador';
+                }
+
+                if (preg_match('/servidores|servidor/i', $subject)) { // Modificar 'product_name' si 'subject' contiene "servidor"
+                    $product_name = 'Servidor';
+                }
+
+                if (preg_match('/Centinela Mine/i', $account_name)) {
+                    $account_name = 'AMSA | Centinela';
+                }
+
+                if (preg_match('/Corporacion Nacional del Cobre Mina Sur/i', $account_name)) {
+                    $account_name = 'CODELCO | División Mina Sur';
+                }
+
+                if (preg_match('/Radomiro Tomic Mine/i', $account_name)) {
+                    $account_name = 'CODELCO | División Radomiro Tomic';
+                }
+
+                if (preg_match('/CODELCO | Division Mina Ministro Hales|Mina Ministro Hales/i', $account_name)) {
+                    $account_name = 'CODELCO | División Ministro Hales';
+                }
+
+                if (preg_match('/Zaldivar Mine|Compania Minera Zaldivar SPA/i', $account_name)) {
+                    $account_name = 'AMSA | Zaldivar';
+                }
+
+                if (preg_match('/Minera Antucoya/i', $account_name)) {
+                    $account_name = 'AMSA | Antucoya';
+                }
+
+
+                $csv_data[$case_number] = [
+                    'case_id' => $case_id,
+                    'case_number' => $case_number,
+                    'owner_name' => $owner_name,
+                    'account_name' => $account_name,
+                    'created_date' => $create_date,
+                    'status' => $status,
+                    'monitoring' => $monitoring,
+                    'subject' => $subject,
+                    'product_name' => $product_name
+                ];
+
+                // Contar los estados
+                if (!isset($ticket_status_count[$status])) {
+                    $ticket_status_count[$status] = 0;
+                }
+                $ticket_status_count[$status]++;
+
+                // Contar los product names
+                if (!isset($product_name_count[$product_name])) {
+                    $product_name_count[$product_name] = 0;
+                }
+                $product_name_count[$product_name]++;
+
+                // Agregar cuenta a la lista de cuentas
+                if (!in_array($account_name, $account_numbers)) {
+                    $account_numbers[] = $account_name;
+                }
+            }
+        }
+    }
+    fclose($handle);
+}
+?>
+
+<!-- Incluir Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+
+
+
+
+<!-- Estilo CSS -->
+<style>
+    .table-container {
+        margin: 20px auto;
+        width: 90%;
+    }
+
+    .table th {
+        white-space: nowrap;
+    }
+
+    .table th:nth-child(-n+8) {
+        text-align: center;
+    }
+
+    .table td {
+        text-align: left;
+        vertical-align: top;
+        padding: 10px;
+    }
+
+    .table thead {
+        background-color: #004F67;
+        color: white;
+    }
+
+    .table thead th {
+        text-align: center;
+    }
+
+    .table-striped tbody tr:nth-of-type(odd) {
+        background-color: #f9f9f9;
+    }
+
+    .table-hover tbody tr:hover {
+        background-color: #f1f1f1;
+    }
+
+    .table td:first-child {
+        text-align: center;
+    }
+
+    .table td.centered {
+        text-align: center;
+    }
+
+    .table td.status-centered {
+        text-align: center
+    }
+
+    .table td.owner-centered {
+        text-align: center
+    }
+
+    .table td,
+    .table th {
+        text-align: center;
+        vertical-align: middle;
+    }
+
+    .table-container {
+        width: 45%;
+        margin: 0 auto;
+    }
+
+    .table-container table {
+        width: 100%;
+        table-layout: fixed;
+    }
+
+
+    .chart-table-container {
+        display: flex;
+        justify-content: space-around;
+        align-items: flex-start;
+        margin-bottom: 30px;
+    }
+
+
+    .chart-container {
+        width: 45%;
+        max-width: 400px;
+        margin-right: 20px;
+    }
+
+
+    h1 {
+        text-align: center;
+    }
+</style>
+
+<h1>
+    <center>
+        <img style="width: 2%;" src="dist/img/system/logohxg.jpg" alt="User Avatar">
+        Estadísticas de Tickets Mensuales
+        <img style="width: 2%;" src="dist/img/system/logohxg.jpg" alt="User Avatar">
+    </center>
+</h1>
+<br><br>
+
+<!-- Filtro por Account Number -->
+<div>
+    <center>
+        <label for="accountFilter">Filtrar por Faena:</label>
+        <select id="accountFilter">
+            <option value="">Todos</option>
+            <?php foreach ($account_numbers as $account): ?>
+                <option value="<?= htmlspecialchars($account) ?>"><?= htmlspecialchars($account) ?></option>
+            <?php endforeach; ?>
+        </select>
+    </center>
+</div>
+
+<div id="table-container">
+    <table id="dataTable" class="table table-striped table-hover table-bordered">
+        <thead>
+            <tr>
+                <th>Case Number</th>
+                <th>Owner Name</th>
+                <th>Account Name</th>
+                <th>Created Date</th>
+                <th>Status</th>
+                <th>Monitoring</th>
+                <th>Subject</th>
+                <th>Product Name</th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php
+            foreach ($csv_data as $ticket) {
+                echo "<tr>";
+                echo "<td><a href='https://usa1.lightning.force.com/lightning/r/Case/{$ticket['case_id']}/view' target='_blank'>" . htmlspecialchars($ticket['case_number']) . "</a></td>";
+                echo "<td class='status-centered'>" . htmlspecialchars($ticket['owner_name']) . "</td>";
+                echo "<td class='status-centered'>" . htmlspecialchars($ticket['account_name']) . "</td>";
+                echo "<td class='status-centered'>" . htmlspecialchars($ticket['created_date']) . "</td>";
+                echo "<td class='status-centered'>" . htmlspecialchars($ticket['status']) . "</td>";
+                echo "<td class='status-centered'>" . htmlspecialchars($ticket['monitoring']) . "</td>";
+                echo "<td class='status-centered'>" . htmlspecialchars($ticket['subject']) . "</td>";
+                echo "<td class='status-centered'>" . htmlspecialchars($ticket['product_name']) . "</td>";
+                echo "</tr>";
+            }
+            arsort($ticket_status_count);
+            arsort($product_name_count);
+            arsort($monitoreo);
+            ?>
+
+        </tbody>
+    </table>
+</div>
+
+
+<div style="display: flex; justify-content: space-around; margin-top: 20px;">
+    <!-- Gráfico de Torta por Estado -->
+    <div class="chart-container" style="width: 45%;">
+        <canvas id="statusPieChart"></canvas>
+    </div>
+
+    <!-- Gráfico de Barras por Product Name -->
+    <div class="chart-container" style="width: 80%; max-width: 800px;">
+        <canvas id="productBarChart"></canvas>
+    </div>
+
+    <!-- Gráfico de Torta por Monitoreo -->
+    <div class="chart-container" style="width: 45%;">
+        <canvas id="monitoringPieChart"></canvas>
+    </div>
+
+</div>
+
+<!-- Contenedor de los gráficos y las tablas -->
+
+
+<div class="row" style="margin-top: -100px;">
+
+
+    <div class="col-md-4">
+        <!-- Gráfico de Torta por Estado -->
+        <div class="chart-container">
+
+            <canvas id="statusPieChart"></canvas>
+        </div>
+        <table class="table table-bordered table-striped w-75 mx-auto" id="statusTable">
+            <thead>
+                <tr>
+                    <th style="text-align: center;">Estado</th>
+                    <th style="text-align: center;">Cantidad</th>
+                    <th style="text-align: center;">% Representativo</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php
+                $total_tickets = array_sum($ticket_status_count);
+                $colors = ['#84CCDA', '#FEF376', '#A7D769', '#CB9EC8', '#F1C0D1'];
+                $i = 0;
+                foreach ($ticket_status_count as $status => $count) {
+                    $percentage = ($count / $total_tickets) * 100;
+                    echo "<tr>";
+                    echo "<td>" . htmlspecialchars($status) . "</td>";
+                    echo "<td>" . $count . "</td>";
+                    echo "<td>" . number_format($percentage, 2) . "%</td>";
+                    echo "</tr>";
+                    $i++;
+                }
+                ?>
+            </tbody>
+        </table>
+
+
+    </div>
+
+
+
+    <div class="col-md-4">
+
+        <!-- Gráfico de Barras por Product Name -->
+        <div class="chart-container">
+
+            <canvas id="productBarChart"></canvas>
+        </div>
+        <table class="table table-bordered table-striped w-75 mx-auto" id="productTable">
+            <thead>
+                <tr>
+                    <th>Producto</th>
+                    <th>Cantidad</th>
+                    <th>% Representativo</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php
+                $total_products = array_sum($product_name_count);
+                foreach ($product_name_count as $product => $count) {
+                    $percentage = ($count / $total_products) * 100;
+                    echo "<tr>";
+                    echo "<td>" . htmlspecialchars($product) . "</td>";
+                    echo "<td>" . $count . "</td>";
+                    echo "<td>" . number_format($percentage, 2) . "%</td>";
+                    echo "</tr>";
+                }
+                ?>
+            </tbody>
+        </table>
+
+    </div>
+
+
+    <div class="col-md-4">
+
+        <!-- Gráfico de Torta de Tickets de Monitoreo -->
+        <div class="chart-container">
+
+            <canvas id="monitoringPieChart"></canvas>
+        </div>
+        <table class="table table-bordered table-striped w-75 mx-auto" id="monitoringTable">
+            <thead>
+                <tr>
+                    <th style="text-align: center;">Categoría</th>
+                    <th style="text-align: center;">Cantidad</th>
+                    <th style="text-align: center;">% Representativo</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php
+                $total_tickets = count($csv_data);
+                $colors = ['#A7D769', '#01AEBD'];
+                $categories = [
+                    'Monitoreo' => $cantidad_monitoreo,
+                    'Otros' => $total_tickets - $cantidad_monitoreo
+                ];
+                foreach ($categories as $category => $count) {
+                    $percentage = ($count / $total_tickets) * 100;
+                    echo "<tr>";
+                    echo "<td>" . htmlspecialchars($category) . "</td>";
+                    echo "<td>" . $count . "</td>";
+                    echo "<td>" . number_format($percentage, 2) . "%</td>";
+                    $color_index++;
+                    echo "</tr>";
+                }
+                ?>
+            </tbody>
+        </table>
+
+    </div>
+
+
+
+</div>
+
+<script>
+    $(document).ready(function() {
+        var table = $('#dataTable').DataTable({
+            dom: 'Bfrtip',
+            buttons: [{
+                    extend: 'print',
+                    text: 'print',
+                    customize: function(win) {
+                        var selectedAccount = $('#accountFilter').val();
+                        var title = 'Tickets Mensuales';
+                        var subtitle = `<h2 style="font-size: 32px; margin-top: 10px; display: block; color: #333;">${selectedAccount}</h2>`;
+                        var subtitle2 = `<h4 style="font-size: 20px; margin-top: 30px; display: block; color: #666;">"Soporte Remoto - Hexagon Mining"</h4>`;
+                        var currentDate = new Date();
+                        var monthYear = currentDate.toLocaleString('es-ES', {
+                            month: 'long',
+                            year: 'numeric'
+                        });
+                        monthYear = monthYear.charAt(0).toUpperCase() + monthYear.slice(1);
+                        var subtitle3 = `<h3 style="font-size: 25px; margin-top: 10px; display: block; color: #444;">${monthYear}</h3>`;
+
+                        $(win.document.body).find('table')
+                            .find('th:nth-child(6), td:nth-child(6), th:nth-child(7), td:nth-child(7), th:nth-child(8), td:nth-child(8), th:nth-child(9), td:nth-child(9)').hide();
+
+                            $(win.document.body).append(`
+                                <div style="position: fixed; bottom: 0; width: 100%; text-align: center; font-size: 10px; padding: 10px; background-color: #f5f5f5; color: #333;">
+                                Confidence to &nbsp;&nbsp;&nbsp; ${selectedAccount} &nbsp;&nbsp;&nbsp; | &nbsp;&nbsp;&nbsp; Copyright © Hexagon Mining
+                            </div>
+                `);
+
+
+                $(win.document.head).append(`
+                            <style>
+                                table {
+                                    margin-top: 80px !important;
+                                    font-family: Arial, sans-serif;
+                                    color: #333;
+                                }
+                                .custom-title-container {
+                                    display: flex;
+                                    flex-direction: column;
+                                    justify-content: center;
+                                    align-items: center;
+                                    text-align: center;
+                                    margin-top: 50px;
+                                    padding: 20px;
+                                    background-color: #fafafa;
+                                    border-radius: 10px;
+                                    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+                                }
+                                .image-over-h1 img {
+                                    width: 200px;
+                                    height: auto;
+                                    margin-bottom: 20px;
+                                }
+
+                                body {
+                                    margin: 0;
+                                }
+                                        
+                                h1, h2, h3, h4 {
+                                    font-family: 'Arial', sans-serif;
+                                    margin: 5px 0;
+                                    text-align: center;
+                                    color: #444;
+                                }
+                                h1 {
+                                    font-size: 40px;
+                                    font-weight: bold;
+                                    margin-bottom: 20px;
+                                }
+                                h2 {
+                                    font-size: 28px;
+                                }
+                                h3 {
+                                    font-size: 22px;
+                                    margin-top: 10px;
+                                }
+                                h4 {
+                                    font-size: 18px;
+                                    margin-top: 20px;
+                                }
+                                @media print {
+                                    .logo-print {
+                                        display: block !important;
+                                        margin: 0 auto;
+                                    }
+                                    .footer {
+                                        position: fixed;
+                                        bottom: 0;
+                                        width: 100%;
+                                        text-align: center;
+                                        font-size: 14px;
+                                        padding: 10px;
+                                        background-color: #f5f5f5;
+                                        color: #333;
+                                    }
+                                    .image-over-h1 {
+                                        position: relative;
+                                        text-align: center;
+                                    }
+                                    .image-over-h1 img {
+                                        position: absolute;
+                                        top: -80px;
+                                        left: 50%;
+                                        transform: translateX(-50%);
+                                        width: 200px;
+                                        height: auto;
+                                    }
+                                }
+                            </style>
+                        `);
+
+                        $(win.document.body).prepend(`
+                        <div class="custom-title-container" style="display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; text-align: center; page-break-after: always;">
+                            <div class="image-over-h1">
+                                <img src="https://image.chitra.live/api/v1/wps/root_images/5ff5ccef-3a9f-4687-a98e-a1e2fff795db/0/hexagon230-300-100.png" alt="Hexagon Mining Logo">
+                            </div>
+                            <h1 style="font-size: 48px; font-weight: bold; margin-bottom: 10px;">${title}</h1>
+                            ${subtitle}
+                            ${subtitle3}
+                            ${subtitle2}
+                            
+                        </div>
+                    `);
+                    $(win.document).attr('title', 'Soporte Remoto - Hexagon Mining');
+
+                        var statusChartImg = document.getElementById('statusPieChart').toDataURL();
+                        var productChartImg = document.getElementById('productBarChart').toDataURL();
+                        var monitoringChartImg = document.getElementById('monitoringPieChart').toDataURL();
+
+                        // Incluir los gráficos en botón print
+                        $(win.document.body).append(`
+                            <div style="text-align: center; margin-top: 50px;">
+                                <h2>Estadísticas de Tickets Mensuales</h2>
+                            </div>
+                            <div style="text-align: center; margin-top: 40px;">
+                                <img src="${statusChartImg}" style="width: 30%; margin-bottom: 30px;">
+                            </div>
+                            <div style="text-align: center; margin-top:100px;">
+                                <img src="${productChartImg}" style="width: 40%; margin-bottom: 20px;">
+                            </div>
+                            <div style="text-align: center; margin-top: 100px;">
+                                <img src="${monitoringChartImg}" style="width: 30%; margin-bottom: 30px;">
+                            </div>
+                        `);
+                    }
+
+                },
+                'copy',
+                'csv',
+                'excel',
+                'pdf'
+            ],
+            "pageLength": 10,
+            "lengthMenu": [10, 25, 50, 100],
+            "order": []
+        });
+
+
+        let statusChart = null;
+        let productChart = null;
+        let monitoringChart = null;
+
+        updateCharts("");
+
+        $('#accountFilter').on('change', function() {
+            var selectedAccount = $(this).val();
+
+            table.columns(2).search(selectedAccount).draw();
+            updateCharts(selectedAccount);
+        });
+
+        function updateCharts(accountName) {
+            var filteredData = filterDataByAccount(accountName);
+            var statusCounts = countStatusByAccount(filteredData);
+            var productNameCounts = countProductByAccount(filteredData);
+            var monitoringCounts = countMonitoringByAccount(filteredData);
+
+            resetChart(statusChart);
+            resetChart(productChart);
+            resetChart(monitoringChart);
+
+
+            statusChart = createPieChart('statusPieChart', 'Tickets por Estado', statusCounts);
+            productChart = createBarChart('productBarChart', 'Tickets por Tipo', productNameCounts);
+            monitoringChart = createPieChart('monitoringPieChart', 'Tickets de Monitoreo', monitoringCounts);
+            actualizarTablasDesdeGraficos(statusCounts, productNameCounts, monitoringCounts)
+        }
+
+
+        function actualizarTablasDesdeGraficos(statusCount, productCount, totalMonitoreo) {
+
+            // alert(JSON.stringify(totalMonitoreo));
+            totalProduct = Object.values(productCount).reduce((a, b) => a + b, 0)
+            actualizarTabla("#statusTable tbody", statusCount);
+            actualizarTabla("#productTable tbody", productCount);
+            actualizarTabla("#monitoringTable tbody", {
+                "Monitoreo": totalMonitoreo['Monitoreo'],
+                "No Monitoreo": totalMonitoreo['Otros']
+            });
+        }
+
+        function actualizarTabla(selector, datos) {
+            const tbody = document.querySelector(selector);
+            tbody.innerHTML = "";
+
+            const total = Object.values(datos).reduce((a, b) => a + b, 0);
+
+            Object.entries(datos).forEach(([clave, valor]) => {
+                const porcentaje = total > 0 ? ((valor / total) * 100).toFixed(2) : 0;
+                const fila = `<tr><td>${clave}</td><td>${valor}</td><td>${porcentaje}%</td></tr>`;
+                tbody.innerHTML += fila;
+            });
+        }
+
+
+
+        function filterDataByAccount(accountName) {
+            let allData = Object.values(<?= json_encode($csv_data) ?>);
+            return accountName ? allData.filter(ticket => ticket.account_name === accountName) : allData;
+        }
+
+        function countStatusByAccount(filteredData) {
+            var statusCounts = {};
+            filteredData.forEach(ticket => {
+                var status = ticket.status;
+                statusCounts[status] = (statusCounts[status] || 0) + 1;
+            });
+            return statusCounts;
+        }
+
+        function countProductByAccount(filteredData) {
+            var productCounts = {};
+            filteredData.forEach(ticket => {
+                var productName = ticket.product_name;
+                productCounts[productName] = (productCounts[productName] || 0) + 1;
+            });
+            return productCounts;
+        }
+
+        function countMonitoringByAccount(filteredData) {
+            var monitoringCounts = {
+                'Monitoreo': 0,
+                'Otros': 0
+            };
+            filteredData.forEach(ticket => {
+                var isMonitoring = ticket.monitoring === '1' ? 'Monitoreo' : 'Otros';
+                monitoringCounts[isMonitoring]++;
+            });
+            return monitoringCounts;
+        }
+
+        function resetChart(chart) {
+            if (chart) {
+                chart.destroy();
+            }
+        }
+
+        function createPieChart(chartId, title, dataCounts) {
+            var ctx = document.getElementById(chartId).getContext('2d');
+            return new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: Object.keys(dataCounts),
+                    datasets: [{
+                        label: title,
+                        data: Object.values(dataCounts),
+                        backgroundColor: ['#84CCDA', '#FEF376', '#A7D769', '#CB9EC8', '#F1C0D1'],
+                        borderColor: '#212529',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: title,
+                            font: {
+                                weight: 'bold',
+                                color: 'black',
+                                size: 16
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function createBarChart(chartId, title, dataCounts) {
+            var ctx = document.getElementById(chartId).getContext('2d');
+            return new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(dataCounts),
+                    datasets: [{
+                        label: title,
+                        data: Object.values(dataCounts),
+                        backgroundColor: '#0393B8',
+                        borderColor: '#212529',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: title,
+                            font: {
+                                weight: 'bold',
+                                color: 'black',
+                                size: 16
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function captureAndDownload() {
+            html2canvas(document.querySelector("#table-container")).then(function(canvas) {
+                var imgData = canvas.toDataURL('image/png');
+
+                const {
+                    jsPDF
+                } = window.jspdf;
+                const doc = new jsPDF();
+
+                doc.addImage(imgData, 'PNG', 10, 10, 180, 160);
+                doc.setFontSize(20);
+                doc.text("Estadísticas de Tickets Mensuales", 15, 20);
+                doc.addPage();
+                doc.text("Datos de Tickets", 15, 10);
+                doc.autoTable({
+                    html: '#dataTable'
+                });
+                doc.save('tickets_mensuales.pdf');
+            });
+        }
+
+
+    });
+</script>

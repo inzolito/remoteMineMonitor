@@ -79,8 +79,7 @@ $estadoDiscoSecundario = file($rutaS . "estadoServidorSecMon.log");
 
  
 </script>
-
-
+ 
 
 <div class="row">
   <div class="col-md-2">
@@ -95,8 +94,7 @@ $estadoDiscoSecundario = file($rutaS . "estadoServidorSecMon.log");
 </div>
 
 
-
-
+ 
 <script>
   function carga1() {
     $("#div-container").load("pages/servWindows/divServidores.php?id");

@@ -224,6 +224,6 @@ $estadoDiscoSecundario = file($ruta . "estadoServidorSecMon.log");
     setInterval(carga4, 30000);
     setInterval(carga5, 8000);
 
-    reproducirMensajeVoz("Monitoreando <?php echo $faenaDatos->faena  ?>")
+    //reproducirMensajeVoz("Monitoreando <?php //echo $faenaDatos->faena  ?>")
   });
 </script>

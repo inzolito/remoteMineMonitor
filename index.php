@@ -14,6 +14,9 @@ $entorno = $arrayConfig["APP_ENV"];
 $mensajeEntornoDesarrollo = '<div class="alert alert-warning test-message" role="alert" style="position: sticky; top:
   0;margin-bottom:-5px; background-color: yellow; text-align: center; z-index: 9999;">Entorno de desarrollo del
    sistema de monitoreon Hexagon Minning.</div>';
+
+
+
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -21,7 +24,7 @@ $mensajeEntornoDesarrollo = '<div class="alert alert-warning test-message" role=
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>HXG | Support Check</title>
+  <title>HXG | Monitoreo Remoto</title>
 
   <!-- Google Font: Source Sans Pro -->
   <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Source+Sans+Pro:300,400,400i,700&display=fallback">
@@ -35,6 +38,7 @@ $mensajeEntornoDesarrollo = '<div class="alert alert-warning test-message" role=
 
   <!-- Clase nativa de RMM-->
   <link rel="stylesheet" href="build/css/clasesNativas.css">
+
 
 
 
@@ -71,6 +75,8 @@ $mensajeEntornoDesarrollo = '<div class="alert alert-warning test-message" role=
   <link rel="stylesheet" href="plugins/codemirror/addon/search/matchesonscrollbar.css">
   <link rel="stylesheet" href="plugins/codemirror/addon/search/searchcursor.css">
 
+  <!--  Plugin jszip export  -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 
 
   <!-- Datatables -->
@@ -78,6 +84,13 @@ $mensajeEntornoDesarrollo = '<div class="alert alert-warning test-message" role=
   <link rel="stylesheet" href="plugins/datatables-bs4/css/dataTables.bootstrap4.min.css">
   <link rel="stylesheet" href="plugins/datatables-responsive/css/responsive.bootstrap4.min.css">
   <link rel="stylesheet" href="plugins/datatables-buttons/css/buttons.bootstrap4.min.css">
+  <link rel="stylesheet" href="plugins/datatables-buttons/css/buttons.dataTables.min.css">
+
+
+  <link rel="stylesheet" href="plugins/datatables-buttons/js/buttons.html5.min.js">
+  <link rel="stylesheet" href="plugins/datatables-buttons/js/dataTables.buttons.min.js">
+
+
 </head>
 
 
@@ -200,7 +213,23 @@ $mensajeEntornoDesarrollo = '<div class="alert alert-warning test-message" role=
                with font-awesome or any other icon font library -->
 
 
+
+            <li class="nav-header">Home</li>
+            <li class="nav-item">
+              <a href="#" class="nav-link" onclick="carga_modulo_container('index/inicio.php','Home')">
+                <i class="nav-icon far fa-home"></i>
+                <p>
+                  Inicio
+
+                </p>
+              </a>
+            </li>
+
+
+
             <li class="nav-header">Menú</li>
+
+            <!--
             <li class="nav-item">
               <a href="#" class="nav-link" onclick='resumen()'>
                 <i class="nav-icon far fa-newspaper"></i>
@@ -210,15 +239,109 @@ $mensajeEntornoDesarrollo = '<div class="alert alert-warning test-message" role=
                 </p>
               </a>
             </li>
+-->
+
             <li class="nav-item">
               <a href="#" class="nav-link" onclick="lista_faenas()">
+                <!-- <a href="#" class="nav-link" onclick="carga_modulo_container('support/lista_faenas.php','Lista faenas')"> -->
                 <i class="nav-icon far fa-hammer"></i>
+
                 <p>
                   Monitoreo remoto
                 </p>
               </a>
 
             </li>
+
+
+            <?php
+            if ($_SESSION["permiso"] == "Administrador" || $_SESSION["permiso"] == "Soporte") {
+            ?>
+
+              <!-- Tickets -->
+              <li class="nav-item ">
+                <a href="#" class="nav-link">
+                  <i class="nav-icon far fa-chart-pie"></i>
+                  <p>
+                    Tickets
+                    <i class="fas fa-angle-right right"></i>
+                  </p>
+                </a>
+                <ul class="nav nav-treeview">
+
+
+                  <li class="nav-item ml-4">
+                    <a href="#" class="nav-link" onclick="carga_modulo_container2('tickets/tickets.php','Tickets')">
+                      <i class="fa-solid fa-angle-right"></i>
+                      <p>
+                        Vista Tickets
+                      </p>
+
+
+                    </a>
+                  </li>
+
+                  <li class="nav-item ml-4">
+                    <a href="#" class="nav-link" onclick="carga_modulo_container2('tickets/trazabilidad.php','Trazabilidad')">
+                      <i class="fa-solid fa-angle-right"></i>
+                      <p>Trazabilidad</p>
+                    </a>
+                  </li>
+
+                  <li class="nav-item ml-4">
+                    <a href="#" class="nav-link" onclick="carga_modulo_container2('tickets/resumen_mes.php','Resumen mensual')">
+                      <i class="fa-solid fa-angle-right"></i>
+                      <p>Resumen Mes</p>
+                    </a>
+                  </li>
+
+
+
+                </ul>
+              </li>
+
+
+
+              <!-- Turnos -->
+              <li class="nav-item ">
+                <a href="#" class="nav-link">
+                  <i class="nav-icon far fa-user-group"></i>
+                  <p>
+                    Turnos
+                    <i class="fas fa-angle-right right"></i>
+                  </p>
+                </a>
+                <ul class="nav nav-treeview">
+
+
+                  <li class="nav-item ml-4">
+                    <a href="#" class="nav-link" onclick="carga_modulo_container('turnos/turnos.php','Turnos')">
+                      <i class="fa-solid fa-angle-right"></i>
+                      <p>
+                        Vista Turnos
+                      </p>
+
+
+                    </a>
+                  </li>
+
+                  <li class="nav-item ml-4">
+                    <a href="#" class="nav-link" onclick="carga_modulo_container('turnos/checklist.php','CheckList')">
+                      <i class="fa-solid fa-angle-right"></i>
+                      <p>Checklist</p>
+                    </a>
+                  </li>
+
+
+
+
+                </ul>
+              </li>
+
+            <?php
+            }
+            ?>
+
 
             <li class="nav-item">
               <a href="#" class="nav-link" onclick="problemas()">
@@ -229,6 +352,44 @@ $mensajeEntornoDesarrollo = '<div class="alert alert-warning test-message" role=
               </a>
 
             </li>
+
+
+            <!-- Websocket 
+            <li class="nav-item ">
+              <a href="#" class="nav-link">
+                <i class="nav-icon far fa-lab"></i>
+                <p>
+                  Webssocket
+                  <i class="fas fa-angle-right right"></i>
+                </p>
+              </a>
+              <ul class="nav nav-treeview">
+
+
+                <li class="nav-item ml-4">
+                  <a href="#" class="nav-link" onclick="carga_modulo_container('webSocket/clienteWebsocket.php','cliente')">
+                    <i class="fa-solid fa-angle-right"></i>
+                    <p>
+                      Cliente WebSocket
+                    </p>
+
+
+                  </a>
+                </li>
+
+                <li class="nav-item ml-4">
+                  <a href="#" class="nav-link" onclick="carga_modulo_container('webSocket/servidorWebsocket.php','cliente')">
+                    <i class="fa-solid fa-angle-right"></i>
+                    <p>Servidor Websocket</p>
+                  </a>
+                </li>
+
+
+
+
+              </ul>
+            </li>
+-->
 
 
 
@@ -249,7 +410,7 @@ $mensajeEntornoDesarrollo = '<div class="alert alert-warning test-message" role=
         <div class="container-fluid">
           <div class="row mb-2">
             <div class="col-sm-6">
-              <h1 class="m-0" id="htitle" name="htitle">Resumen</h1>
+              <h1 class="m-0" id="htitle" name="htitle"> </h1>
             </div><!-- /.col -->
             <div class="col-sm-6">
               <ol class="breadcrumb float-sm-right">
@@ -494,7 +655,10 @@ $mensajeEntornoDesarrollo = '<div class="alert alert-warning test-message" role=
           if (resultado.value) {
             // Hicieron click en "Sí"
             //alert("se elimina la venta*");
-            window.location.href = "<?php echo $system->urlSystem() ?>";
+            carga_modulo_container('support/lista_faenas.php', 'Lista faenas');
+            // La manera correcta de cargar la url  es con este codigo de php 
+            // window.location.href = "";
+
           } else {
             // Dijeron que no
           }
@@ -602,13 +766,6 @@ $mensajeEntornoDesarrollo = '<div class="alert alert-warning test-message" role=
 
 
 
-    function lista_faenas2() {
-      $("#div-container").load("pages/support/lista_faenas.php");
-      titulo("Soporte - Lista faenas", "faenas");
-
-    }
-
-
     function resumen() {
       $("#div-container").load("pages/summary/resumen.php");
       titulo("Resumen faenas ", "Resumen");
@@ -623,14 +780,26 @@ $mensajeEntornoDesarrollo = '<div class="alert alert-warning test-message" role=
     }
 
 
+    function carga_modulo_container(page, title) {
+      $("#div-container").load(`pages/${page}`);
 
-
-
-
-    function ssh() {
-      $("#div-container").load("pages/ssh/ssh.php");
-      titulo("Problemas comunes Soporte", "Problemas");
     }
+    /*nueva función para que cuando se carguen las páginas del módulo haga recall y no haya que refrescar manualmente la página para que estos se muestren */
+    function carga_modulo_container2(page, title) {
+      $("#div-container").fadeOut(100)
+      $("#div-container").load(`pages/${page}`, function() {
+        setTimeout(() => { //dar tiempo a la primera carga antes de volver a cargar.
+          $("#div-container").load(`pages/${page}`, function() {
+            $("#div-container").fadeIn(100)
+
+          });
+        }, 1000); //
+      });
+      titulo("", title);
+
+    }
+
+ 
 
     function cargaMonitoreo(id) {
       $("#div-container").load("pages/support/monitoreo.php?id=" + id);
@@ -651,12 +820,18 @@ $mensajeEntornoDesarrollo = '<div class="alert alert-warning test-message" role=
 
     }
 
+    function cargaFaenasMonitoreoMaster(id, div) {
+      $("#" + div).load("pages/support/monitoreoTwo.php?id=" + id);
+      titulo("", "faena");
+
+    }
+
     function cargaMonitoreo2(id, alias) {
       var ruta = "pages/support/monitoreoTwo.php";
       var url = 'router.php?url=' + ruta + '&alias=' + alias + '&id=' + id;
-      $("#div-container").load("pages/support/monitoreoTwo.php?id=" + id);
-      window.history.pushState({}, '', 'http://10.40.90.99/monitoreoLaboratorio/' + alias)
 
+      $("#div-container").load("pages/support/monitoreoTwo.php?id=" + id);
+      window.history.pushState({}, '', "<?php echo $system->urlSystem() ?>" + alias)
 
     }
 
@@ -686,6 +861,7 @@ $mensajeEntornoDesarrollo = '<div class="alert alert-warning test-message" role=
 
 
     }
+
 
     function crearProblema() /*carga en el index lo que realicemos en el archivo crearProblemas.php */ {
       $("#div-container").load("pages/problemas/crearProblema.php");
@@ -734,6 +910,13 @@ $mensajeEntornoDesarrollo = '<div class="alert alert-warning test-message" role=
       utterance.voice = vocesDisponibles[1]; // Selecciona la primera voz
       synth.speak(utterance);
 
+
+    }
+
+    function cargaMaster() {
+
+      $("#div-container").load("pages/support/monitoreoMaster.php?");
+      titulo("", "faena");
 
     }
 
@@ -822,8 +1005,9 @@ $mensajeEntornoDesarrollo = '<div class="alert alert-warning test-message" role=
 
 
 
-      lista_faenas2()
+      carga_modulo_container('index/inicio.php', 'Home')
       notificaciones_alertas()
+
 
 
 

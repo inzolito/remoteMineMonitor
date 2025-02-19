@@ -41,6 +41,8 @@ $c = 0;
     }
 </style>
 
+<iframe src="https://hexmet-my.sharepoint.com/:x:/r/personal/nelson_donoso_hexagon_com/Documents/Documents/Turno%207x7/Planilla%20Tickets.xlsx?d=w11513a9266414e549f9b991e2e7f729b&csf=1&web=1&e=FFPAbO"  width="600" height="371"></iframe>
+    
 
 <div class="row">
     <?php

@@ -381,6 +381,7 @@ $porcentajeRam = round($porcentajeRam, 1);
 //estado del servidor 2
 $estadoServidorSecundario = $estadoDiscoSecundario[1];
 $nombreServidorSecundario = $estadoDiscoSecundario[2];
+ 
 //disco duro Secundario
 $porcentajeDiscoSecundario = $estadoDiscoSecundario[4];
 $porcentajeDiscoSecundario = explode("%", $porcentajeDiscoSecundario);
@@ -551,7 +552,8 @@ $claseDivServerAct = "card card-navy";
 $claseDivServerSec = "card card-navy";
 $puntoAuxPrim = $system->validarLog($estadoDisco, 20);
 $puntoAuxSec = $system->validarLog($estadoDiscoSecundario, 20);
-
+ 
+ 
 // ---Variables utiles----- active ,stopped, backup,standby
 
 // ------------------------------   Activo $system->validarLog($TopC, 6, "right")
@@ -562,10 +564,15 @@ if (count(explode(" ", $system->validarLog($TopC, 6, "right"))) > 0) {
 }
 
 // ---------------------------------------------------------------------   Secundario validar jamcluser caido 
-if (strpos($puntoAuxSec, "success") !== false) {
+
+
+
+ if (strpos($puntoAuxSec, "success") !== false) {
+   
     if (strpos($estadoServidorSecundario, "stopped") !== false) {
         $claseDivServerSec = "card card-gray";
         $estadoServidorSecundario = "stopped";
+        echo "-------------------";
     } else {
     }
 } else {
@@ -574,7 +581,7 @@ if (strpos($puntoAuxSec, "success") !== false) {
     // $estadoSrevidorActivo="down";
 }
 
-
+ 
 
 /*
 for ($x=0; $x<=count($jamsClusterLog); $x++ ) {
@@ -621,6 +628,9 @@ if ($servidorActOnline == false) {
     $alertas->insertAlert($idFaenaS, "HCXSCF001", $mensajeAlerta);
 } else {
     $claseDivServerAct = "card card-navy";
+    //eliminar notificacion si detecta q está online
+    $mensajeAlerta = "Sin conexion al servidor activo FMS ";
+    $alertas->insertAlert($idFaenaS, "HCXSCF001", $mensajeAlerta, 1);
 }
 
 
@@ -631,9 +641,36 @@ if ($servidorSecOnline == false) {
     $alertas->insertAlert($idFaenaS, "HCXSCF002", $mensajeAlerta);
 } else {
     $claseDivServerSec = "card card-navy";
+    //eliminar notificacion si detecta q esta online
+    $mensajeAlerta = "Sin conexion al servidor secundario FMS ";
+    $alertas->insertAlert($idFaenaS, "HCXSCF002", $mensajeAlerta, 1);
 }
 ?>
 
+
+<!-- barra swicheo de servidores-->
+<?php
+
+$datosServidorPrimarioDataBase = $system->datosServidor($ipServerPrimario);
+$datosServidorSecundariooDataBase = $system->datosServidor($ipServerSec);
+//print_r($datosServidorSecundariooDataBase);
+if ($datosServidorPrimarioDataBase->tipo_servidor == "Active") {
+    $mensajeAlerta = " se detectó switcheo de servidores ";
+    $alertas->insertAlert($idFaenaS, "HCXSW001", $mensajeAlerta,1);
+} else {
+?>
+
+    <div class="alert alert-danger alert-dismissible">
+        <h5><i class="fa-solid fa-triangle-exclamation"></i> Hubo un "switcheo" entre el servidor Activo y Backup . </h5>
+
+    </div>
+<?php
+    $mensajeAlerta = " se detectó switcheo de servidores ";
+    $alertas->insertAlert($idFaenaS, "HCXSW001", $mensajeAlerta);
+}
+
+ 
+?>
 
 <div class="row">
     <!-- Servidor 1 x 2  .... Server primario-->
@@ -785,7 +822,7 @@ if ($servidorSecOnline == false) {
 
 
             </div>
-            
+
             <?php
             // *** Consulta para saber si hubo switcheo de servidores
 
@@ -818,10 +855,10 @@ if ($servidorSecOnline == false) {
                         </p>
                     </div>
                     <div class="col-md-3">
-                    <p class="text-sm  ">
-                        Crontab <br>
-                        <button type="button" id="btnTopC" onclick="verInfo('crontabActivoVista')" class="btn btn-outline-light btn-sm pt-0 pb-0 ml-1"> <i class='fas fa-eye fa-solid mr-1 fa-eye'></i></button>
-                    </p>
+                        <p class="text-sm  ">
+                            Crontab <br>
+                            <button type="button" id="btnTopC" onclick="verInfo('crontabActivoVista')" class="btn btn-outline-light btn-sm pt-0 pb-0 ml-1"> <i class='fas fa-eye fa-solid mr-1 fa-eye'></i></button>
+                        </p>
                     </div>
                 </div>
             </div>

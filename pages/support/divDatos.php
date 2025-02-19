@@ -42,7 +42,7 @@ $tamanoArchivos = file($ruta . "SizeLogTotalMon.log");
 $tamanoArchivosSec = file($ruta . "SizeLogTotalSecMon.log");
 $jamsCluster = file($ruta . "ProcesosJamsMon.log");
 $jamsClusterSec = file($ruta . "ProcesosJamsSecMon.log");
- 
+
 //nombre del servidor primario activo
 $nombreServidorActivo = $estadoDisco[2];
 
@@ -59,30 +59,13 @@ $validarSumm = 0;
 
 
 $fechaFormateada = date("d H:i");
-
+/*
 for ($x = $largoSum; $x > 0; $x--) {
     $pos = strpos(strtolower($sumarizadorPrimario[$x]), " error ");
-    if ($pos == 0) {
-        //$obtenerFecha = explode(" at ", $sumarizadorPrimario[$x + 1]);
-        //(count($obenerFecha) > 0) ? $obenerFecha : $obtenerFecha = explode(" at ", $sumarizadorPrimario[$x - 1]);
-        //$FechaSumm = substr($obtenerFecha[1], 0, 19); // la del explode (), preguntar con x+1 para encontrar la fecha y x-1 // isset($variable) = preguntar si la variable existe <revision>
-
-        //if ($FechaSumm == 0 || $FechaSumm == "") {
+    if ($pos == 0) {  //si es falso (no hay error)
         $validarSumm = 1;
         $x = 1;
-    } else {
-
-        /* $diff= $fechaActual-$FechaSumm;
-            if($diff<60){
-                $validarSumm=1;
-                //echo "valido<br>";
-                $x=0;
-            }else{
-                $validarSumm=2;
-                //echo "no valido";
-                $x=0;
-            }*/ //<revision> validar fecha correcta ya que de momento no se logra 
-
+    } else {//caso contrario(se encuentra un error en los log)
         $validarSumm = 0;
         $x = 0;
     }
@@ -93,6 +76,24 @@ for ($x = $largoSum; $x > 0; $x--) {
         $validarSumm = "Warning";
     }
 }
+*/
+//---------------------------------------------------Lógica NUEVA---------------
+//variable para enviar a la fubnción pintarDiv y asignarle un color rojo en caso de error en los registros log
+ 
+
+$errorLogSumarizador=0;
+foreach ($sumarizadorPrimario as $linea){
+    if (stripos($linea, 'error') !== false || stripos($linea, 'exception') !== false || stripos($linea, 'grouping') !== false) {
+        $errorLogSumarizador=1;
+        $validarSumm = "warning";
+        break;
+    }else{
+        $validarSumm = "OK";
+    }
+
+}
+
+//-------------------------------------------------------------------------------/*
 
 
 //daily Estado
@@ -118,6 +119,39 @@ for ($x = $largoDaily; $x > 0; $x--) {
         }
     }
 }
+
+/*
+//---------------------------------------------------Logica NUEVA---------------
+
+$largoDaily = count($dailyServidorSecundario);
+$posDaily = strpos($dailyServidorSecundario, " rows for workers");
+$validarDaily = 0;
+$validarLogDaily=1;//1 cuando esta OK, 0 cuando no lo esta
+for ($x = $largoDaily; $x > 0; $x--) {
+    $posDaily = strpos($dailyServidorSecundario[$x], " rows for workers");
+    if ($posDaily > 0) {
+        if (count($dailyServidorSecundario[$x]) > 0) {
+            $validarDaily = 1;
+            $x = 0;
+        } else {
+            $validarDaily = 2;
+            $x = 0;
+        }
+        if ($validarDaily == 1) {
+            $validarDaily = "OK";
+            $validarLogDaily=1;
+        } elseif ($validarDaily == 2) {
+            $validarDaily = "Mal";
+            $validarLogDaily=0;
+        } else {
+            $validarDaily = "Sin datos o datos incorrectos";
+            $validarLogDaily=0;
+        }
+    }
+}
+
+//-------------------------------------------------------------------------------
+*/
 
 //obtener datos necesarios del daily  
 $contador = 0;
@@ -180,7 +214,7 @@ if ($fechaUltimoDailyObj !== false) {
     $diffHoras = ($intervalo->days * 24) + $intervalo->h + ($intervalo->i / 60);
 
     // Mostrar la diferencia en horas y minutos
-    $stringDatatimeCreacionDaily=sprintf("Creado hace %.2f horas", $diffHoras);
+    $stringDatatimeCreacionDaily = sprintf("Creado hace %.2f horas", $diffHoras);
 
     // Verificar si han pasado más de 25 horas
     if ($diffHoras > 25) {
@@ -201,7 +235,7 @@ $fechaLoadedDaily = explode("G", $ultimoDaily);
 $fechaLoadedDaily = explode("jmineops", $fechaLoadedDaily[1]);
 $fechaLoadedDaily = $fechaLoadedDaily[0];
 
- 
+
 
 //validacion Size log
 $largoSizeLog = count($SizeLog);
@@ -220,7 +254,7 @@ for ($x = 1; $x < $largoSizeLog; $x++) {
 //validar RLM
 
 $largoRlm = count($Rlm);
-if ($carpeta == "amant/" || $carpeta == "mlcc/" ) {
+if ($carpeta == "amant/" || $carpeta == "mlcc/") {
     for ($x = 1; $x < $largoRlm - 1; $x++) {
         $validarRlm = explode("M", $Rlm[$x]);
         $validarRlm = $validarRlm[0];
@@ -231,18 +265,18 @@ if ($carpeta == "amant/" || $carpeta == "mlcc/" ) {
         $validarRlm = $validarRlm[0];
     }
 }
- 
+
 
 //largo Proceso sumarizador
 //print_r($procSumCrontab);
 $largoSum = count($proceSumarizador);
 $largoValidarCrontab = count($procSumCrontab);
-$lineaCrontabSumarizador=explode("*",$procSumCrontab[1])[0]; 
-$estadoCrontabSumarizador=0;
+$lineaCrontabSumarizador = explode("*", $procSumCrontab[1])[0];
+$estadoCrontabSumarizador = 0;
 if (preg_match("/#/", $lineaCrontabSumarizador)) {
-    $estadoCrontabSumarizador=0;
+    $estadoCrontabSumarizador = 0;
 } else {
-    $estadoCrontabSumarizador=1;
+    $estadoCrontabSumarizador = 1;
 }
 $validarAux = 0;
 
@@ -344,14 +378,14 @@ if ($validarClusterPrimario == 1 && $validarClusterSecundario == 1) {
     $mensajeCuster = "Warning";
 }
 
- 
+
 
 //Validar ping
 switch ($validarAuxPing) {
     case 1:
         $colorValidar = "badge bg-success p-2 btn-block";
         $mensajeValidacion = "Online";
-
+        //echo $alertas->alerta($id_faena,0,1,-1,0);
         break;
     default:
         $colorValidar = "badge bg-danger p-2 btn-block";
@@ -369,21 +403,21 @@ switch ($validarAuxPing) {
 // Cambiar esto a consultar la version en la base de datos
 
 switch (true) {
-    case ($faenaDatos->alias == "amant" || $faenaDatos->alias == "amzal" || $faenaDatos->alias == "amcen" ):
+    case ($faenaDatos->alias == "amant" || $faenaDatos->alias == "amzal" || $faenaDatos->alias == "amcen"):
         $ColorTextoRlm = "badge bg-success p-2 btn-block";
         $mensajeRlm = "Version sin RLM";
-         
- 
+
+
         break;
 
     case ($validarRlm >= 700 && $validarRlm <= 899):
         $ColorTextoRlm = "badge bg-warning p-2 btn-block";
         $mensajeRlm = "Warning";
         break;
-    case ($validarRlm >= 900 ):
+    case ($validarRlm >= 900):
         $ColorTextoRlm = "badge bg-danger p-2 btn-block";
         $mensajeRlm = "Danger";
-        $alertas->insertAlert($id_faena,"HCXLR011","Tamaño excedido en el rlm.log ");
+        $alertas->insertAlert($id_faena, "HCXLR011", "Tamaño excedido en el rlm.log ");
 
         break;
 
@@ -419,7 +453,7 @@ switch ($validarRepc) {
         $mensajeRepc = "No se encontraron datos";
         $botonRepc = "btn btn-block btn-default disabled btn-sm pt-0 pb-0";
         $clickBotonRepc = "";
- 
+
         // ---- Insert Alerta
         $mensajeAlerta = "No hay equipos conectados.";
         $alertas->insertAlert($id_faena, "HCXAL001", $mensajeAlerta);
@@ -459,7 +493,7 @@ if (strpos($sumarizadorPrimario, " JAMS: Shutting down") !== false) {
     $estado = "OK";
 }
 
- 
+
 ?>
 
 
@@ -537,7 +571,7 @@ if (strpos($sumarizadorPrimario, " JAMS: Shutting down") !== false) {
                                 <td> <span class="<?php echo $colorValidar ?>"> <?php echo $mensajeValidacion ?> </span></td>
                             </tr>
 
-                             
+
                             <tr>
                                 <td>
                                     <?php echo $validScriptRepc = $system->validarLog($equiposConectados, 20);
@@ -587,7 +621,7 @@ if (strpos($sumarizadorPrimario, " JAMS: Shutting down") !== false) {
                                 </td>
                             </tr>
 
-                             
+
 
                         </tbody>
                     </table>
@@ -602,10 +636,12 @@ if (strpos($sumarizadorPrimario, " JAMS: Shutting down") !== false) {
 
     <div class="col-md-6">
         <div class="row">
-            <!-- Sumarizador -->
 
+
+
+            <!------------------------------------------------------------- Sumarizador -------------------------------------------------------->
             <div class="col-md-12">
-                <div class='<?php echo $system->pintarDiv($largoSum) ?>'>
+                <div class='<?php echo $system->pintarDiv($largoSum,$errorLogSumarizador) ?>'>
                     <div class="card-header">
                         <h3 class="card-title">Sumarizador <?php echo $validScriptSum = $system->validarLog($sumarizadorPrimario, 10);
                                                             if (strpos($validScriptSum, "text-danger") !== false) $colorEstadoSum  = "badge disabled p-2";
@@ -637,22 +673,24 @@ if (strpos($sumarizadorPrimario, " JAMS: Shutting down") !== false) {
                                             }
                                         }
 
-                                        
+
                                         // Corriendo como crontab - se pregunta por el proceso  descomentado en cron
-                                        $largoSum = count($procSumCrontab);
-                                        for ($x = 0; $x < $largoSum; $x++) {
-                                           // $proceSumarizadorArray = explode("/opt/Jigsaw/Tools/Summarizer", $procSumCrontab[$x]);
-                                            if ($crontabDescomentado==1) {
-                                                $validarCrontab = $procSumCrontab[$x];
-                                                $validarCrontab  = substr($validarCrontab, 0, 1);
-                                                if ($validarCrontab == "*") {
-                                                    $clasCrontab = "";
-                                                    $validarSumarizador[1] = 1;
-                                                    $corriendoComoAux = "Crontab";
-                                                    break;
-                                                }
+
+
+                                        $estadoCrontabSumarizador = 0;
+
+                                        foreach ($procSumCrontab as $linea) {
+                                            $lineaLimpia = trim($linea);
+
+                                            if (!empty($lineaLimpia) && $lineaLimpia[0] !== '#') {
+                                                $clasCrontab = "";
+                                                $validarSumarizador[1] = 1;
+                                                $corriendoComoAux = "Crontab";
+                                                break;
                                             }
                                         }
+                                        // El valor de $estadoCrontabSumarizador será 1 si alguna línea está descomentada
+
 
                                         //Corriendo manual en este momento , excluimos el date -d que es la variable del sumarizador crontab,
                                         //Se pregunta solo si esta ejecutandose de forma manual, puede q el proceso no este comentado en cron
@@ -670,31 +708,24 @@ if (strpos($sumarizadorPrimario, " JAMS: Shutting down") !== false) {
                                             }
                                         }
 
-                                        
 
-                                        // Validador  Summarizer V3
-                                        $corriendoComoAux = "";
-                                        if ($estadoCrontabSumarizador==1) {
-                                            $corriendoComoAux = "Crontab";
-                                            
-                                        }
-                                        
+
+
 
                                         $largoSum = count($proceSumarizador);
                                         for ($x = 0; $x < $largoSum; $x++) {
                                             $proceSumarizadorArray = explode("/JAMSSummarizer start", $proceSumarizador[$x]);
- 
+
                                             if (count($proceSumarizadorArray) > 1) {
-                                                if($corriendoComoAux==""){
-                                                    $corriendoComoAux="Servicio";
-                                                }else{
-                                                    $corriendoComoAux.=" y Servicio";
-                                                } 
-                                                                                         
+                                                if ($corriendoComoAux == "") {
+                                                    $corriendoComoAux = "Servicio";
+                                                } else {
+                                                    $corriendoComoAux .= " y Servicio";
+                                                }
                                             }
                                         }
- 
-                                        if($corriendoComoAux=="") $corriendoComoAux="Detenido";
+
+                                        if ($corriendoComoAux == "") $corriendoComoAux = "Detenido";
                                         echo "$corriendoComoAux";
 
 
@@ -704,23 +735,23 @@ if (strpos($sumarizadorPrimario, " JAMS: Shutting down") !== false) {
 
 
                                         ?>
-                                                <button type="button" class="btn-xs btn-outline-info ml-1" onclick="verInfo('divCrontabVista')"><i class='fa-solid fa-eye m-1'></i></button>
-                                                <div style="display:none">
-                                                    <div class="row" id="divCrontabVista" tittle="Crontab" style="overflow:auto;">
-                                                        <div class="col-md-12">
-                                                            <div class="container-fluid bg-dark text-white p-3" style="border-radius: 5px;overflow:auto;">
-                                                                <?php foreach ($procSumCrontab as $x) {
-                                                                    $procSumCrontab = $procSumCrontab;
+                                        <button type="button" class="btn-xs btn-outline-info ml-1" onclick="verInfo('divCrontabVista')"><i class='fa-solid fa-eye m-1'></i></button>
+                                        <div style="display:none">
+                                            <div class="row" id="divCrontabVista" tittle="Crontab" style="overflow:auto;">
+                                                <div class="col-md-12">
+                                                    <div class="container-fluid bg-dark text-white p-3" style="border-radius: 5px;overflow:auto;">
+                                                        <?php foreach ($procSumCrontab as $x) {
+                                                            $procSumCrontab = $procSumCrontab;
 
-                                                                    echo "<li>" . trim($x) . "</li>";
-                                                                }   ?>
-                                                            </div>
-                                                        </div>
+                                                            echo "<li>" . trim($x) . "</li>";
+                                                        }   ?>
                                                     </div>
                                                 </div>
+                                            </div>
+                                        </div>
                                         <?php
 
-                                            
+
 
                                         ?>
 

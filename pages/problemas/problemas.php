@@ -22,7 +22,110 @@ $conn = $system->conectaDB();
         <div class="row">
             <div class="col-md-5"></div>
             <div class="col-md-2 "><!--columna de tamano 4 corrido por 8 hacia la derecha-->
+                
 
+            
+            
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+            <div class="input-group">
+    <input list="filter_status_list" name="filter_status" id="filter_status" class="filter-input">
+    <div class="input-group-append">
+        <button class="btn btn-outline-secondary" type="button" id="clearInput">X</button>
+    </div>
+</div>
+
+<div id="selectedValues">
+    <!-- Aquí se mostrarán las opciones seleccionadas -->
+</div>
+
+<datalist id="filter_status_list">
+    <option value="Escalate PD">
+    <option value="Escalate GT">
+    <option value="Seeking Customer Clarification">
+    <option value="Working">
+    <option value="Assigned">
+</datalist>
+
+<script>
+    let selectedValues = []; // Array para almacenar las selecciones
+
+    // Función para actualizar la visualización de valores seleccionados
+    function updateSelectedValues() {
+        const container = document.getElementById('selectedValues');
+        container.innerHTML = ''; // Limpiar antes de actualizar
+
+        selectedValues.forEach(value => {
+            const tag = document.createElement('span');
+            tag.classList.add('badge', 'badge-secondary', 'm-1');
+            tag.textContent = value;
+            
+            // Crear botón para eliminar la opción
+            const removeBtn = document.createElement('button');
+            removeBtn.textContent = 'X';
+            removeBtn.classList.add('btn', 'btn-sm', 'btn-danger', 'ml-1');
+            removeBtn.onclick = () => removeTag(value);
+
+            tag.appendChild(removeBtn);
+            container.appendChild(tag);
+        });
+    }
+
+    // Función para eliminar una opción seleccionada
+    function removeTag(value) {
+        selectedValues = selectedValues.filter(item => item !== value); // Eliminar del array
+        updateSelectedValues(); // Actualizar la visualización
+    }
+
+    // Evento para detectar cambios en el input
+    document.getElementById('filter_status').addEventListener('change', function() {
+        const inputValue = this.value.trim();
+        if (inputValue && !selectedValues.includes(inputValue)) {
+            selectedValues.push(inputValue); // Agregar al array de selecciones
+            this.value = ''; // Limpiar el input
+            updateSelectedValues(); // Actualizar la visualización
+        }
+    });
+
+    // Evento para limpiar el input (botón "X")
+    document.getElementById('clearInput').addEventListener('click', function() {
+        selectedValues = []; // Limpiar las selecciones
+        updateSelectedValues(); // Actualizar la visualización
+    });
+</script>
+
+
+
+
+
+            
+
+
+
+
+
+
+
+
+
+            
+    
                 <button type="button" onclick="crearProblema()" class="btn btn-block bg-success btn-md">
                     <i class="fa-sharp fa-solid fa-database mr-2"></i> Añadir un nuevo problema</button>
 

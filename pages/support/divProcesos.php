@@ -86,8 +86,8 @@ $largoReconcile = count($reconcile) - 5;
 // Funcion para enviar mensajes por Telegram
 function enviarMensajeTelegram($message)
 {
-    $botToken = "6098434713:AAEuvoUJKnUwzW_Wx2h4e2LnYCAkoW1iB-I"; //Token del bot Telegram
-    $chatId = "-1001966529185"; // Reemplazar con el chat ID del usuario o grupo al que se le quiere enviar el mensaje
+    $botToken = "7167115609:AAEEihCCCRzkJmsOkFAfvOPYSwl1qr2Ts2E"; //Token del bot Telegram
+    $chatId = "-1002428398059"; // Reemplazar con el chat ID del usuario o grupo al que se le quiere enviar el mensaje
 
     $url = "https://api.telegram.org/bot" . $botToken . "/sendMessage";
     $data = array(
@@ -136,7 +136,8 @@ if (strpos($jamsActivoLog, "JAMSRouter start") !== false && strpos($jamsActivoLo
 //validar Jams Sec
 $largoJamsSec = count($jamsSec);
 
-if (strpos($jamsSec, "JAMSRouter start") !== false && strpos($jamsSec, "JAMSCluster run") !== false) {
+
+if (strpos($jamsSec, "JAMSCluster run") !== false) {
     $validarJamsSec = 1;
 } else {
     $validarJamsSec = 2;
@@ -177,15 +178,27 @@ foreach ($logSumarizadorDatos as $item) {
 
 //largo Proceso sumarizador
 //print_r($procSumCrontab);
-$largoSum = count($proceSumarizador);
-$largoValidarCrontab = count($procSumCrontab);
-$lineaCrontabSumarizador = explode("*", $procSumCrontab[1])[0];
-$estadoCrontabSumarizador = 0;
-if (preg_match("/#/", $lineaCrontabSumarizador)) {
-    $estadoCrontabSumarizador = 0;
-} else {
-    $estadoCrontabSumarizador = 1;
+
+
+$estadoCrontabSumarizador = 1;
+$largoSummarizadorCrontab=0;
+foreach ($procSumCrontab as $line) {
+    //echo "Log entry: $line<br><br>";
+    
+    $firstChar = substr(trim($line), 0, 1);  
+    if ($firstChar === '#') {
+        $estadoCrontabSumarizador = 0;
+    } else {
+        if($firstChar=='*')
+        {
+           $largoSummarizadorCrontab++;
+           $estadoCrontabSumarizador = 1;
+        }
+     }
 }
+ 
+// El valor de $estadoCrontabSumarizador será 1 si alguna línea está descomentada
+
 
 ?>
 
@@ -262,8 +275,14 @@ if (preg_match("/#/", $lineaCrontabSumarizador)) {
                     //enviarEmail($subject, $message);
                     // ---- Insert Alerta
                     $mensajeAlerta = "Se detectó que el JAMS se ha reiniciado mas de 4 veces.  ";
-                    $alertas->insertAlert($id_faena, "HCXAL001", $mensajeAlerta);
+                    $alertas->insertAlert($id_faena, "HCXJAMS01", $mensajeAlerta);
                     //--------------------
+                }else{
+                    // ---- Limpieza Alerta
+                    $mensajeAlerta = "Se detectó que el JAMS se ha reiniciado mas de 4 veces.  ";
+                    $alertas->insertAlert($id_faena, "HCXJAMS01", $mensajeAlerta,1);
+                    //--------------------
+
                 }
 
 
@@ -302,8 +321,12 @@ if (preg_match("/#/", $lineaCrontabSumarizador)) {
                     $valorAux = "Danger";
                     //$subject = 'Problemas con ' . $carpeta;
                     //$message = 'problemas en el Proceso Jams';
-                    //enviarEmail($subject, $message);
-
+                    //enviarEmail($subject, $message); HCXJAMS02
+                    $mensajeAlerta = "Se debe revisar el proceso del JAMS  ";
+                    $alertas->insertAlert($id_faena, "HCXJAMS02", $mensajeAlerta);
+                }else{
+                    $mensajeAlerta = "Se debe revisar el proceso del JAMS  ";
+                    $alertas->insertAlert($id_faena, "HCXJAMS02", $mensajeAlerta,1);
                 }
 
                 ?>
@@ -335,25 +358,22 @@ if (preg_match("/#/", $lineaCrontabSumarizador)) {
                     $valorAux = "Danger";
 
                     // ---- Insert Alerta
-                    $mensajeAlerta = "Se detectó un error en el JAMS Servidor Backup.  ";
-                    $alertas->insertAlert($id_faena, "HCXAL001", $mensajeAlerta);
+                    $mensajeAlerta = "Se debe revisar el proceso del JAMS En el servidor Backup ";
+                    $alertas->insertAlert($id_faena, "HCXJAMS03", $mensajeAlerta);
+
+                    
                     //--------------------
                 }
-                if ($carpeta == "capcnn/") {
-                    $colorAux = "bg-gray";
-                    $valorAux = "Stopped";
-                }
+                
                 ?>
 
                 <div class="col-lg-4 col-6" style="cursor: pointer" onclick="verInfo('divJamsSecVista')" data-toggle="tooltip" title="Este es un tooltip">
 
                     <div class="small-box small-box-2 <?php echo $colorAux ?>">
                         <div class="inner">
-                            <?php if ($carpeta == "capcnn/") {
-                                echo "JAMS Secundario";
-                            } else { ?>
-                                <h6>JAMS Secundario <?php echo $system->validarLog($jamsSec, 4, "right") ?></h6>
-                                <p><?php }
+                           
+                                <h6>JAMS Sec. <?php echo $system->validarLog($jamsSec, 4, "right") ?></h6>
+                                <p><?php 
                                 echo $valorAux ?></p>
                         </div>
                         <div class="icon">
@@ -398,7 +418,7 @@ if (preg_match("/#/", $lineaCrontabSumarizador)) {
 
                         $interval = $currentTime->diff($logTime);
                         $minutesPassed = ($interval->days * 24 * 60) + ($interval->h * 60) + $interval->i;
-
+#echo $minutesPassed. "Minutos que han pasado";
                         // Verificar si el intervalo es menor o igual a 10 minutos
 
                         if ($faenaDatos->alias == "magsa") {
@@ -423,6 +443,8 @@ if (preg_match("/#/", $lineaCrontabSumarizador)) {
                                 break;
                             }
                         }
+
+
                     }
                     $caux++;
                     #echo  "RMM@sistemaDeMonitoreo : ~ ". $lineaImportador . "<br>";
@@ -435,19 +457,25 @@ if (preg_match("/#/", $lineaCrontabSumarizador)) {
                 $colorAux = "bg-success";
                 $valorAux = "Success: ";
 
-                if ($largoAux >= 3 && $largoAux <= 4) {
-                    $colorAux = "bg-warning";
-                    $valorAux = "Warning: ";
-                }
+ 
                 if ($largoAux >= 5) {
                     $colorAux = "bg-danger";
                     $valorAux = "Danger: ";
                     //echo $system->alerta("Error en Importadores","Demaciados procesos Impo");
                     // $system->alertaSonora(120000);
-                    // ---- Insert Alerta
+                    // ---- Insert Alerta HCXIMP002 = encolados HCXIMP001 = ejecucion mucho tiempo
                     $mensajeAlerta = "Se detectó importadores pegados ";
-                    $alertas->insertAlert($id_faena, "HCXAL001", $mensajeAlerta);
+                    $alertas->insertAlert($id_faena, "HCXIMP002", $mensajeAlerta);
                     //--------------------
+                }else{
+                    if ($largoAux >= 3 && $largoAux <= 4) {
+                        $colorAux = "bg-warning";
+                        $valorAux = "Warning: ";
+                    }
+
+                    // Limpieza
+                    $mensajeAlerta = "Se detectó importadores pegados ";
+                    $alertas->insertAlert($id_faena, "HCXIMP002", $mensajeAlerta,1);
                 }
 
                 ?>
@@ -476,16 +504,21 @@ if (preg_match("/#/", $lineaCrontabSumarizador)) {
                 $valorAux = "Success: ";
                 $largoAux = $largoSqlServer;
 
-                if ($largoAux == 3) {
-                    $colorAux = "bg-warning";
-                    $valorAux = "Warning: ";
-                }
                 if ($largoAux < 0 || $largoAux > 4) {
                     $colorAux = "bg-danger";
                     $valorAux = "Danger: ";
                     //$system->alertaSonora(120000); 
                     $alertas->insertAlert($id_faena, "HCXPES011", "En " . $faenaDatos->alias . ". Procesos encolados en la replica a s q l server.");
+                } else {
+                    if ($largoAux == 3) {
+                        $colorAux = "bg-warning";
+                        $valorAux = "Warning: ";
+                    }
+                    $alertas->insertAlert($id_faena, "HCXPES011", "En " . $faenaDatos->alias . ". Procesos encolados en la replica a s q l server.",1);
+
                 }
+
+
 
                 ?>
 
@@ -554,9 +587,11 @@ if (preg_match("/#/", $lineaCrontabSumarizador)) {
                     $colorAux = "bg-warning";
                     $valorAux = "Warning: ";
                 }
-                if (($largoAux < 1 && $estadoCrontabSumarizador == 0)) {
-                    $colorAux = "bg-danger";
-                    $valorAux = "Danger: ";
+                if (($largoAux < 1 && $largoSummarizadorCrontab == 0)) {
+
+                    //echo "<div class='col-lg-4 col-6' >Largo aux : ".$largoAux."</div>";
+                    $colorAux = "bg-warning";
+                    $valorAux = "Warning: ";
                     // ---- Insert Alerta
                     $mensajeAlerta = "Se detectó que no se está realizando el proceso de sumarización.  ";
                     $alertas->insertAlert($id_faena, "HCXSD011", $mensajeAlerta);
@@ -577,10 +612,20 @@ if (preg_match("/#/", $lineaCrontabSumarizador)) {
                 if ($validarLogSummarizer == 0) {
                     $colorAux = "bg-danger";
                     $textoAux = "Danger";
+                    $valorAux = "Danger: ";
                     // ---- Insert Alerta
                     $mensajeAlerta = "Se detectó un error en el log del sumarizador.  ";
                     $alertas->insertAlert($id_faena, "HCXSD011", $mensajeAlerta);
+                    
                     //--------------------
+                }
+
+                if ($valorAux == "Success: ")
+                {
+                    //limpiar alert sumarizadores 
+                    $mensajeAlerta = "Se detectó un error en el log del sumarizador.  ";
+                    $alertas->insertAlert($id_faena, "HCXSD011", $mensajeAlerta,1); 
+                
                 }
 
                 ?>
@@ -614,6 +659,10 @@ if (preg_match("/#/", $lineaCrontabSumarizador)) {
                     // ---- Insert Alerta
                     $mensajeAlerta = "Se detectó un error en el NTP.  ";
                     $alertas->insertAlert($id_faena, "HCXAL001", $mensajeAlerta);
+                    //--------------------
+                }else{
+                    $mensajeAlerta = "Se detectó un error en el NTP.  ";
+                    $alertas->insertAlert($id_faena, "HCXAL001", $mensajeAlerta,1);
                     //--------------------
                 }
 
@@ -782,11 +831,14 @@ if (preg_match("/#/", $lineaCrontabSumarizador)) {
                                             if ($minutesPassed <= 10) {
 
                                                 //echo 'Dentro de los 10 minutos.';
+                                                //Limpieza
+                                                $mensajeAlerta = "Se detectó un importador que lleva mas de 10 minutos ejecutandose ";
+                                                $alertas->insertAlert($id_faena, "HCXIMP001", $mensajeAlerta,1);
                                             } else {
                                                 $colorTiempoEjecucion = "red";
                                                 //echo 'Fuera de los 10 minutos.';
                                                 $mensajeAlerta = "Se detectó un importador que lleva mas de 10 minutos ejecutandose ";
-                                                $alertas->insertAlert($id_faena, "HCXAL001", $mensajeAlerta);
+                                                $alertas->insertAlert($id_faena, "HCXIMP001", $mensajeAlerta);
                                             }
 
 

@@ -27,21 +27,31 @@ if ($_SESSION["permiso"] == "Administrador" || $_SESSION["permiso"] == "Soporte"
 
         <div class="card-body">
             <div class="row ">
-                <div class="col-md-3"></div>
-                <div class="col-md-4">
+                 <div class="col-md-6">
                     <a class="btn btn-app bg-info" onclick='monitoreoCAS("Amsa")'>
 
                         <i class="fas fa-hard-hat"></i> Amsa
                     </a>
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-6">
                     <a class="btn btn-app bg-info" onclick='monitoreoCAS("Codelco")'>
 
                         <i class="fas fa-hard-hat"></i> Codelco
                     </a>
                 </div>
 
-                <div class="col-md-3"></div>
+
+                <!--
+                <div class="col-md-4">
+
+                         <a class="btn btn-app bg-info" onclick='cargaMaster()'>
+
+                         <i class="fas fa-globe"></i> Master
+                        </a>
+ 
+
+                </div>
+-->
             </div>
         </div>
 

@@ -5,7 +5,7 @@
     "DB_NAME": "checksupport",
     "APP_INDEX": "http://10.40.90.99/monitoreoLaboratorio/",
     "APP_RUTADATASET": "/home/jigsaw/monitoreoRemoto/",
-    "APP_ENV":"development",
+    "APP_ENV":"desarrollo",
     "APP_DIR":"monitoreoLaboratorio"
 }
  

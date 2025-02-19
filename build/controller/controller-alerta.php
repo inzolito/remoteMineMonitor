@@ -1,16 +1,23 @@
 <?php
 require_once("controller-functions.php");
+require_once("controller-faena.php");
+
 $system = new systemClass();
+ 
 $system->validarSesion();
+
 class alertas
 {
 
-    function insertAlert($idFaena,$codigoAlerta , $mensajeAlerta)
+    function insertAlert($idFaena,$codigoAlerta , $mensajeAlerta,$eliminarAlerta=0)
     {
         $system = new systemClass();
-        $mysqli = $system->conectaDB();
+        $faenaCl = new faena();
 
-        //$mensajeAlerta="aparece el siguiente mensaje en el sumarizador : mensajemensajemensaje " ;
+        $mysqli = $system->conectaDB();
+        $faenaDatos = $faenaCl->datos($idFaena);
+
+         //$mensajeAlerta="aparece el siguiente mensaje en el sumarizador : mensajemensajemensaje " ;
         $alertaSistemaDatos=self::codigoAlerta(0,$codigoAlerta);
         if($alertaSistemaDatos==0) return 0;
         $alertaSistemaDatos=$alertaSistemaDatos->fetch_assoc();
@@ -21,7 +28,7 @@ class alertas
         //echo "insert into problemas set id_usuario= '".$_SESSION['id']."', titulo='$titulo' , descripcion = '$descripcion', id_area=$area , fecha = NOW()";
        $existeAlerta=self::alerta($idFaena,$idAlertaSistema,1);
 
-       if($existeAlerta->num_rows==0)
+       if($existeAlerta->num_rows==0 && $eliminarAlerta==0)
        {
          
             $mysqli->query(
@@ -37,6 +44,17 @@ class alertas
             estado=1"
             );
             
+            //echo "adsad";
+
+            $system ->  enviarMensajeTelegram("En $faenaDatos->faena ,".$mensajeAlerta);
+        }else{
+
+            if ($eliminarAlerta==1 && $existeAlerta->num_rows>0)
+            {   
+                $alertaEliminarDatos=$existeAlerta->fetch_assoc();
+                //print_r($alertaEliminarDatos);
+                self::alertaSolucionada($alertaEliminarDatos["alerta_id"]);
+            }
         }
         return 1;
     }
@@ -69,7 +87,8 @@ class alertas
        // echo "vista ->$vista";
         
         if ($idAlertaSistema!=0) $whereAlerta=" and id_alerta_sistema='$idAlertaSistema'" ;
-        if ($estado!=0) $whereAlerta.=" and estado='$estado'" ;
+        //if ($estado!=0) $whereAlerta.=" and estado='$estado'" ;
+        if ($estado == "0" || $estado == "1") $whereAlerta .= " and estado='$estado'";
         if ($vista!="-1") $whereAlerta.=" and vista='$vista'" ;
         if ($idAlerta!=0) $whereAlerta.=" and a.id=$idAlerta" ;
 
@@ -82,6 +101,7 @@ class alertas
 
         }else{
             //echo "select * from alertas where id_faena=$idFaena  $whereAlerta ";
+            //echo "select a.id as alerta_id ,id_alerta_sistema ,id_usuario ,id_faena ,created_at ,updated_at ,deleted_at ,alerta_sistema ,vista ,estado ,codigo_alerta ,alerta ,gravedad from alertas a join alertas_sistema asis on (a.id_alerta_sistema=asis.id) where id_faena=$idFaena  $whereAlerta order by a.updated_at desc";
 
             return $mysqli->query("select a.id as alerta_id ,id_alerta_sistema ,id_usuario ,id_faena ,created_at ,updated_at ,deleted_at ,alerta_sistema ,vista ,estado ,codigo_alerta ,alerta ,gravedad from alertas a join alertas_sistema asis on (a.id_alerta_sistema=asis.id) where id_faena=$idFaena  $whereAlerta order by a.updated_at desc");
          }
@@ -111,7 +131,7 @@ class alertas
         //echo "update alertas set   updated_at= '".$system->formatoFecha(0,0)."' ,vista=1, estado=0  where id=$idAlerta ";
          $mysqli->query("update alertas set   updated_at= '".$system->formatoFecha(0,0)."' ,vista=1, estado=0  where id=$idAlerta ");
          $mysqli->query("insert into alerta_solucion set   created_at= '".$system->formatoFecha(0,0)."' , updated_at= '".$system->formatoFecha(0,0)."' , id_alerta=$idAlerta , id_usuario=".$_SESSION['id']." ");
-         echo "insert into alerta_solucion set   created_at= '".$system->formatoFecha(0,0)."' , updated_at= '".$system->formatoFecha(0,0)."' , id_alerta=$idAlerta , id_usuario=".$_SESSION['id']." ";
+        // echo "insert into alerta_solucion set   created_at= '".$system->formatoFecha(0,0)."' , updated_at= '".$system->formatoFecha(0,0)."' , id_alerta=$idAlerta , id_usuario=".$_SESSION['id']." ";
         return 1;
         
     }

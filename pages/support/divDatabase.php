@@ -80,9 +80,11 @@ $tamanoBdPrimario = file($ruta . "tamanoTablasPostgres.log");
 $tamanoBdSecundario = file($ruta . "tamanoTablasPostgresSec.log");
 $consultaIdle = file($ruta . "consultasIdle.log");
 $primaryKeyMaxActivo = file($ruta . "primaryKeyTablesMon.log");
-
+$rotationTableLog = file($ruta . "rotationTable.log");
 $largoSchemaInfo = count($schemaInfoSec);
 
+
+$rotationTableData = $rotationTableLog[3];
 
 //conseguir fecha actual
 $fechaActualVisual = "<i class='fas fa-calendar'></i>" . date("d");
@@ -145,6 +147,8 @@ switch ($validarIdle) {
 
 <div class="row">
     <!-- Datos de la base de datos -->
+
+
     <div class="col-md-12">
         <div class='<?php echo $colorbordeT ?>'>
             <div class="card-header" data-card-widget="collapse">
@@ -234,22 +238,51 @@ switch ($validarIdle) {
                 date_timezone_set($schemaDateTime, new DateTimeZone('America/Santiago'));
                 $schemaInfoDatePrint = date_format($schemaDateTime, 'y/m/d H:i');
 
+                $color = "btn btn-success btn-block";
 
                 $interval = $currentDateTime->diff($schemaDateTime);
                 $minutesPassed = $interval->i + $interval->h * 60 + $interval->d * 24 * 60;
+
                 if ($minutesPassed >= 0 && $minutesPassed <= 10) {
                     $mensajeSchema = " <b>bkp hace </b> <br>" . $minutesPassed . " Min.";
-                    //$mensajeSchema = "currentDateTime  " . $currentDateTime->format('Y-m-d H:i:s')."   schemaDateTime" . $schemaDateTime;
+                    
 
-                    $color = "btn btn-success btn-block";
                 } else {
 
                     $mensajeSchema = "bkp hace  " . $minutesPassed . " Min.";
                     $color = "btn btn-danger btn-block";
+
+                    // ---- Insert Alerta
+                    $mensajeAlerta = "La replica al servidor secundario no se completa desde mas de   " . $minutesPassed . " Minutos ";
+                    $alertas->insertAlert($id_faena, "HCXSCHI001", $mensajeAlerta);
+                    //--------------------
                 }
 
 
                 ?>
+
+
+
+                <div class="row">
+                    <div class="col-md-12">
+                        <div class="info-box mb-12 border border-success">
+                            <span class="info-box-icon" style="width: auto !important;">
+                                <?php echo $system->validarLog($rotationTableLog, 10) ?>
+                                <i class="far fa-clocks " style="font-size: 10px;"></i></span>
+                            <div class="info-box-content">
+
+                                <span class="info-box-text">Tabla Rotations</span>
+                                <span class="info-box-number"><?php echo $rotationTableData  ?></span>
+                            </div>
+
+                        </div>
+                    </div>
+
+
+
+
+                </div>
+
 
 
 
@@ -305,22 +338,20 @@ switch ($validarIdle) {
                 $maxIdTablasInteger = $lineaMaxIdArray[4];
                 $maxIdTablas = $lineaMaxIdArray[0] . " : " . number_format($lineaMaxIdArray[4], 0, ",", ".");
                 $valorDesbordamientoTablas = 2147483647;
-                $faltaParaElDesbordamiento=$valorDesbordamientoTablas - $lineaMaxIdArray[4];
-                
-                $bcpk="border-color: #28a745 !important;";
-                $classPK=" ";
+                $faltaParaElDesbordamiento = $valorDesbordamientoTablas - $lineaMaxIdArray[4];
 
-                if($faltaParaElDesbordamiento<=15000000)
-                {
-                    $bcpk="border-color: #dc3545 !important;";
-                    $classPK="bg-warning";
-                    $bcpk="";
+                $bcpk = "border-color: #28a745 !important;";
+                $classPK = " ";
+
+                if ($faltaParaElDesbordamiento <= 15000000) {
+                    $bcpk = "border-color: #dc3545 !important;";
+                    $classPK = "bg-warning";
+                    $bcpk = "";
                 }
-                if($faltaParaElDesbordamiento<=10000000)
-                {
-                    $bcpk="border-color: #dc3545 !important;";
-                    $classPK="bg-danger";
-                    $bcpk="";
+                if ($faltaParaElDesbordamiento <= 10000000) {
+                    $bcpk = "border-color: #dc3545 !important;";
+                    $classPK = "bg-danger";
+                    $bcpk = "";
                 }
                 ?>
 
@@ -330,21 +361,21 @@ switch ($validarIdle) {
                 <div class="row mt-1">
                     <!-- schema Max id primary key-->
                     <div class="col col-12">
-                        <table class="table table-bordered <?php echo $classPK ?>" >
+                        <table class="table table-bordered <?php echo $classPK ?>">
                             <thead>
                                 <th class="<?php echo $classPK  ?>" style="<?php echo $bcpk ?>">Tabla con mayor ID</th>
-                                <th class="<?php echo $classPK  ?>"  style="<?php echo $bcpk ?>">PK</th>
-                                <th class="<?php echo $classPK  ?>"  style="<?php echo $bcpk ?>">Max. Val. Permitido</th>
-                                <th class="<?php echo $classPK  ?>"  style="<?php echo $bcpk ?>">Falta para el limite</th>
+                                <th class="<?php echo $classPK  ?>" style="<?php echo $bcpk ?>">PK</th>
+                                <th class="<?php echo $classPK  ?>" style="<?php echo $bcpk ?>">Max. Val. Permitido</th>
+                                <th class="<?php echo $classPK  ?>" style="<?php echo $bcpk ?>">Falta para el limite</th>
                             </thead>
 
                             <tbody>
                                 <?php
                                 echo "
-                                <td class='".$classPK."'  style='".$bcpk."' >". $lineaMaxIdArray[0] . "</td>
-                                <td class='".$classPK."'  style='".$bcpk."' >" . number_format($lineaMaxIdArray[4], 0, ",", ".") . "</td>
-                                <td class='".$classPK."'  style='".$bcpk."' >" . number_format($valorDesbordamientoTablas, 0, ",", ".") . "</td>
-                                <td class='".$classPK."'  style='".$bcpk."' >" . number_format( $faltaParaElDesbordamiento, 0, ",", ".") . "</td>
+                                <td class='" . $classPK . "'  style='" . $bcpk . "' >" . $lineaMaxIdArray[0] . "</td>
+                                <td class='" . $classPK . "'  style='" . $bcpk . "' >" . number_format($lineaMaxIdArray[4], 0, ",", ".") . "</td>
+                                <td class='" . $classPK . "'  style='" . $bcpk . "' >" . number_format($valorDesbordamientoTablas, 0, ",", ".") . "</td>
+                                <td class='" . $classPK . "'  style='" . $bcpk . "' >" . number_format($faltaParaElDesbordamiento, 0, ",", ".") . "</td>
                                 ";
                                 ?>
                             </tbody>

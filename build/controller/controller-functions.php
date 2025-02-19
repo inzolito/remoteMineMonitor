@@ -38,18 +38,18 @@ class systemClass
         }
     }
 
- 
-    
-    function formatoFecha($fecha=0, $tipoFecha=0)
+
+
+    function formatoFecha($fecha = 0, $tipoFecha = 0)
     {
-        if($fecha==0) $fecha=date("Y-m-d H:i:s");
+        if ($fecha == 0) $fecha = date("Y-m-d H:i:s");
 
         date_default_timezone_set('America/Santiago');
 
         switch ($tipoFecha) {
             case 0:
-                    return $fecha;
-                    break;
+                return $fecha;
+                break;
             case 1:
             case "DB":
             case "BD":
@@ -114,15 +114,44 @@ class systemClass
     }
 
 
-    function pintarDiv($largo)
+    function pintarDiv($largo, $error = 0)
     {
-        if ($largo >= 2) {
-            return "card card-navy";
-        } else if ($largo <= 1) {
-            return "card card-light ";
-        } //else{return "card card-navy disable";}
-
+        if ($error == 0) {
+            if ($largo >= 2) {
+                return "card card-navy";
+            } else if ($largo <= 1) {
+                return "card card-light ";
+            }
+        } else {
+            if ($error == 1) {
+                return "card dangerRRM";
+            } else {
+                return "card card-light ";
+            }
+        }
     }
+    
+    
+
+    //-------------------------------------------------------------NuevaFuncion-----------
+    function pintarDiv2($tipo, $validacion)
+    {
+        if ($tipo == "sumarizador") {
+            if ($validacion == 1) {
+                return "card card-navy";
+            } else {
+                return "card dangerRRM";
+            }
+        } elseif ($tipo == "daily") {
+            if ($validacion == 1) {
+                return "card card-navy";
+            } else {
+                return "card dangerRRM";
+            }
+        }
+    }
+
+    //------------------------------------------------------------------------------------
 
     function validarLog($log, $intervalo, $alineacion = "left")
     {
@@ -201,46 +230,46 @@ class systemClass
 
 
 
-    function iconStatusConexionFaena($alias,$retornarBinario=0,$servidor123=0)
+    function iconStatusConexionFaena($alias, $retornarBinario = 0, $servidor123 = 0)
     {
         $system = new systemClass();
         $carpeta = $alias . "/";
 
         $ruta = $system->rutaDataSet() . $carpeta;
-        $nombreLog="ProcesosJamsMon.log";
-        if($servidor123==2) $nombreLog="ProcesosJamsSecMon.log";
-        $rutaLog=$ruta .$nombreLog ;
-         
+        $nombreLog = "ProcesosJamsMon.log";
+        if ($servidor123 == 2) $nombreLog = "ProcesosJamsSecMon.log";
+        $rutaLog = $ruta . $nombreLog;
+
         $log = file($rutaLog);
         //echo $rutaLog;
-       // if ($servidor123==2) $log=file($ruta . "ProcesosJamsSecMon.log");
-        
-        $onlineBinario=0;
+        // if ($servidor123==2) $log=file($ruta . "ProcesosJamsSecMon.log");
+
+        $onlineBinario = 0;
         if (file_exists($rutaLog)) {
 
             $fechaActual = new DateTime();
             $fechaLog = DateTime::createFromFormat("Y-m-d H:i:s", trim($log[0]));
-            
+
             $diferencia = $fechaActual->diff($fechaLog)->i;
 
             $iconoOnline = " class='fas fa-wifi text-success mr-2' ";
-            $onlineBinario=1;
-           //echo "diferencia $diferencia";
+            $onlineBinario = 1;
+            //echo "diferencia $diferencia";
             //en minutos
             if ($diferencia > 3) {
                 $iconoOnline = " class='fas fa-wifi text-danger mr-2' ";
-                $onlineBinario=0;
+                $onlineBinario = 0;
                 //$system->alertaSonora(240000);
-            }else{
-                $onlineBinario=1;
+            } else {
+                $onlineBinario = 1;
             }
         } else {
             $iconoOnline = " class='fas fa-wifi text-danger mr-2' ";
-            $onlineBinario=0;
+            $onlineBinario = 0;
         }
-        if($retornarBinario==0){
+        if ($retornarBinario == 0) {
             return  $iconoOnline;
-        }else{
+        } else {
             return $onlineBinario;
         }
     }
@@ -280,6 +309,22 @@ class systemClass
         }
     }
 
+
+    function datosServidor($ipServer = 0)
+    {
+        $system = new systemClass();
+        $mysqli = $system->conectaDB();
+
+        $result = $mysqli->query("select * from servidores where ip='$ipServer' ");
+        if ($result->num_rows > 0) {
+            $serverData = $result->fetch_object();
+
+            return $serverData;
+        } else {
+
+            return false;
+        }
+    }
     function alertaSonora($tiempo)
     {
         echo '<script>';
@@ -305,26 +350,36 @@ class systemClass
     // Funcion para enviar mensajes por Telegram
     function enviarMensajeTelegram($message)
     {
-        $botToken = "6098434713:AAEuvoUJKnUwzW_Wx2h4e2LnYCAkoW1iB-I"; //Token del bot Telegram
-        $chatId = "-1001966529185"; // Reemplazar con el chat ID del usuario o grupo al que se le quiere enviar el mensaje
+        // Token del bot
+        $token = '7167115609:AAEEihCCCRzkJmsOkFAfvOPYSwl1qr2Ts2E';
 
-        $url = "https://api.telegram.org/bot" . $botToken . "/sendMessage";
-        $data = array(
-            'chat_id' => $chatId,
+        // ID del chat (grupo)
+        $chat_id = '-1002428398059'; // ID de tu grupo
+
+        // URL de la API de Telegram
+        $url = "https://api.telegram.org/bot$token/sendMessage";
+
+        // Datos del mensaje
+        $data = [
+            'chat_id' => $chat_id,
             'text' => $message
-        );
+        ];
 
-        $options = array(
-            'http' => array(
-                'header'  => "Content-type: application/x-www-form-urlencoded\r\n",
-                'method'  => 'POST',
-                'content' => http_build_query($data),
-            ),
-        );
+        // Inicializar cURL
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 
-        $context  = stream_context_create($options);
-        $result = file_get_contents($url, false, $context);
+        // Ejecutar cURL y obtener la respuesta
+        $response = curl_exec($ch);
+        curl_close($ch);
+
+        return $response;
     }
+
+
 
     function divAlert()
     {
@@ -340,10 +395,7 @@ class systemClass
         // 3 - danger
         // 4 - disabled
         // 5 - default
-        
+
         return  "btn btn-$typeButton btn-block";
-
     }
-
-    
 }
