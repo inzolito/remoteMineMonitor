@@ -1,6 +1,6 @@
 <?php
 // Ruta del archivo CSV
-$csv_file = "../../data/trazabilidad.csv";
+$csv_file = "../../../globalData/trazabilidad.csv";
 
 // Leer el archivo CSV
 $csv_data = [];

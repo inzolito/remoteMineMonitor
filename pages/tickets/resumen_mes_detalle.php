@@ -1,6 +1,8 @@
 <?php
+//Trabajado por Paulina Aedo 
+
 // Ruta del archivo CSV
-$csv_file = "../../data/tickets.csv";
+$csv_file = "../../../globalData/tickets.csv";
 setlocale(LC_TIME, 'es_ES.UTF-8');
 
 // Leer el archivo CSV
@@ -218,7 +220,11 @@ if (($handle = fopen($csv_file, "r")) !== FALSE) {
     }
 </style>
 
-
+<div class="card-footer clearfix">
+    <button class="dt-button buttons-pdf" onclick="exportToPDF()">
+        <i class="fas fa-file-pdf"></i> Exportar PDF
+    </button>
+</div>
 
 
 <div id="table-container">
@@ -406,18 +412,189 @@ if (($handle = fopen($csv_file, "r")) !== FALSE) {
         </table>
 
     </div>
-
-
-
 </div>
 
 
-
 <script>
+    function exportToPDF() {
+        const {
+            jsPDF
+        } = window.jspdf;
+        const doc = new jsPDF();
+
+        const selectedAccount = $('#accountFilter').val() || 'Todos';
+        const today = new Date();
+        const formattedDate = `Fecha: ${today.getDate().toString().padStart(2, '0')} de ${today.toLocaleString('default', { month: 'long' })} de ${today.getFullYear()}`;
+
+        const title = "Tickets Mensuales";
+        const titleFontSize = 15;
+        const subtitleFontSize = 20;
+        const logoPath = "dist/img/system/hexagon_logo.png";
+        const pageWidth = doc.internal.pageSize.width;
+        const pageHeight = doc.internal.pageSize.height;
+
+        doc.setFontSize(titleFontSize);
+        doc.setFont("helvetica", "bold");
+        const titleWidth = doc.getTextWidth(title);
+        const titleX = 77;
+        const titleY = (pageHeight / 2) - 30;
+
+        const subtitle = `${selectedAccount}`;
+        doc.setFontSize(subtitleFontSize);
+        doc.setFont("helvetica", "normal");
+        const subtitleWidth = doc.getTextWidth(subtitle);
+        const subtitleX = (pageWidth - subtitleWidth) / 2;
+        const subtitleY = titleY + titleFontSize + 3;
+
+        const imgData = new Image();
+        imgData.src = logoPath;
+        imgData.onload = function() {
+            const imgWidth = 40;
+            const imgHeight = 15;
+            const logoX = (pageWidth - imgWidth) / 2;
+            const logoY = titleY - imgHeight - 10;
+
+            doc.addImage(imgData, "PNG", logoX, logoY, imgWidth, imgHeight);
+            doc.text(title, titleX, titleY);
+            doc.text(subtitle, subtitleX, subtitleY);
+
+            doc.setFontSize(12);
+            doc.setFont("helvetica", "normal");
+            const dateX = pageWidth - 70;
+            const dateY = pageHeight - 20;
+            doc.text(formattedDate, dateX, dateY);
+
+            doc.addPage();
+            let yPos = 10;
+
+            const tables = document.querySelectorAll("table");
+            const charts = document.querySelectorAll("canvas");
+
+            tables.forEach((table, index) => {
+                const rows = table.querySelectorAll("tr");
+                let rowCount = 1;
+
+                if (index === 0) {
+                    rows.forEach(row => {
+                        const cells = row.querySelectorAll("td, th");
+                        const filteredCells = [];
+
+                        if (row.rowIndex === 0) {
+                            filteredCells.push("#");
+                        }
+
+                        for (let i = 0; i < cells.length; i++) {
+                            if (i === 1 || i === 2 || i === 3 || i === 4) {
+                                filteredCells.push(cells[i].textContent);
+                            }
+                        }
+
+                        if (row.rowIndex !== 0) {
+                            filteredCells.unshift(`${rowCount}`);
+                            rowCount++;
+                        }
+
+                        const newRow = row.cloneNode();
+                        filteredCells.forEach((content) => {
+                            const newCell = document.createElement('td');
+                            newCell.textContent = content;
+                            newRow.appendChild(newCell);
+                        });
+
+                        row.replaceWith(newRow);
+                    });
+                }
+
+                const rowHeight = 10;
+                const maxRowsPerPage = Math.floor((doc.internal.pageSize.height - 30) / rowHeight);
+                let currentRow = 0;
+
+                doc.autoTable({
+                    html: table,
+                    startY: yPos,
+                    styles: {
+                        overflow: 'linebreak',
+                        fontSize: 10,
+                        halign: 'center',
+                        valign: 'middle',
+                        cellPadding: 2,
+                        lineWidth: 0.1,
+                        lineColor: [0, 0, 0],
+                        fillColor: [240, 240, 240],
+                        font: 'helvetica',
+                        fontStyle: 'normal',
+                    },
+                    headStyles: {
+                        fillColor: ['#004F67'],
+                        textColor: [255, 255, 255],
+                        fontSize: 12,
+                        halign: 'center',
+                        valign: 'middle',
+                    },
+                    alternateRowStyles: {
+                        fillColor: [255, 255, 255],
+                    },
+                    didDrawPage: (data) => {
+
+                        const pageWidth = doc.internal.pageSize.width;
+                        const textWidth = doc.getTextWidth("HXG | Monitoreo Remoto");
+                        const xPosition = (pageWidth - textWidth) / 2;
+                        doc.setFontSize(10);
+                        doc.setFont("helvetica", "normal");
+                        doc.text("HXG | Monitoreo Remoto", xPosition, 5);
+
+
+
+                        // Número de página
+                        const pageNumber = doc.internal.getNumberOfPages();
+                        const currentPage = doc.internal.getCurrentPageInfo().pageNumber;
+                        doc.setFontSize(8);
+                        doc.text(`${currentPage}`, pageWidth - 20, pageHeight - 10);
+
+                        // Pie de página
+                        doc.setFontSize(8);
+                        doc.text(`Confidence to ${selectedAccount} | Copyright © Hexagon`, pageWidth / 2, pageHeight - 10, {
+                            align: 'center'
+                        });
+                    }
+                });
+
+                yPos = doc.lastAutoTable.finalY + 10;
+
+                const chart = charts[index];
+                if (chart) {
+                    if (yPos > 200) {
+                        doc.addPage();
+                        yPos = 10;
+                    }
+
+                    const chartImgData = chart.toDataURL("image/png");
+
+                    if (index === 0 || index === 2) {
+                        const centerX = (doc.internal.pageSize.width - 80) / 2;
+                        doc.addImage(chartImgData, "PNG", centerX, yPos, 80, 80);
+                        yPos += 90;
+                    } else if (index === 1) {
+                        const centerX = (doc.internal.pageSize.width - 100) / 2.5;
+                        doc.addImage(chartImgData, "PNG", centerX, yPos, 120, 70);
+                        yPos += 80;
+                    }
+                }
+            });
+
+            const faenaName = selectedAccount;
+            const fileName = `${faenaName}_Tickets_${today.toLocaleString('default', { month: 'long' })}_${today.getFullYear()}.pdf`;
+
+            doc.save(fileName);
+        }
+    }
+
+
+
     Chart.register(ChartDataLabels);
     $(document).ready(function() {
         var table = $('#dataTable').DataTable({
-            dom: 'Bfrtip',
+            dom: '<"top"Bfr>t<"bottom"lp>',
             buttons: [{
                     extend: 'print',
                     text: 'print',
@@ -444,7 +621,7 @@ if (($handle = fopen($csv_file, "r")) !== FALSE) {
                             $(this).find('thead tr').prepend('<th style="text-align: center;">#</th>');
                             $(this).find('tbody tr').each(function(index) {
                                 $(this).prepend('<td style="text-align: center;">' + (index + 1) + '</td>');
-                                
+
                             });
                         });
 
@@ -631,15 +808,24 @@ if (($handle = fopen($csv_file, "r")) !== FALSE) {
                             </div>
                         `);
 
+                    },
+
+                    filename: function() {
+                        var selectedAccount = $('accountFilter').val();
+                        var month = new Date().toLocaleString('default', {
+                            month: 'long'
+                        });
+                        var year = new Date().getFullYear();
+                        return selectedAccount + "_Tickets_" + month + "_" + year;
+
                     }
                 },
                 'copy',
                 'csv',
                 'excel',
-                'pdf'
             ],
-            "pageLength": 10,
-            "lengthMenu": [10, 25, 50, 100],
+            "pageLength": 5,
+            "lengthMenu": [50, 100, 300],
             "order": []
         });
 
@@ -693,13 +879,13 @@ if (($handle = fopen($csv_file, "r")) !== FALSE) {
 
             Object.entries(datos).forEach(([clave, valor]) => {
                 const porcentaje = total > 0 ? (valor / total) * 100 : 0;
-                porcentajes.push(porcentaje); 
-                const fila = `<tr><td>${clave}</td><td>${valor}</td><td>${porcentaje.toFixed(2)}%</td></tr>`; 
+                porcentajes.push(porcentaje);
+                const fila = `<tr><td>${clave}</td><td>${valor}</td><td>${porcentaje.toFixed(2)}%</td></tr>`;
                 tbody.innerHTML += fila;
                 sumaCantidad += valor;
             });
 
-    
+
             let diferencia = 100 - porcentajes.reduce((a, b) => a + b, 0);
             if (diferencia !== 0) {
                 porcentajes[porcentajes.length - 1] += diferencia;

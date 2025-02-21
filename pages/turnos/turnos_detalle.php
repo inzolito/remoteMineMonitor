@@ -51,6 +51,12 @@ $amsa_accounts = [
     "Zaldivar" => 'Amsa | Zaldivar'
 ];
 
+// Cuenta de Manto VERDE
+
+$mv_accounts = [
+    "Mantoverde S.A." => 'Mantoverde'
+];
+
 // Ingenieros
 $allowed_owner_names = [
     "Claudio Ponce",
@@ -63,6 +69,7 @@ $allowed_owner_names = [
 $last_status = [];
 $codelco_records = [];
 $amsa_records = [];
+$mv_account = [];
 $status_counts = ['Closed' => 0];
 $closed_case_numbers = [];
 $rows = [];
@@ -184,7 +191,7 @@ try {
                 $status = $row[2];
                 $account_name = $row[4];
                 $owner_name = $row[3];
-
+                //if($case_number=="00506493") print_r($row);
                 // Formatear la fecha de "Created At"
                 $created_at = $row[8];
 
@@ -266,6 +273,7 @@ try {
                     if ($startComparison && $endComparison) {
                         $codelcoExiste = false;
                         $amsaExiste = false;
+                        $mvExiste = false;
 
                         foreach ($codelco_accounts as $clave => $valor) {
                             if (strpos(strtolower($account_name), strtolower($clave)) !== false) {
@@ -283,11 +291,21 @@ try {
                             }
                         }
 
+                        foreach ($mv_accounts as $clave => $valor) {
+                            if (strpos(strtolower($account_name), strtolower($clave)) !== false) {
+                                $mvExiste = true;
+                                $row[4] = $valor;
+                                break;
+                            }
+                        }
+
 
                         if ($codelcoExiste && in_array($owner_name, $allowed_owner_names)) {
                             $codelco_records[] = $row;
                         } elseif ($amsaExiste && in_array($owner_name, $allowed_owner_names)) {
                             $amsa_records[] = $row;
+                        } elseif ($mvExiste && in_array($owner_name, $allowed_owner_names)) {
+                            $mv_records[] = $row; 
                         }
                     }
                 }
@@ -306,6 +324,8 @@ try {
 }
 
 echo "<script>var statusCounts = " . json_encode($status_counts) . ";</script>";
+
+//echo $amsa_records[1][7];
 
 ?>
 
@@ -403,6 +423,51 @@ echo "<script>var statusCounts = " . json_encode($status_counts) . ";</script>";
     </div>
 </div>
 
+<h1>
+    <center>
+        <img style="width: 1.5%;" src="https://companieslogo.com/img/orig/HEXA-B.ST-f7fd0700.png?t=1720244492" alt="User Avatar">
+        Tickets Turno - Manto Verde
+        <img style="width: 1.5%;" src="https://companieslogo.com/img/orig/HEXA-B.ST-f7fd0700.png?t=1720244492" alt="User Avatar">
+    </center>
+</h1>
+
+<div class="table-responsive">
+        <table id="ticketsTableMv" class="table table-hover table-striped">
+            <thead>
+                <tr>
+                    <th>Case Number</th>
+                    <th>Account Name</th>
+                    <th>Subject</th>
+                    <th>Status</th>
+                    <th>Created Date</th>
+                    <th>Closed Date</th>
+                    <th>Owner Name</th>
+                    <th>Description</th>
+                    <th>Case Resolution</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php
+
+                foreach ($mv_records as $record) {
+                    echo "<tr>";
+                    echo "<td><a href='https://usa1.lightning.force.com/lightning/r/Case/{$record[0]}/view' target='_blank'>{$record[1]}</a></td>"; // CaseNumber
+                    echo "<td>{$record[4]}</td>"; // AccountName
+                    echo "<td>{$record[5]}</td>"; // Subject
+                    echo "<td>{$record[2]}</td>"; // Status
+                    echo "<td>{$record[8]}</td>"; // CreatedDate
+                    echo "<td>{$record[9]}</td>"; // ClosedDate
+                    echo "<td>{$record[3]}</td>"; // OwnerName
+                    echo "<td>{$record[6]}</td>"; // Description
+                    echo "<td>{$record[7]}</td>"; // CaseResolution
+                    echo "</tr>";
+                }
+                ?>
+            </tbody>
+        </table>
+    </div>
+</div>
+
 
 <script>
     var tableCodelco = $('#ticketsTableCodelco').DataTable({
@@ -418,6 +483,18 @@ echo "<script>var statusCounts = " . json_encode($status_counts) . ";</script>";
     });
 
     var tableAmsa = $('#ticketsTableAmsa').DataTable({
+        dom: 'Bfrtip',
+        buttons: [
+            'copy', 'csv', 'excel', 'pdf', 'print'
+        ],
+        "pageLength": 10,
+        "lengthMenu": [10, 25, 50, 100],
+        "order": [
+            [0, 'desc']
+        ]
+    });
+
+    var tableMv = $('#ticketsTableMv').DataTable({
         dom: 'Bfrtip',
         buttons: [
             'copy', 'csv', 'excel', 'pdf', 'print'

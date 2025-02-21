@@ -1,27 +1,29 @@
 <?php
 // Ruta del archivo CSV
-$csv_file = "../../data/tickets.csv";
+$csv_file = "../../../globalData/tickets.csv";
 ?>
 
-<!-- Estilo CSS para la tabla -->
 <style>
-    .table-container {
-        margin: 20px auto;
-        width: 90%;
-    }
-
-    .table th,
-    .table td {
+    #ticketsTableMv th,
+    #ticketsTableMv td,
+    #ticketsTableCodelco th,
+    #ticketsTableCodelco td,
+    #ticketsTableAmsa th,
+    #ticketsTableAmsa td {
         text-align: center;
         vertical-align: middle;
     }
 
-    .table thead {
+    #ticketsTableMv thead,
+    #ticketsTableCodelco thead,
+    #ticketsTableAmsa thead {
         background-color: #004F67;
         color: white;
     }
 
-    .table thead th {
+    #ticketsTableMv th,
+    #ticketsTableCodelco th,
+    #ticketsTableAmsa th {
         text-align: center;
     }
 
@@ -36,12 +38,6 @@ $csv_file = "../../data/tickets.csv";
     .table-responsive {
         margin-bottom: 20px;
     }
-
-
-    #ticketsTableCodelco th,
-    #ticketsTableAmsa th,
-    #ticketsTableCodelco td,
-    #ticketsTableAmsa td,
 
     .dt-buttons {
         margin-bottom: 10px;

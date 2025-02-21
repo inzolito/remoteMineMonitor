@@ -1,6 +1,6 @@
 <?php
 // Ruta del archivo CSV
-$csv_file = "../../data/tickets.csv";
+$csv_file = "../../../globalData/tickets.csv";
 $last_status = [];
 $status_counts = [];
 $closed_count = 0;
@@ -523,7 +523,7 @@ if ($show_alert) {
             buttons: [{
                 extend: 'excelHtml5',
                 text: 'Exportar a Excel',
-                title: 'ticketsTable',
+                title: 'Tickets_Soporte_Remoto',
                 className: 'btn btn-default ml-3'
             }],
             order: [1, 'desc']

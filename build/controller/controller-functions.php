@@ -22,6 +22,7 @@ class systemClass
         return $conection->rutaDataSet2();
     }
 
+    /*
     function validarSesion()
     {
         $conn = new systemClass();
@@ -32,11 +33,47 @@ class systemClass
         } else {
             session_start();
             if ($_SESSION["user"] == false) {
+
                 echo '<meta http-equiv="refresh" content="0; url=' . $conn->urlSystem() . 'pages/login/login.php">';
                 return 1;
+            }else{
+                
             }
         }
     }
+*/
+
+function validarSesion()
+{
+    $conn = new systemClass();
+    $conn->conectaDB();
+
+    $urlSistema = $conn->urlSystem();
+    $urlProduccion = "http://10.40.90.99/soporte/"; // Producción
+    $pathProduccion = "/soporte"; // Ruta de producción
+
+    if (session_status() !== PHP_SESSION_ACTIVE) {
+        session_start();
+    }
+
+    if (empty($_SESSION["user"])) {
+        header("Location: " . $urlSistema . "pages/login/login.php");
+        exit;
+    }
+
+    if ($_SESSION["permiso"] !== "Administrador") {
+        $hostActual = $_SERVER['HTTP_HOST'];
+        $pathActual = $_SERVER['REQUEST_URI'];
+
+        if (strpos($pathActual, $pathProduccion) === false) {
+            // No está en producción, lo redirige
+            header("Location: $urlProduccion");
+            exit;
+        }
+    }
+}
+
+
 
 
 
@@ -130,8 +167,8 @@ class systemClass
             }
         }
     }
-    
-    
+
+
 
     //-------------------------------------------------------------NuevaFuncion-----------
     function pintarDiv2($tipo, $validacion)

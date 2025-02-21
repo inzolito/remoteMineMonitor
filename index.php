@@ -12,7 +12,7 @@ $configuracionJson = '.config.json';
 $arrayConfig = json_decode(file_get_contents($configuracionJson), true);
 $entorno = $arrayConfig["APP_ENV"];
 $mensajeEntornoDesarrollo = '<div class="alert alert-warning test-message" role="alert" style="position: sticky; top:
-  0;margin-bottom:-5px; background-color: yellow; text-align: center; z-index: 9999;">Entorno de desarrollo del
+  0;margin-bottom:-5px; background-color: yellow; text-align: center; z-index: 9999;"> <i class="fa-duotone fa-solid fa-gears fa-beat-fade"></i> Entorno de desarrollo del
    sistema de monitoreon Hexagon Minning.</div>';
 
 

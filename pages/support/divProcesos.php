@@ -181,22 +181,21 @@ foreach ($logSumarizadorDatos as $item) {
 
 
 $estadoCrontabSumarizador = 1;
-$largoSummarizadorCrontab=0;
+$largoSummarizadorCrontab = 0;
 foreach ($procSumCrontab as $line) {
     //echo "Log entry: $line<br><br>";
-    
-    $firstChar = substr(trim($line), 0, 1);  
+
+    $firstChar = substr(trim($line), 0, 1);
     if ($firstChar === '#') {
         $estadoCrontabSumarizador = 0;
     } else {
-        if($firstChar=='*')
-        {
-           $largoSummarizadorCrontab++;
-           $estadoCrontabSumarizador = 1;
+        if ($firstChar == '*') {
+            $largoSummarizadorCrontab++;
+            $estadoCrontabSumarizador = 1;
         }
-     }
+    }
 }
- 
+
 // El valor de $estadoCrontabSumarizador será 1 si alguna línea está descomentada
 
 
@@ -277,10 +276,10 @@ foreach ($procSumCrontab as $line) {
                     $mensajeAlerta = "Se detectó que el JAMS se ha reiniciado mas de 4 veces.  ";
                     $alertas->insertAlert($id_faena, "HCXJAMS01", $mensajeAlerta);
                     //--------------------
-                }else{
+                } else {
                     // ---- Limpieza Alerta
                     $mensajeAlerta = "Se detectó que el JAMS se ha reiniciado mas de 4 veces.  ";
-                    $alertas->insertAlert($id_faena, "HCXJAMS01", $mensajeAlerta,1);
+                    $alertas->insertAlert($id_faena, "HCXJAMS01", $mensajeAlerta, 1);
                     //--------------------
 
                 }
@@ -324,9 +323,9 @@ foreach ($procSumCrontab as $line) {
                     //enviarEmail($subject, $message); HCXJAMS02
                     $mensajeAlerta = "Se debe revisar el proceso del JAMS  ";
                     $alertas->insertAlert($id_faena, "HCXJAMS02", $mensajeAlerta);
-                }else{
+                } else {
                     $mensajeAlerta = "Se debe revisar el proceso del JAMS  ";
-                    $alertas->insertAlert($id_faena, "HCXJAMS02", $mensajeAlerta,1);
+                    $alertas->insertAlert($id_faena, "HCXJAMS02", $mensajeAlerta, 1);
                 }
 
                 ?>
@@ -361,19 +360,19 @@ foreach ($procSumCrontab as $line) {
                     $mensajeAlerta = "Se debe revisar el proceso del JAMS En el servidor Backup ";
                     $alertas->insertAlert($id_faena, "HCXJAMS03", $mensajeAlerta);
 
-                    
+
                     //--------------------
                 }
-                
+
                 ?>
 
                 <div class="col-lg-4 col-6" style="cursor: pointer" onclick="verInfo('divJamsSecVista')" data-toggle="tooltip" title="Este es un tooltip">
 
                     <div class="small-box small-box-2 <?php echo $colorAux ?>">
                         <div class="inner">
-                           
-                                <h6>JAMS Sec. <?php echo $system->validarLog($jamsSec, 4, "right") ?></h6>
-                                <p><?php 
+
+                            <h6>JAMS Sec. <?php echo $system->validarLog($jamsSec, 4, "right") ?></h6>
+                            <p><?php
                                 echo $valorAux ?></p>
                         </div>
                         <div class="icon">
@@ -418,7 +417,7 @@ foreach ($procSumCrontab as $line) {
 
                         $interval = $currentTime->diff($logTime);
                         $minutesPassed = ($interval->days * 24 * 60) + ($interval->h * 60) + $interval->i;
-#echo $minutesPassed. "Minutos que han pasado";
+                        #echo $minutesPassed. "Minutos que han pasado";
                         // Verificar si el intervalo es menor o igual a 10 minutos
 
                         if ($faenaDatos->alias == "magsa") {
@@ -443,8 +442,6 @@ foreach ($procSumCrontab as $line) {
                                 break;
                             }
                         }
-
-
                     }
                     $caux++;
                     #echo  "RMM@sistemaDeMonitoreo : ~ ". $lineaImportador . "<br>";
@@ -457,17 +454,16 @@ foreach ($procSumCrontab as $line) {
                 $colorAux = "bg-success";
                 $valorAux = "Success: ";
 
- 
+
                 if ($largoAux >= 5) {
                     $colorAux = "bg-danger";
                     $valorAux = "Danger: ";
                     //echo $system->alerta("Error en Importadores","Demaciados procesos Impo");
                     // $system->alertaSonora(120000);
-                    // ---- Insert Alerta HCXIMP002 = encolados HCXIMP001 = ejecucion mucho tiempo
-                    $mensajeAlerta = "Se detectó importadores pegados ";
+                     $mensajeAlerta = "Se detectó importadores pegados ";
                     $alertas->insertAlert($id_faena, "HCXIMP002", $mensajeAlerta);
                     //--------------------
-                }else{
+                } else {
                     if ($largoAux >= 3 && $largoAux <= 4) {
                         $colorAux = "bg-warning";
                         $valorAux = "Warning: ";
@@ -475,7 +471,7 @@ foreach ($procSumCrontab as $line) {
 
                     // Limpieza
                     $mensajeAlerta = "Se detectó importadores pegados ";
-                    $alertas->insertAlert($id_faena, "HCXIMP002", $mensajeAlerta,1);
+                    $alertas->insertAlert($id_faena, "HCXIMP002", $mensajeAlerta, 1);
                 }
 
                 ?>
@@ -514,8 +510,7 @@ foreach ($procSumCrontab as $line) {
                         $colorAux = "bg-warning";
                         $valorAux = "Warning: ";
                     }
-                    $alertas->insertAlert($id_faena, "HCXPES011", "En " . $faenaDatos->alias . ". Procesos encolados en la replica a s q l server.",1);
-
+                    $alertas->insertAlert($id_faena, "HCXPES011", "En " . $faenaDatos->alias . ". Procesos encolados en la replica a s q l server.", 1);
                 }
 
 
@@ -616,16 +611,14 @@ foreach ($procSumCrontab as $line) {
                     // ---- Insert Alerta
                     $mensajeAlerta = "Se detectó un error en el log del sumarizador.  ";
                     $alertas->insertAlert($id_faena, "HCXSD011", $mensajeAlerta);
-                    
+
                     //--------------------
                 }
 
-                if ($valorAux == "Success: ")
-                {
+                if ($valorAux == "Success: ") {
                     //limpiar alert sumarizadores 
                     $mensajeAlerta = "Se detectó un error en el log del sumarizador.  ";
-                    $alertas->insertAlert($id_faena, "HCXSD011", $mensajeAlerta,1); 
-                
+                    $alertas->insertAlert($id_faena, "HCXSD011", $mensajeAlerta, 1);
                 }
 
                 ?>
@@ -660,9 +653,9 @@ foreach ($procSumCrontab as $line) {
                     $mensajeAlerta = "Se detectó un error en el NTP.  ";
                     $alertas->insertAlert($id_faena, "HCXAL001", $mensajeAlerta);
                     //--------------------
-                }else{
+                } else {
                     $mensajeAlerta = "Se detectó un error en el NTP.  ";
-                    $alertas->insertAlert($id_faena, "HCXAL001", $mensajeAlerta,1);
+                    $alertas->insertAlert($id_faena, "HCXAL001", $mensajeAlerta, 1);
                     //--------------------
                 }
 
@@ -794,6 +787,10 @@ foreach ($procSumCrontab as $line) {
                                 <div class="container-fluid bg-dark text-white p-3" style="border-radius: 5px;overflow:auto;">
                                     <?php
                                     $caux = 0;
+                                    $sw_impo_pegado = 0;
+
+
+
                                     foreach ($impo as $x) {
                                         $importadores = $impo;
                                         if ($caux == 0) {
@@ -827,25 +824,27 @@ foreach ($procSumCrontab as $line) {
                                             $interval = $currentTime->diff($logTime);
                                             $minutesPassed = ($interval->days * 24 * 60) + ($interval->h * 60) + $interval->i;
                                             $colorTiempoEjecucion = "yellow";
-                                            // Verificar si el intervalo es menor o igual a 10 minutos
-                                            if ($minutesPassed <= 10) {
 
-                                                //echo 'Dentro de los 10 minutos.';
-                                                //Limpieza
-                                                $mensajeAlerta = "Se detectó un importador que lleva mas de 10 minutos ejecutandose ";
-                                                $alertas->insertAlert($id_faena, "HCXIMP001", $mensajeAlerta,1);
-                                            } else {
+
+
+
+ 
+                                            if ($minutesPassed >= 10) {
                                                 $colorTiempoEjecucion = "red";
-                                                //echo 'Fuera de los 10 minutos.';
+                                                
+                                                //echo "minutos pasados =" . $minutesPassed;
                                                 $mensajeAlerta = "Se detectó un importador que lleva mas de 10 minutos ejecutandose ";
                                                 $alertas->insertAlert($id_faena, "HCXIMP001", $mensajeAlerta);
-                                            }
+                                                $sw_impo_pegado=1;
+                                            }  
 
 
 
+ 
 
 
-                                            echo implode(" ", array_slice($parts, 0, 7)) .
+
+                                                echo implode(" ", array_slice($parts, 0, 7)) .
                                                 " <span style='color:" . $colorTiempoEjecucion . "' class='ml-2'> " . $parts[8] . " </span> " .
                                                 implode(" ", array_slice($parts, 9));
 
@@ -854,6 +853,15 @@ foreach ($procSumCrontab as $line) {
                                         }
                                         $caux++;
                                         #echo  "RMM@sistemaDeMonitoreo : ~ ". $lineaImportador . "<br>";
+                                    }
+
+
+                                    if ($sw_impo_pegado == 0) {
+                                        //echo 'Dentro de los 10 minutos.';
+                                        //Limpieza
+                                        echo "limpieza - minutos pasados =" . $minutesPassed;
+                                        $mensajeAlerta = "Se detectó un importador que lleva mas de 10 minutos ejecutandose ";
+                                        $alertas->insertAlert($id_faena, "HCXIMP001", $mensajeAlerta, 1);
                                     }
                                     $caux = 0;
                                     ?>
