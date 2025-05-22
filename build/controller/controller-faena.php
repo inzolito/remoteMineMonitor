@@ -34,7 +34,7 @@ class faena
         //echo "select * FROM check_faena where fecha = (select max(fecha) from check_faena where  id_faena=".$id_faena.")";
         $faenaCheckSql = $mysqli->query("select * FROM check_faena where fecha = (select max(fecha) from check_faena where  id_faena=" . $id_faena . " " . $whereBetween . " )");
 
- 
+
         if ($faenaCheckSql->num_rows == 0) {
             return 0;
         } else {
@@ -88,16 +88,16 @@ class faena
     }
 
 
-    function datos($id_faena,$aliasFaena=null)
+    function datos($id_faena, $aliasFaena = null)
     {
         $system = new systemClass();
         $mysqli = $system->conectaDB();
-        
+
         //echo "Alias Faena".$aliasFaena;
-        if($aliasFaena==null){
+        if ($aliasFaena == null) {
             $faenaSql = $mysqli->query("select *  from faenas  where id=" . $id_faena . " ");
             //echo "select *  from faenas  where id=" . $id_faena . " ";
-        }else{
+        } else {
             $faenaSql = $mysqli->query("select *  from faenas  where alias='" . $aliasFaena . "' ");
             //echo "select *  from faenas  where alias='" . $aliasFaena . "' ";
         }
@@ -141,15 +141,15 @@ class faena
 
         if ($datosCheckFaena->num_rows == 0) {
             return -1;
-        }else{
-            $datosCheckFaena=$datosCheckFaena->fetch_object();
+        } else {
+            $datosCheckFaena = $datosCheckFaena->fetch_object();
             $subprocesosCheckFaenaSql = $mysqli->query("select * from subproceso_check_faena where id_check_faena=" . $datosCheckFaena->id);
 
             while ($SubprocesosCheckFaenaDatos = $subprocesosCheckFaenaSql->fetch_object()) {
                 // solo hace update lo que se modifica en la vista.
-                if ($SubprocesosCheckFaenaDatos->comentario != $arrayCheck["comentario_" . $SubprocesosCheckFaenaDatos->id_subproceso] || $SubprocesosCheckFaenaDatos->estado !=$arrayCheck["estado_" . $SubprocesosCheckFaenaDatos->id_subproceso]) {
-                   
-                   
+                if ($SubprocesosCheckFaenaDatos->comentario != $arrayCheck["comentario_" . $SubprocesosCheckFaenaDatos->id_subproceso] || $SubprocesosCheckFaenaDatos->estado != $arrayCheck["estado_" . $SubprocesosCheckFaenaDatos->id_subproceso]) {
+
+
                     $mysqli->query("update subproceso_check_faena set
                             id_usuario='" . $_SESSION['id'] . "',
                             estado='" . $arrayCheck["estado_" . $SubprocesosCheckFaenaDatos->id_subproceso] . "',
@@ -206,6 +206,38 @@ class faena
             return 0;
         } else {
             return 1;
+        }
+    }
+
+
+    function servidoresFaena($id_faena, $tipoServidor = '', $nombre = '')
+    {
+        $system = new systemClass();
+        $mysqli = $system->conectaDB();
+
+        // Construcción de la consulta con filtros dinámicos
+        $query = "
+        SELECT s.*
+        FROM servidores s
+        JOIN faenas_servidores fs ON s.id = fs.id_servidor
+        WHERE fs.id_faena = " . $id_faena;
+
+        // Si se proporciona un tipo de servidor, agregar condición
+        if (!empty($tipoServidor)) {
+            $query .= " AND LOWER(s.tipo_servidor) LIKE LOWER('%" . $mysqli->real_escape_string($tipoServidor) . "%')";
+        }
+
+        // Si se proporciona un nombre, agregar condición
+        if (!empty($nombre)) {
+            $query .= " AND LOWER(s.nombre) LIKE LOWER('%" . $mysqli->real_escape_string($nombre) . "%')";
+        }
+
+        $resultado = $mysqli->query($query);
+
+        if ($resultado->num_rows > 0) {
+            return $resultado->fetch_all(MYSQLI_ASSOC);
+        } else {
+            return [];
         }
     }
 }

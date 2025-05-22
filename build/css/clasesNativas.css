@@ -26,4 +26,28 @@
     color: #000000; /* Texto rojo para card-footer */
     /*border-top: 1px solid #dc3545;  Borde superior rojo para card-footer */
   }
+
+  .modal-terminal .modal-content {
+    background-color: #1a1a1a;
+    color: #f1f1f1;
+    font-family: monospace;
+    border: 1px solid #333;
+    border-radius: 5px;
+}
+
+.modal-terminal #modalLargeBody {
+    max-height: 400px;
+    overflow-y: auto;
+    padding: 15px;
+    white-space: pre-wrap;
+    background-color: #1e1e1e;
+    border-radius: 4px;
+}
+
+.modal-terminal #modalLargeTittle {
+    background-color: #2d2d2d;
+    padding: 10px;
+    border-bottom: 1px solid #444;
+}
+
   

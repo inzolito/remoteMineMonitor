@@ -24,11 +24,21 @@ $mensajeEntornoDesarrollo = '<div class="alert alert-warning test-message" role=
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  
   <title>HXG | Monitoreo Remoto</title>
 
   <!-- Google Font: Source Sans Pro -->
   <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Source+Sans+Pro:300,400,400i,700&display=fallback">
   <!-- Font Awesome -->
+
+  <!-- jQuery -->
+  <script src="plugins/jquery/jquery.min.js"></script>
+  <!-- jQuery UI 1.11.4 -->
+  <script src="plugins/jquery-ui/jquery-ui.min.js"></script>
+  <!-- Resolve conflict in jQuery UI tooltip with Bootstrap tooltip -->
+
+
+
   <!-- our project just needs Font Awesome Solid + Brands -->
   <link href="plugins/fontawesome-free/css/fontawesome.css" rel="stylesheet">
   <link href="plugins/fontawesome-free/css/brands.css" rel="stylesheet">
@@ -76,7 +86,7 @@ $mensajeEntornoDesarrollo = '<div class="alert alert-warning test-message" role=
   <link rel="stylesheet" href="plugins/codemirror/addon/search/searchcursor.css">
 
   <!--  Plugin jszip export  -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/flot/0.8.3/jquery.flot.min.js"></script>
 
 
   <!-- Datatables -->
@@ -90,6 +100,57 @@ $mensajeEntornoDesarrollo = '<div class="alert alert-warning test-message" role=
   <link rel="stylesheet" href="plugins/datatables-buttons/js/buttons.html5.min.js">
   <link rel="stylesheet" href="plugins/datatables-buttons/js/dataTables.buttons.min.js">
 
+  <!---------------------------------------------------------------------------------->
+  <!---------------------------------------------------------------------------------->
+  <!---------------------------------------------------------------------------------->$_COOKIE
+
+  <script>
+    $.widget.bridge('uibutton', $.ui.button)
+  </script>
+  <!-- Bootstrap 4 -->
+  <script src="plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
+  <!-- ChartJS -->
+  <script src="plugins/chart.js/Chart.min.js"></script>
+  <!-- Sparkline -->
+  <script src="plugins/sparklines/sparkline.js"></script>
+  <!-- JQVMap -->
+  <script src="plugins/jqvmap/jquery.vmap.min.js"></script>
+  <script src="plugins/jqvmap/maps/jquery.vmap.usa.js"></script>
+  <!-- jQuery Knob Chart -->
+  <script src="plugins/jquery-knob/jquery.knob.min.js"></script>
+  <!-- daterangepicker -->
+  <script src="plugins/moment/moment.min.js"></script>
+  <script src="plugins/daterangepicker/daterangepicker.js"></script>
+  <!-- Tempusdominus Bootstrap 4 -->
+  <script src="plugins/tempusdominus-bootstrap-4/js/tempusdominus-bootstrap-4.min.js"></script>
+  <!-- Summernote -->
+  <script src="plugins/summernote/summernote-bs4.min.js"></script>
+  <!-- overlayScrollbars -->
+  <script src="plugins/overlayScrollbars/js/jquery.overlayScrollbars.min.js"></script>
+  <!-- AdminLTE App -->
+  <script src="dist/js/adminlte.js"></script>
+  <!-- AdminLTE for demo purposes
+  <script src="dist/js/demo.js"></script> -->
+  <!-- AdminLTE dashboard demo (This is only for demo purposes) -->
+ 
+  <!--SweetAlert -->
+  <script src="plugins/sweetalert2/sweetalert2.min.js"></script>
+
+
+  <!-- Include the calendar JS -->
+  <script src="plugins/fullcalendar/main.min.js"></script>
+
+
+  <script src="plugins/datatables/jquery.dataTables.min.js"></script>
+  <script src="plugins/datatables-bs4/js/dataTables.bootstrap4.min.js"></script>
+  <script src="plugins/datatables-responsive/js/dataTables.responsive.min.js"></script>
+  <script src="plugins/datatables-responsive/js/responsive.bootstrap4.min.js"></script>
+  <script src="plugins/datatables-buttons/js/dataTables.buttons.min.js"></script>
+  <script src="plugins/datatables-buttons/js/buttons.bootstrap4.min.js"></script>
+
+  <script src="plugins/datatables-buttons/js/buttons.html5.min.js"></script>
+  <script src="plugins/datatables-buttons/js/buttons.print.min.js"></script>
+  <script src="plugins/datatables-buttons/js/buttons.colVis.min.js"></script>
 
 </head>
 
@@ -526,60 +587,8 @@ $mensajeEntornoDesarrollo = '<div class="alert alert-warning test-message" role=
     <!-- /.control-sidebar -->
   </div>
   <!-- ./wrapper -->
-
-  <!-- jQuery -->
-  <script src="plugins/jquery/jquery.min.js"></script>
-  <!-- jQuery UI 1.11.4 -->
-  <script src="plugins/jquery-ui/jquery-ui.min.js"></script>
-  <!-- Resolve conflict in jQuery UI tooltip with Bootstrap tooltip -->
-  <script>
-    $.widget.bridge('uibutton', $.ui.button)
-  </script>
-  <!-- Bootstrap 4 -->
-  <script src="plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
-  <!-- ChartJS -->
-  <script src="plugins/chart.js/Chart.min.js"></script>
-  <!-- Sparkline -->
-  <script src="plugins/sparklines/sparkline.js"></script>
-  <!-- JQVMap -->
-  <script src="plugins/jqvmap/jquery.vmap.min.js"></script>
-  <script src="plugins/jqvmap/maps/jquery.vmap.usa.js"></script>
-  <!-- jQuery Knob Chart -->
-  <script src="plugins/jquery-knob/jquery.knob.min.js"></script>
-  <!-- daterangepicker -->
-  <script src="plugins/moment/moment.min.js"></script>
-  <script src="plugins/daterangepicker/daterangepicker.js"></script>
-  <!-- Tempusdominus Bootstrap 4 -->
-  <script src="plugins/tempusdominus-bootstrap-4/js/tempusdominus-bootstrap-4.min.js"></script>
-  <!-- Summernote -->
-  <script src="plugins/summernote/summernote-bs4.min.js"></script>
-  <!-- overlayScrollbars -->
-  <script src="plugins/overlayScrollbars/js/jquery.overlayScrollbars.min.js"></script>
-  <!-- AdminLTE App -->
-  <script src="dist/js/adminlte.js"></script>
-  <!-- AdminLTE for demo purposes -->
-  <script src="dist/js/demo.js"></script>
-  <!-- AdminLTE dashboard demo (This is only for demo purposes) -->
-  <script src="dist/js/pages/dashboard.js"></script>
-
-  <!--SweetAlert -->
-  <script src="plugins/sweetalert2/sweetalert2.min.js"></script>
-
-
-  <!-- Include the calendar JS -->
-  <script src="plugins/fullcalendar/main.min.js"></script>
-
-
-  <script src="plugins/datatables/jquery.dataTables.min.js"></script>
-  <script src="plugins/datatables-bs4/js/dataTables.bootstrap4.min.js"></script>
-  <script src="plugins/datatables-responsive/js/dataTables.responsive.min.js"></script>
-  <script src="plugins/datatables-responsive/js/responsive.bootstrap4.min.js"></script>
-  <script src="plugins/datatables-buttons/js/dataTables.buttons.min.js"></script>
-  <script src="plugins/datatables-buttons/js/buttons.bootstrap4.min.js"></script>
-
-  <script src="plugins/datatables-buttons/js/buttons.html5.min.js"></script>
-  <script src="plugins/datatables-buttons/js/buttons.print.min.js"></script>
-  <script src="plugins/datatables-buttons/js/buttons.colVis.min.js"></script>
+ 
+ 
 
   <style>
     .loading {
@@ -708,6 +717,22 @@ $mensajeEntornoDesarrollo = '<div class="alert alert-warning test-message" role=
     }
 
 
+    function vistaTerminal(contenido, titulo) {
+      const formattedContent = contenido.replace(/\n/g, '<br>');
+
+      // Agregar la clase para aplicar los estilos de terminal
+      $('#modalLarge').addClass('modal-terminal');
+
+      // Insertar contenido en el modal
+      $('#modalLargeBody').html(formattedContent);
+      $('#modalLargeTittle').text(titulo);
+
+      $('#modalLarge').modal('show');
+    }
+
+
+
+
     function alerta_solucionada(idAlerta) {
 
 
@@ -788,18 +813,20 @@ $mensajeEntornoDesarrollo = '<div class="alert alert-warning test-message" role=
     function carga_modulo_container2(page, title) {
       $("#div-container").fadeOut(100)
       $("#div-container").load(`pages/${page}`, function() {
+
         setTimeout(() => { //dar tiempo a la primera carga antes de volver a cargar.
           $("#div-container").load(`pages/${page}`, function() {
             $("#div-container").fadeIn(100)
 
           });
-        }, 1000); //
+        }, 10); //
+
       });
       titulo("", title);
 
     }
 
- 
+
 
     function cargaMonitoreo(id) {
       $("#div-container").load("pages/support/monitoreo.php?id=" + id);
@@ -853,6 +880,45 @@ $mensajeEntornoDesarrollo = '<div class="alert alert-warning test-message" role=
       titulo("", "Servidores Codelco");
 
     }
+
+    //función para cargar la página de monitoreo de OAS
+    function monitoreoOAS() {
+  // Mostrar overlay con spinner
+  if ($("#spinner-overlay").length === 0) {
+    $("body").append(`
+      <div id="spinner-overlay" style="
+        position: fixed;
+        top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(255, 255, 255, 0.8);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 9999;
+      ">
+        <i class="fas fa-spinner fa-spin fa-3x text-primary"></i>
+      </div>
+    `);
+  } else {
+    $("#spinner-overlay").show();
+  }
+
+  // Fade out el contenedor actual
+  $("#div-container").fadeOut(300, function () {
+    // Cargar contenido
+    $(this).load("pages/oas/monitoreoOAS.php", function () {
+      // Fade in del contenido
+      $(this).fadeIn(300, function () {
+        // Ocultar y quitar el spinner
+        $("#spinner-overlay").fadeOut(300);
+      });
+    });
+  });
+
+  // Cambiar el título
+  titulo("", "Servidores OAS");
+  
+}
+
 
     function problemas() /*carga en el index lo que realicemos en el archivo problemas.php */ {
       // $("#div-container").load("pages/problemas/problemas.php");
@@ -968,6 +1034,13 @@ $mensajeEntornoDesarrollo = '<div class="alert alert-warning test-message" role=
 
 
     $(document).ready(function() {
+
+
+      $('#modalLarge').on('hidden.bs.modal', function() {
+        $(this).removeClass('modal-terminal');
+        $('#modalLargeBody').html(''); // Limpiar contenido
+        $('#modalLargeTittle').text(''); // Limpiar título
+      });
 
       //$('[data-toggle="tooltip"]').tooltip();
       setInterval(notificaciones_alertas(), 3000);

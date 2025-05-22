@@ -19,10 +19,14 @@ $faenaDatos = $fenaCl->datos($id_faena);
 $estadoCheckFaena = $fenaCl->estado($id_faena);
 $checkDatos = $fenaCl->datosCheck($id_faena);
 
-$carpeta = $faenaDatos->alias . "/";
-$ruta = "/home/jigsaw/monitoreoRemoto/" . $carpeta;
-
-
+if ($faenaDatos === null || empty($faenaDatos)) {
+    // Aquí puedes manejar el caso donde no se encontraron datos para la faena
+    echo "No se encontraron datos para la faena.";
+    // O redirigir o mostrar un mensaje de error, según sea necesario
+} else {
+    $carpeta = $faenaDatos->alias . "/";
+    $ruta = "/home/jigsaw/monitoreoRemoto/" . $carpeta;
+}
 
 // ------------------------------------------------
 

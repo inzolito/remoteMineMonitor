@@ -1,0 +1,24 @@
+{
+    "faenas":[
+
+        {
+            "faena": "Pelambres",
+            "alias": "ammlp"
+        },
+
+        {
+            "faena": "Antucoya",
+            "alias": "amant"
+        },
+
+        {
+            "faena": "Centinela",
+            "alias": "amcen"
+        },
+
+        {
+            "faena": "Rajo Inca",
+            "alias": "cnrin"
+        }
+    ] 
+}

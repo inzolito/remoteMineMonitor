@@ -1,7 +1,7 @@
 <?php
 // Ruta del archivo CSV
 
-$csv_file = "../../data/tickets.csv";
+$csv_file = "../../../globalData/tickets.csv";
 
 if ($_GET['sd'] == 0) {
 
@@ -17,7 +17,7 @@ $startDateObj = DateTime::createFromFormat('Y-m-d H:i:s', $startDate);
 $endDateObj = DateTime::createFromFormat('Y-m-d H:i:s', $endDate);
 
 // Cuentas de Codelco
-$codelco_accounts = [
+$codelco_accounts = [ 
     "CODELCO | División El Salvador",
     "Mina Ministro Hales",
     "CODELCO | Division Mina Ministro Hales",
@@ -224,9 +224,7 @@ try {
                         $row[9] = $closed_datetime->format('d-m-Y H:i:s');
                     }
 
-
-
-
+                    
                     $startDateObj = new DateTime($startDate);
                     $endDateObj = new DateTime($endDate);
                     $rowDate = new DateTime($row[8]);

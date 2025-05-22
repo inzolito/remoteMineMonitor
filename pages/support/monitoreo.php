@@ -578,7 +578,7 @@ if ($carpeta == "amant/" || $carpeta == "mlcc/") {
     }
 }
 
-
+/*
 // Funcion para enviar mensajes por Telegram
 function enviarMensajeTelegram($message){
     $botToken = "6098434713:AAEuvoUJKnUwzW_Wx2h4e2LnYCAkoW1iB-I"; //Token del bot Telegram
@@ -601,6 +601,7 @@ function enviarMensajeTelegram($message){
     $context  = stream_context_create($options);
     $result = file_get_contents($url, false, $context);
 }
+*/
  
 //Funcion par enviar mensaje por correo
 function enviarEmail($subject,$message) {

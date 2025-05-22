@@ -4,13 +4,41 @@
 // Ruta del archivo CSV
 $csv_file = "../../../globalData/tickets.csv";
 setlocale(LC_TIME, 'es_ES.UTF-8');
+$filtroFaena = urldecode($_GET['filtroFaena']);
+
+$filtroFaenaPDF = ($filtroFaena == "") ? "Todos los clientes" : $filtroFaena;
+
+
+$codelco_accounts = [
+    "Salvador" => "Codelco | División El Salvador",
+    "Hales" => 'Codelco | División Ministro Hales',
+    "Chuquicamata" => 'Codelco | División Chuquicamata',
+    "Radomiro" => 'Codelco | División Radomiro Tomic',
+    "Mina Sur" => 'Codelco | División Mina Sur',
+];
+
+$amsa_accounts = [
+    "Centinela " => "AMSA | Centinela",
+    "Zaldivar" => 'AMSA | Zaldivar',
+    "Antucoya" => 'AMSA | Antucoya',
+];
+
+$other_accounts = [
+    "Caserones" => "Caserones",
+    "Verde" => 'Mantoverde',
+    "Blanca" => 'Quebrada Blanca',
+    "Negro" => 'Cerro Negro',
+    "Veladero" => 'Veladero',
+    "Hexagon" => 'Hexagon Mining',
+    "Andacollo" => 'Carmen de Andacollo',
+];
 
 // Leer el archivo CSV
 $csv_data = [];
 $ticket_status_count = [];
 $account_numbers = [];
 $product_name_count = [];
-$cantidad_monitoreo = 0; // Cantidad de ticket de monitoreo
+$cantidad_monitoreo = 0;
 
 $startDate = $_REQUEST["startDate"];
 $endDate = $_REQUEST["endDate"];
@@ -18,6 +46,22 @@ if ($startDate == 0 & $endDate == 0) {
     $startDate = date("d-m-Y");
     $endDate = date("d-m-Y");
 }
+
+
+$start = new DateTime($startDate);
+$end = new DateTime($endDate);
+
+setlocale(LC_TIME, "es_ES.UTF-8");
+$mesInicio = strftime("%B", $start->getTimestamp());
+$mesFin = strftime("%B", $end->getTimestamp());
+$anio = $start->format("Y");
+$anioF= $end->format("Y");
+
+$fechaNombrePdf = ($mesInicio === $mesFin) ? "$mesInicio-$anio" : "$mesInicio-$mesFin-$anio";
+//echo $fechaNombrePdf; // Salida: "marzo-abril-2025"
+$fechanombrePDF2=($mesInicio === $mesFin) ? "$mesInicio-$anioF" : "$mesInicio-$anio-$mesFin-$anioF";
+
+
 
 // Convertir las fechas a formato adecuado
 $formattedStartDate = strftime("%d de %B de %Y", strtotime($startDate));
@@ -42,58 +86,47 @@ if (($handle = fopen($csv_file, "r")) !== FALSE) {
         $closed_date = $row[9]; // "Closed Date"
         $product_name = $row[10]; // "Product Name"
         $product_family = $row[11]; // "Product Family"
+        $modified_account_name = $account_name;
 
         $create_date = date('d-m-Y', strtotime($create_date));
 
         if (strtotime($create_date) >= strtotime($startDate) && strtotime($create_date) <= strtotime($endDate)) {
+
+
 
             if (!isset($csv_data[$case_number])) {
                 $monitoring = (strpos($subject, 'Monitoreo') === 0) ? '1' : '0'; // Asignar el valor '1' o '0' a 'monitoring' dependiendo de si 'subject' empieza con 'Monitoreo'
                 $cantidad_monitoreo = $cantidad_monitoreo + (int) $monitoring;
 
 
-                if (preg_match('/sumarización|sumarizacion|sumarizar|rezumarizar/i', $subject)) { // Modificar 'product_name' si 'subject' contiene "sumarización"
+                if (preg_match('/sumarización|sumarizacion|sumarizar|rezumarizar/i', $subject)) {
                     $product_name = 'Sumarización';
                 }
 
-                if (preg_match('/importador|importando/i', $subject)) { // Modificar 'product_name' si 'subject' contiene "importador"
+                if (preg_match('/importador|importando/i', $subject)) {
                     $product_name = 'Importador';
                 }
 
-                if (preg_match('/servidores|servidor/i', $subject)) { // Modificar 'product_name' si 'subject' contiene "servidor"
+                if (preg_match('/servidores|servidor/i', $subject)) {
                     $product_name = 'Servidor';
                 }
 
-                if (preg_match('/Centinela Mine/i', $account_name)) {
-                    $account_name = 'AMSA | Centinela';
+                foreach (array_merge($codelco_accounts, $amsa_accounts, $other_accounts) as $key => $value) {
+                    if (stripos($modified_account_name, $key) !== false) {
+                        $modified_account_name = $value;
+                        break;
+                    }
                 }
 
-                if (preg_match('/Corporacion Nacional del Cobre Mina Sur/i', $account_name)) {
-                    $account_name = 'CODELCO | División Mina Sur';
+                if (!in_array($modified_account_name, $account_numbers)) {
+                    $account_numbers[] = $modified_account_name;
                 }
-
-                if (preg_match('/Radomiro Tomic Mine/i', $account_name)) {
-                    $account_name = 'CODELCO | División Radomiro Tomic';
-                }
-
-                if (preg_match('/CODELCO | Division Mina Ministro Hales|Mina Ministro Hales/i', $account_name)) {
-                    $account_name = 'CODELCO | División Ministro Hales';
-                }
-
-                if (preg_match('/Zaldivar Mine|Compania Minera Zaldivar SPA/i', $account_name)) {
-                    $account_name = 'AMSA | Zaldivar';
-                }
-
-                if (preg_match('/Minera Antucoya/i', $account_name)) {
-                    $account_name = 'AMSA | Antucoya';
-                }
-
 
                 $csv_data[$case_number] = [
                     'case_id' => $case_id,
                     'case_number' => $case_number,
                     'owner_name' => $owner_name,
-                    'account_name' => $account_name,
+                    'account_name' => $modified_account_name,
                     'created_date' => $create_date,
                     'status' => $status,
                     'monitoring' => $monitoring,
@@ -112,16 +145,12 @@ if (($handle = fopen($csv_file, "r")) !== FALSE) {
                     $product_name_count[$product_name] = 0;
                 }
                 $product_name_count[$product_name]++;
-
-                // Agregar cuenta a la lista de cuentas
-                if (!in_array($account_name, $account_numbers)) {
-                    $account_numbers[] = $account_name;
-                }
             }
         }
     }
     fclose($handle);
 }
+sort($account_numbers);
 
 
 //echo "Cantidad = ".count($account_numbers);
@@ -233,7 +262,7 @@ if (($handle = fopen($csv_file, "r")) !== FALSE) {
             <tr>
                 <th>Case Number</th>
                 <th>Owner Name</th>
-                <th>Account Name</th>
+                <th id="col_accountName">Account Name</th>
                 <th>Created Date</th>
                 <th>Status</th>
                 <th>Monitoring</th>
@@ -417,6 +446,11 @@ if (($handle = fopen($csv_file, "r")) !== FALSE) {
 
 <script>
     function exportToPDF() {
+
+        document.querySelectorAll(".daterangepicker").forEach(el => el.removeAttribute("style"));
+
+
+
         const {
             jsPDF
         } = window.jspdf;
@@ -426,37 +460,70 @@ if (($handle = fopen($csv_file, "r")) !== FALSE) {
         const today = new Date();
         const formattedDate = `Fecha: ${today.getDate().toString().padStart(2, '0')} de ${today.toLocaleString('default', { month: 'long' })} de ${today.getFullYear()}`;
 
-        const title = "Tickets Mensuales";
-        const titleFontSize = 15;
-        const subtitleFontSize = 20;
+        const title = "TICKETS MENSUALES";
+        const titleFontSize = 24;
+        const dateRangeFontSize = 12;
         const logoPath = "dist/img/system/hexagon_logo.png";
         const pageWidth = doc.internal.pageSize.width;
         const pageHeight = doc.internal.pageSize.height;
 
-        doc.setFontSize(titleFontSize);
+        doc.setFontSize(titleFontSize); // Asegurar que el tamaño se aplica
         doc.setFont("helvetica", "bold");
         const titleWidth = doc.getTextWidth(title);
-        const titleX = 77;
-        const titleY = (pageHeight / 2) - 30;
+        const titleX = (pageWidth - titleWidth) / 2;
+        const titleY = (pageHeight / 2) - 24;
 
-        const subtitle = `${selectedAccount}`;
+        doc.text(title, titleX, titleY); // Aquí se dibuja el título en el PDF
+        //-----------------------------------------------
+
+        // texto de filtro faena cat
+        const additionalText = "<?php echo $filtroFaenaPDF ?>";
+        const filtroFaenaFontSize = 16; // Tamaño de fuente para el subtítulo
+        doc.setFontSize(filtroFaenaFontSize);
+        doc.setFont("helvetica", "normal");
+        const additionalTextWidth = doc.getTextWidth(additionalText);
+        const filtroFaenaX = (pageWidth - additionalTextWidth) / 2;
+        const filtroFaenaY = titleY + 10;
+
+        // Dibuja el texto adicional
+        doc.text(additionalText, filtroFaenaX, filtroFaenaY);
+
+        //-----------------------------------------
+        const subtitle = '"Soporte Remoto - Hexagon"'; // El subtítulo a mostrar
+        const subtitleFontSize = 16; // Tamaño de fuente para el subtítulo
+        doc.setTextColor(169, 169, 169); // Gris claro
         doc.setFontSize(subtitleFontSize);
         doc.setFont("helvetica", "normal");
+        // Calcula el ancho del subtítulo y su posición X para centrarlo
         const subtitleWidth = doc.getTextWidth(subtitle);
-        const subtitleX = (pageWidth - subtitleWidth) / 2;
-        const subtitleY = titleY + titleFontSize + 3;
+        const subtitleX = (pageWidth - subtitleWidth) / 2; // Centrado horizontalmente
+        const subtitleY = filtroFaenaY + 20; // Coloca el subtítulo debajo del título
+        doc.text(subtitle, subtitleX, subtitleY);
+        doc.setTextColor(0, 0, 0); // Restaurar a negro
+
+        //---------------------------------------------
+
+
+        const dateRange = "<?php echo $mensajeFechaInforme ?>";
+        doc.setFontSize(dateRangeFontSize);
+        const dateRangeWidth = doc.getTextWidth(dateRange);
+        const dateRangeX = (pageWidth - dateRangeWidth) / 2;
+        const dateRangeY = filtroFaenaY + 10;
+        doc.text(dateRange, dateRangeX, dateRangeY);
+
 
         const imgData = new Image();
         imgData.src = logoPath;
         imgData.onload = function() {
-            const imgWidth = 40;
-            const imgHeight = 15;
-            const logoX = (pageWidth - imgWidth) / 2;
-            const logoY = titleY - imgHeight - 10;
+            const imgWidth = 30;
+            const imgHeight = 11;
+            const logoX = 10;
+            const logoY = 10;
 
             doc.addImage(imgData, "PNG", logoX, logoY, imgWidth, imgHeight);
-            doc.text(title, titleX, titleY);
-            doc.text(subtitle, subtitleX, subtitleY);
+            //doc.text(title, titleX, titleY);
+            //doc.text(subtitle, subtitleX, subtitleY);
+
 
             doc.setFontSize(12);
             doc.setFont("helvetica", "normal");
@@ -473,7 +540,9 @@ if (($handle = fopen($csv_file, "r")) !== FALSE) {
             tables.forEach((table, index) => {
                 const rows = table.querySelectorAll("tr");
                 let rowCount = 1;
-
+                if (table.classList.contains("daterangepicker") || table.closest('.daterangepicker')) {
+                    return; // Salir de esta iteración y no agregar la tabla
+                }
                 if (index === 0) {
                     rows.forEach(row => {
                         const cells = row.querySelectorAll("td, th");
@@ -484,10 +553,11 @@ if (($handle = fopen($csv_file, "r")) !== FALSE) {
                         }
 
                         for (let i = 0; i < cells.length; i++) {
-                            if (i === 1 || i === 2 || i === 3 || i === 4) {
+                            if (i === 0 || i === 1 || (i === 2 && selectedAccount === 'Todos') || i === 3 || i === 4 || i === 6) {
                                 filteredCells.push(cells[i].textContent);
                             }
                         }
+
 
                         if (row.rowIndex !== 0) {
                             filteredCells.unshift(`${rowCount}`);
@@ -527,7 +597,7 @@ if (($handle = fopen($csv_file, "r")) !== FALSE) {
                     headStyles: {
                         fillColor: ['#004F67'],
                         textColor: [255, 255, 255],
-                        fontSize: 12,
+                        fontSize: 10,
                         halign: 'center',
                         valign: 'middle',
                     },
@@ -549,11 +619,11 @@ if (($handle = fopen($csv_file, "r")) !== FALSE) {
                         const pageNumber = doc.internal.getNumberOfPages();
                         const currentPage = doc.internal.getCurrentPageInfo().pageNumber;
                         doc.setFontSize(8);
-                        doc.text(`${currentPage}`, pageWidth - 20, pageHeight - 10);
+                        doc.text(`${currentPage}`, pageWidth - 20, pageHeight + 10);
 
                         // Pie de página
                         doc.setFontSize(8);
-                        doc.text(`Confidence to ${selectedAccount} | Copyright © Hexagon`, pageWidth / 2, pageHeight - 10, {
+                        doc.text(`Confidence to ${selectedAccount} | Copyright © Hexagon`, pageWidth / 2, pageHeight + 10, {
                             align: 'center'
                         });
                     }
@@ -583,12 +653,12 @@ if (($handle = fopen($csv_file, "r")) !== FALSE) {
             });
 
             const faenaName = selectedAccount;
-            const fileName = `${faenaName}_Tickets_${today.toLocaleString('default', { month: 'long' })}_${today.getFullYear()}.pdf`;
+           // const fileName = `${faenaName}_Tickets_${today.toLocaleString('default', { month: 'long' })}_${today.getFullYear()}.pdf`;
+            const fileName = `${faenaName}_Tickets_<?php echo $fechanombrePDF2 ?>.pdf`;
 
             doc.save(fileName);
         }
     }
-
 
 
     Chart.register(ChartDataLabels);
@@ -614,8 +684,9 @@ if (($handle = fopen($csv_file, "r")) !== FALSE) {
                         var year = today.getFullYear();
                         var formattedDate = `Fecha: ${day} de ${month} de ${year}`;
 
-                        $(win.document.body).find('table')
-                            .find('th:nth-child(6), td:nth-child(6), th:nth-child(7), td:nth-child(7), th:nth-child(8), td:nth-child(8), th:nth-child(9), td:nth-child(9)').hide();
+                        //$(win.document.body).find('table') .find('th:nth-child(6), td:nth-child(6), th:nth-child(7), td:nth-child(7), th:nth-child(8), td:nth-child(8), th:nth-child(9), td:nth-child(9)').hide();
+                        $(win.document.body).find('table').find('th:nth-child(6), td:nth-child(6),th:nth-child(7), td:nth-child(7), th:nth-child(8), td:nth-child(8), th:nth-child(9), td:nth-child(9)').hide();
+
 
                         $(win.document.body).find('table').each(function() {
                             $(this).find('thead tr').prepend('<th style="text-align: center;">#</th>');
@@ -731,10 +802,24 @@ if (($handle = fopen($csv_file, "r")) !== FALSE) {
                                 ${subtitle2}
                             </div>
                         `);
+                        //tittle nombre pdf  Todos_Tickets_marzo_2025
+                        <?php
+
+                        ?>
+
+                        if ($("#accountFilter").val() == "") {
+                            nombrePdfDefault = "Todos_<?php echo $fechaNombrePdf ?>"
+
+                        } else {
+                            nombrePdfDefault = $("#accountFilter").val() + "_<?php echo $fechaNombrePdf ?>"
+
+                        }
+                        $(win.document).find("title").text(nombrePdfDefault);
 
                         // Agregar tabla primero y luego el gráfico de estado
                         var statusTableHtml = $('#statusTable tbody').html();
                         var statusChartImg = document.getElementById('statusPieChart').toDataURL();
+
 
                         $(win.document.body).append(`
                             <div style="text-align: center; page-break-before: always;">

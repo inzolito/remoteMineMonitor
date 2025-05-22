@@ -3,6 +3,7 @@
 $csv_file = "../../../globalData/tickets.csv";
 ?>
 
+
 <style>
     #ticketsTableMv th,
     #ticketsTableMv td,

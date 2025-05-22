@@ -36,9 +36,8 @@ $jamsActivoLog = file($ruta . "ProcesosJamsMon.log");
 $jamsSec = file($ruta . "ProcesosJamsSecMon.log");
 $Ntp = file($ruta . "NtpMon.log");
 $reconcile = file($ruta . "ReconcileMon.log");
-$BackupSec = file($ruta . "BackupSecMon.log");
+// $BackupSec = file($ruta . "BackupSecMon.log"); #comentado por V8.2
 $procSumCrontab = file($ruta . "crontabSummMon.log");
-$listaJams = file($ruta . "ListaJamsMon.log");
 
 $reiniciosJAMS = file($ruta . "reiniciosJAMSMon.log");
 
@@ -83,81 +82,23 @@ $largoReconcile = count($reconcile) - 5;
 
 
 
-// Funcion para enviar mensajes por Telegram
-function enviarMensajeTelegram($message)
-{
-    $botToken = "7167115609:AAEEihCCCRzkJmsOkFAfvOPYSwl1qr2Ts2E"; //Token del bot Telegram
-    $chatId = "-1002428398059"; // Reemplazar con el chat ID del usuario o grupo al que se le quiere enviar el mensaje
+ 
 
-    $url = "https://api.telegram.org/bot" . $botToken . "/sendMessage";
-    $data = array(
-        'chat_id' => $chatId,
-        'text' => $message
-    );
-
-    $options = array(
-        'http' => array(
-            'header'  => "Content-type: application/x-www-form-urlencoded\r\n",
-            'method'  => 'POST',
-            'content' => http_build_query($data),
-        ),
-    );
-
-    $context  = stream_context_create($options);
-    $result = file_get_contents($url, false, $context);
-}
-
-//Funcion par enviar mensaje por correo
-function enviarEmail($subject, $message)
-{
-    $to = 'soportechile@Hexmet.onmicrosoft.com';
-    $headers = 'From: @gmail.com' . "\r\n" .
-        'Reply-To: @gmail.com' . "\r\n" .
-        'X-Mailer: PHP/' . phpversion();
-    mail($to, $subject, $message, $headers);
-}
-
-//conseguir fecha actual
-date_default_timezone_set('America/Santiago');
-$fechaActualVisual = "<i class='fas fa-calendar'></i>" . date("d");
-$horaActualVsual = "<i class='fas fa-clock ml-1'></i>" . date("H:i");
-$dataTimeVisual = $fechaActualVisual . " " . $horaActualVsual;
-
-
-//validar Jams
-$largoJams = count($jamsActivoLog);
-
-if (strpos($jamsActivoLog, "JAMSRouter start") !== false && strpos($jamsActivoLog, "JAMSCluster run") !== false && $largoJams > 3) {
-    $validarJams = 1;
-} else if (strpos($jamsActivoLog, "JAMSRun -config config.jams -log JAMS,error") !== false || $largoJams < 4) {
-    $validarJams = 2;
-}
-
-//validar Jams Sec
+// Validar Jams Sec
 $largoJamsSec = count($jamsSec);
+$jamsSecString = implode(" ", $jamsSec);
 
+$validarJamsSec = strpos($jamsSecString, "JAMSCluster run") !== false ? 1 : 2;
 
-if (strpos($jamsSec, "JAMSCluster run") !== false) {
-    $validarJamsSec = 1;
-} else {
-    $validarJamsSec = 2;
-}
+// Validar NTP
+$NtpString = implode(" ", (array)$Ntp);
+$validacionNtp = strpos($NtpString, "/usr/sbin/ntpd -p") !== false ? 1 : 2;
 
-//validar ntp
-if (strpos($Ntp, "/usr/sbin/ntpd -p") !== false) {
-    $validacionNtp = 1;
-} else {
-    $validacionNtp = 2;
-}
+// Validar Manual
+$sumarizadorString = implode(" ", (array)$sumarizadorLog);
+$validarManual = strpos("-force -start", $sumarizadorString) !== false ? 1 : 2;
 
-//validar manual 
-if (strpos("-force -start", $sumarizadorLog) !== false) {
-    $validarManual = 1;
-} else {
-    $validarManual = 2;
-}
-
-//validar reconcile
+// Validar Reconcile
 $validarReconcile = 1;
 foreach ($reconcile as $item) {
     if (stripos($item, 'ERROR') !== false || stripos($item, 'warning') !== false) {
@@ -166,7 +107,7 @@ foreach ($reconcile as $item) {
     }
 }
 
-//validar log sumarizador
+// Validar Log Sumarizador
 $validarLogSummarizer = 1;
 foreach ($logSumarizadorDatos as $item) {
     if (stripos($item, 'ERROR') !== false || stripos($item, 'exception') !== false || stripos($item, 'grouping') !== false) {
@@ -174,6 +115,7 @@ foreach ($logSumarizadorDatos as $item) {
         break;
     }
 }
+
 
 
 //largo Proceso sumarizador
@@ -223,19 +165,28 @@ foreach ($procSumCrontab as $line) {
 
                 <!--------------------- Reinicios del JAMS------------------------------->
                 <?php
+                $reiniciosJAMSString = is_array($reiniciosJAMS) ? implode("\n", $reiniciosJAMS) : trim($reiniciosJAMS);
+                $lines = explode("\n", $reiniciosJAMSString);
 
-                $lines = explode("\n", trim($reiniciosJAMS));
-
-                // Usar una expresión regular para extraer la fecha y hora de los nombres de archivo
+                // Expresión regular para extraer la fecha y hora de los nombres de archivo
                 $pattern = "/JAMS\.(\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2})_UTC\.log/";
                 $dates = [];
 
                 foreach ($lines as $line) {
                     if (preg_match($pattern, $line, $matches)) {
-                        $dates[] = new DateTime(str_replace('-', ':', $matches[1]));
+                        // Convertir la fecha al formato correcto "Y-m-d H:i:s"
+                        $dateString = str_replace('-', ' ', $matches[1]); // "2024 02 25 12 30 00"
+                        $dateString = preg_replace('/(\d{4}) (\d{2}) (\d{2}) (\d{2}) (\d{2}) (\d{2})/', '$1-$2-$3 $4:$5:$6', $dateString);
+                        
+                        try {
+                            $dates[] = new DateTime($dateString);
+                        } catch (Exception $e) {
+                            error_log("Error al convertir la fecha: " . $e->getMessage());
+                        }
                     }
                 }
 
+                
                 $fiveMinCounter = 0;
                 $fiveMinutesInSeconds = 300; // 5 minutos en segundos
 
@@ -460,7 +411,7 @@ foreach ($procSumCrontab as $line) {
                     $valorAux = "Danger: ";
                     //echo $system->alerta("Error en Importadores","Demaciados procesos Impo");
                     // $system->alertaSonora(120000);
-                     $mensajeAlerta = "Se detectó importadores pegados ";
+                    $mensajeAlerta = "Se detectó importadores pegados ";
                     $alertas->insertAlert($id_faena, "HCXIMP002", $mensajeAlerta);
                     //--------------------
                 } else {
@@ -828,23 +779,23 @@ foreach ($procSumCrontab as $line) {
 
 
 
- 
+
                                             if ($minutesPassed >= 10) {
                                                 $colorTiempoEjecucion = "red";
-                                                
+
                                                 //echo "minutos pasados =" . $minutesPassed;
                                                 $mensajeAlerta = "Se detectó un importador que lleva mas de 10 minutos ejecutandose ";
                                                 $alertas->insertAlert($id_faena, "HCXIMP001", $mensajeAlerta);
-                                                $sw_impo_pegado=1;
-                                            }  
+                                                $sw_impo_pegado = 1;
+                                            }
 
 
 
- 
 
 
 
-                                                echo implode(" ", array_slice($parts, 0, 7)) .
+
+                                            echo implode(" ", array_slice($parts, 0, 7)) .
                                                 " <span style='color:" . $colorTiempoEjecucion . "' class='ml-2'> " . $parts[8] . " </span> " .
                                                 implode(" ", array_slice($parts, 9));
 
@@ -924,17 +875,19 @@ foreach ($procSumCrontab as $line) {
                                         } else {
 
                                             $parts = explode(' ', $x);
-                                            $parts = array_filter($parts, function ($part) {
-                                                return trim($part) !== '';
-                                            });
+                                            $parts = array_filter($parts, fn($part) => trim($part) !== '');
                                             $parts = array_values($parts);
-                                            $dataTimeEjecucion = $parts[8];
 
-                                            echo implode(" ", array_slice($parts, 0, 7)) .
-                                                " <span style='color:yellow' class='ml-2'> " . $parts[8] . " </span> " .
-                                                implode(" ", array_slice($parts, 9));
+                                            if (count($parts) >= 9) { // Verifica que haya suficientes elementos
+                                                $dataTimeEjecucion = $parts[8];
 
-                                            # echo "<span style='color:red'class='ml-2'> Hora ejecución  : ".$dataTimeEjecucion."</span>";
+                                                echo implode(" ", array_slice($parts, 0, 7)) .
+                                                    " <span style='color:yellow' class='ml-2'> " . $parts[8] . " </span> " .
+                                                    implode(" ", array_slice($parts, 9));
+                                            } else {
+                                                echo "<span style='color:red'>Formato incorrecto en la línea</span>";
+                                            }
+
                                             echo "<br>";
                                         }
                                         $caux++;
@@ -1000,6 +953,7 @@ foreach ($procSumCrontab as $line) {
                     </div>
                 </div>
                 <!--BackupSec-->
+                <!-- deshabilitado por la v8.2 
                 <div class="row">
                     <div class="col-md-12">
                         <b class="d-block">Backup Secundario</b>
@@ -1007,17 +961,17 @@ foreach ($procSumCrontab as $line) {
                         <div class="row" id="divBackupSecVista" tittle="Backup Secundario" style="overflow:auto;">
                             <div class="col-md-12">
                                 <div class="container-fluid bg-dark text-white p-3" style="border-radius: 5px;overflow:auto;">
-                                    <?php foreach ($BackupSec as $x) {
-                                        $BackupSec = $BackupSec;;
-                                        echo " - " . trim($x) . "<br>";
-                                    }
+                                    <?php //foreach ($BackupSec as $x) {
+                                    //$BackupSec = $BackupSec;;
+                                    //echo " - " . trim($x) . "<br>";
+                                    //}
                                     ?>
                                 </div>
                             </div>
                         </div>
 
                     </div>
-                </div>
+                </div>-->
             </div>
         </div>
 
@@ -1040,7 +994,7 @@ foreach ($procSumCrontab as $line) {
     $("#divSummVista").fadeOut()
     $("#divNtpVista").fadeOut()
     $("#divReconcileVista").fadeOut()
-    $("#divBackupSecVista").fadeOut()
+    // $("#divBackupSecVista").fadeOut() #Comentado por v 8.2
     $("#divJamsSecVista").fadeOut()
 
 

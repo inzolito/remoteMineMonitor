@@ -70,8 +70,8 @@ $ruta = "/home/jigsaw/monitoreoRemoto/" . $carpeta;
 $schemaInfoSec = file($ruta . "schemaInfoSec.log");
 $sqlSizePrimario = file($ruta . "tamanoBDLectura.log");
 $sqlSizeSecundario = file($ruta . "tamanoBDSecLectura.log");
-$shiftsPrimario = file($ruta . "queryResults.log");
-$shiftsSecundario = file($ruta . "queryResults_peer.log");
+
+
 $BdSize = file($ruta . "queryActivity.log");
 $top10BD = file($ruta . "topTenTablasPostgresLectura.log");
 $tamanoBdPrimarioL = file($ruta . "tamanoTablasPostgresLectura.log");
@@ -163,14 +163,19 @@ switch ($validarIdle) {
                 <?php
                 // Calculos base de datos
                 //tamaño Bd
+
                 $tamanoBd = 0;
                 $largoBd = count($sqlSizePrimario);
+
                 for ($x = $largoBd; $x > 0; $x--) {
-                    $arrayAux = explode("|", $sqlSizePrimario[$x]);
-                    $nombreDBPrimRow = preg_replace('/\s+/', "", $arrayAux[0]);
-                    if ($nombreDBPrimRow == "jmineops" || $nombreDBPrimRow == "jmineops_prod") {
-                        $tamanoBd = str_replace("GB", "", $arrayAux[1]);
-                        $x = -1;
+                    if (isset($sqlSizePrimario[$x])) {
+
+                        $arrayAux = explode("|", $sqlSizePrimario[$x]);
+                        $nombreDBPrimRow = preg_replace('/\s+/', "", $arrayAux[0]);
+                        if ($nombreDBPrimRow == "jmineops" || $nombreDBPrimRow == "jmineops_prod") {
+                            $tamanoBd = str_replace("GB", "", $arrayAux[1]);
+                            $x = -1;
+                        }
                     }
                 }
 
@@ -245,8 +250,6 @@ switch ($validarIdle) {
 
                 if ($minutesPassed >= 0 && $minutesPassed <= 10) {
                     $mensajeSchema = " <b>bkp hace </b> <br>" . $minutesPassed . " Min.";
-                    
-
                 } else {
 
                     $mensajeSchema = "bkp hace  " . $minutesPassed . " Min.";
@@ -563,8 +566,13 @@ switch ($validarIdle) {
                                     $max_diff_tablas = 0;
                                     for ($x = 3; $x < $largoCountTablasSiftSec - 2; $x++) {
                                         $tablaAux = explode("|", $countTablasShiftSec[$x]);
-                                        $restaAux = abs($countTablas[$tablaAux[0]] - $tablaAux[1]);
-
+                                        #$restaAux = abs($countTablas[$tablaAux[0]] - $tablaAux[1]);
+                                        if (isset($countTablas[$tablaAux[0]]) && isset($tablaAux[1])) {
+                                            $restaAux = abs($countTablas[$tablaAux[0]] - $tablaAux[1]);
+                                        } else {
+                                            $restaAux = 0;  // O cualquier valor por defecto que tenga sentido
+                                        }
+                                        
                                         $colorAux = "bg-success";
                                         if ($restaAux > 19 && $restaAux <= 49)  $colorAux = "bg-warning";
                                         if ($restaAux >= 50)  $colorAux = "bg-danger";
@@ -681,8 +689,9 @@ switch ($validarIdle) {
 
                                     echo "<tbody><tr>";
                                     echo "<td>" . $punteroPK[0] . "</td>";
-                                    echo "<td>" . number_format($punteroPK[3], 0, ",", ".") . "</td>";
-                                    echo "<td>" . number_format($punteroPK[4], 0, ",", ".") . "</td>";
+                                    echo "<td>" . (is_numeric($punteroPK[3]) ? number_format($punteroPK[3], 0, ",", ".") : "0") . "</td>";
+                                    echo "<td>" . (is_numeric($punteroPK[4]) ? number_format($punteroPK[4], 0, ",", ".") : "0") . "</td>";
+                                    
                                     echo "</tr></tbody>";
                                 }
                             }

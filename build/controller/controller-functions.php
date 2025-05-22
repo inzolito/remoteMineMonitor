@@ -43,35 +43,36 @@ class systemClass
     }
 */
 
-function validarSesion()
-{
-    $conn = new systemClass();
-    $conn->conectaDB();
+    function validarSesion()
+    {
+        $conn = new systemClass();
+        $conn->conectaDB();
 
-    $urlSistema = $conn->urlSystem();
-    $urlProduccion = "http://10.40.90.99/soporte/"; // Producción
-    $pathProduccion = "/soporte"; // Ruta de producción
+        $urlSistema = $conn->urlSystem();
+        $urlProduccion = "http://10.40.90.99/soporte/"; // Producción
+        $pathProduccion = "/soporte"; // Ruta de producción
 
-    if (session_status() !== PHP_SESSION_ACTIVE) {
-        session_start();
-    }
+        if (session_status() !== PHP_SESSION_ACTIVE) {
+            session_start();
+        }
 
-    if (empty($_SESSION["user"])) {
-        header("Location: " . $urlSistema . "pages/login/login.php");
-        exit;
-    }
+        if (empty($_SESSION["user"])) {
+            header("Location: " . $urlSistema . "pages/login/login.php");
+            return false;
+            //exit;
+        }
 
-    if ($_SESSION["permiso"] !== "Administrador") {
-        $hostActual = $_SERVER['HTTP_HOST'];
-        $pathActual = $_SERVER['REQUEST_URI'];
+        if ($_SESSION["permiso"] !== "Administrador") {
+            $hostActual = $_SERVER['HTTP_HOST'];
+            $pathActual = $_SERVER['REQUEST_URI'];
 
-        if (strpos($pathActual, $pathProduccion) === false) {
-            // No está en producción, lo redirige
-            header("Location: $urlProduccion");
-            exit;
+            if (strpos($pathActual, $pathProduccion) === false) {
+                // No está en producción, lo redirige
+                header("Location: $urlProduccion");
+                exit;
+            }
         }
     }
-}
 
 
 
@@ -387,6 +388,7 @@ function validarSesion()
     // Funcion para enviar mensajes por Telegram
     function enviarMensajeTelegram($message)
     {
+        echo "enviando";
         // Token del bot
         $token = '7167115609:AAEEihCCCRzkJmsOkFAfvOPYSwl1qr2Ts2E';
 
@@ -408,6 +410,11 @@ function validarSesion()
         curl_setopt($ch, CURLOPT_POST, true);
         curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+
+        // Establece la ruta del certificado CA para la verificación SSL
+        curl_setopt($ch, CURLOPT_CAINFO, '/etc/ssl/certs/ca-certificates.crt');
+        //revisa el certificado del servidor de Telegram usando el archivo de certificados. 
+        //Si todo está bien, se establece una conexión segura y el mensaje se envía sin problemas.
 
         // Ejecutar cURL y obtener la respuesta
         $response = curl_exec($ch);

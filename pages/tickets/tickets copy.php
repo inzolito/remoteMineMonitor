@@ -19,21 +19,20 @@ if (file_exists($csv_file)) {
                 continue;
             }
             $case_number = $row[1];
-            $subject = $row[5];
             $case_id = $row[0];
             $status = $row[2];
             $account_name = $row[3];
 
-            // $created_at = $row[8] ?? '';
-            //  if (!empty($created_at)) {
-            //     $formatted_date = date('d-m-Y', strtotime($created_at));
-            //     $row[8] = $formatted_date;
-            //     $year = date('Y', strtotime($created_at));
+            $created_at = $row[8] ?? '';
+            if (!empty($created_at)) {
+                $formatted_date = date('d-m-Y', strtotime($created_at));
+                $row[8] = $formatted_date;
+                $year = date('Y', strtotime($created_at));
 
-            //     if ($year < 2024) {
-            //         continue;
-            //     }
-            // }ws
+                if ($year < 2024) {
+                    continue;
+                }
+            }
 
             if (!isset($last_status[$case_number])) {
                 $last_status[$case_number] = [
@@ -172,50 +171,6 @@ if ($show_alert) {
 }
 ?>
 
- 
-<!DOCTYPE html>
-<html lang="es">
-
-
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Subject de Tickets</title>
-    <style>
-        table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-
-        th {
-            background-color: #f2f2f2;
-        }
-
-        td[title] {
-            position: relative;
-            cursor: pointer;
-        }
-
-        td[title]:hover::after {
-            content: attr(title);
-            position: absolute;
-            left: 50%;
-            top: -30px;
-            transform: translateX(-50%);
-            background-color: rgba(0, 0, 0, 0.8);
-            color: white;
-            padding: 5px;
-            border-radius: 5px;
-            font-size: 12px;
-            white-space: nowrap;
-            z-index: 10;
-        }
-    </style>
-</head>
-
-</html>
-
 <style>
     @keyframes blink {
         100% {
@@ -272,6 +227,8 @@ if ($show_alert) {
         color: white;
         font-size: 24px;
     }
+
+
 
     h3 {
         color: #004F67;
@@ -378,7 +335,13 @@ if ($show_alert) {
         color: #333;
     }
 
-
+    .filter-input {
+        width: 100%;
+        padding: 5px 8px;
+        margin-top: 5px;
+        box-sizing: border-box;
+        height: 30px;
+    }
 
     .select2-container {
         width: 100% !important;
@@ -411,60 +374,14 @@ if ($show_alert) {
         padding: 8px;
     }
 
-    /* Tamaño consistente para inputs y selects */
-    .filter-select,
-    .filter-input {
-        width: 100% !important;
-        min-width: 150px;
-        max-width: 100%;
-        height: 38px;
-        padding: 6px 12px;
-        font-size: 14px;
-        border: 1px solid #ccc;
-        border-radius: 4px;
-        box-sizing: border-box;
-        text-align: center;
-        /* Centrado horizontal */
+    #filter_status {
+        width: 300px;
     }
 
-    /* Tamaño consistente de Select2 */
-    .select2-container--default .select2-selection--single,
-    .select2-container--default .select2-selection--multiple {
-        height: 38px !important;
-        padding: 0px 12px;
-        font-size: 14px;
-        border: 1px solid #ccc;
-        border-radius: 4px;
-        display: flex;
-        align-items: center;
-        /* Centrado vertical */
-    }
+    #filter_account {
 
-    /* Centrar el texto del placeholder */
-    .select2-container--default .select2-selection--single .select2-selection__rendered {
-        line-height: normal !important;
-        text-align: center;
-        color: #6c757d;
-        /* Placeholder color */
-    }
+        height: 30px;
 
-    /* Centrar el placeholder en los múltiples */
-    .select2-container--default .select2-selection--multiple .select2-search--inline .select2-search__field {
-        text-align: center;
-        line-height: 38px;
-    }
-
-    /* Ajuste para el texto dentro de Select2 */
-    .select2-selection__rendered {
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-    }
-
-    /* Ajuste del ícono de flecha */
-    .select2-selection__arrow {
-        height: 36px !important;
-        align-self: center;
     }
 </style>
 </head>
@@ -516,16 +433,24 @@ if ($show_alert) {
                                     <option value="">Todos</option>
                                     <option value="01-2024">01-2024</option>
                                     <option value="02-2024">02-2024</option>
+                                    <option value="03-2024">03-2024</option>
+                                    <option value="04-2024">04-2024</option>
+                                    <option value="05-2024">05-2024</option>
+                                    <option value="06-2024">06-2024</option>
+                                    <option value="07-2024">07-2024</option>
+                                    <option value="08-2024">08-2024</option>
+                                    <option value="09-2024">09-2024</option>
+                                    <option value="10-2024">10-2024</option>
+                                    <option value="11-2024">11-2024</option>
+                                    <option value="12-2024">12-2024</option>
+                                    <option value="01-2025">01-2025</option>
                                 </select>
 
                             </th>
 
-                            <th>Casenumber
-                                <input type="text" class="form-control" placeholder="Filtrar..." id="filter_case">
-                            </th>
-
+                            <th>Casenumber <input type="text" class="filter-input" placeholder="Filtrar..." id="filter_case"></th>
                             <th>Status
-                                <select id="filter_status" multiple="multiple" class="form-control">
+                                <select id="filter_status" multiple="multiple" class="filter-input">
 
                                     <option value="Working">Working</option>
                                     <option value="Seeking Customer Clarification">Seeking Customer Clarification</option>
@@ -536,15 +461,14 @@ if ($show_alert) {
                                 </select>
 
                             </th>
-
                             <th>Ownername
-                                <select id="filter_account" class="form-control">
+                                <select id="filter_account" class="filter-input">
                                     <option value=0>Todos</option>
 
-
+                                    <!-- Opciones de filtro -->
                                 </select>
                             </th>
-                            <th>AccountName <input type="text" class="form-control" placeholder="Filtrar..." id="filter_case"></th>
+                            <th>AccountName <input type="text" class="filter-input" placeholder="Filtrar..." id="filter_case"></th>
                         </tr>
                     </thead>
                     <tbody id="dataTickets">
@@ -566,8 +490,9 @@ if ($show_alert) {
                                 }
                             }
 
-                            if ($fila[$headers[3]] <> "") {
-                            } else {
+                            if( $fila[$headers[3]]<>"" ){
+
+                            }else{
                                 $sw_tabla_datos = 0;
                             }
                             if (date('Y-m-d', strtotime($fila[$headers[8]])) === date('Y-m-d')) {
@@ -576,29 +501,25 @@ if ($show_alert) {
                                 $newRowClass = "";
                             }
 
-                            if ($sw_tabla_datos == 1) {
+                            if( $sw_tabla_datos ==1){
 
-
+                           
                         ?>
-                                <tr id="row-<?php echo $fila['id']; ?>" class="<?php echo $newRowClass ?>">
-                                    <?php
-                                    echo "<td>" . $fila[$headers[8]] . "</td>";
-                                    echo "<td title='" . htmlspecialchars($fila[$headers[5]]) . "'>
-                                            <a href='https://usa1.lightning.force.com/lightning/r/Case/" . $fila[$headers[0]] . "/view' target='_blank'>" . $fila[$headers[1]] . " 
-                                            </a>
-                                        </td>";
-
-                                    echo "<td>" . $fila[$headers[2]] . "</td>";
-                                    echo "<td>" . $fila[$headers[3]] . "</td>";
-                                    echo "<td>" . $fila[$headers[4]] . "</td>";
-                                    ?>
-                                </tr>
+                            <tr id="row-<?php echo $fila['id']; ?>"  class="<?php echo $newRowClass ?>">
+                                <?php
+                                echo "<td>" . $fila[$headers[8]] . "</td>";
+                                echo "<td><a href='https://usa1.lightning.force.com/lightning/r/Case/" . $fila[$headers[0]] . "/view' target='_blank'>" . $fila[$headers[1]] . " </a></td>";
+                                echo "<td>" . $fila[$headers[2]] . "</td>";
+                                echo "<td>" . $fila[$headers[3]] . "</td>";
+                                echo "<td>" . $fila[$headers[4]] . "</td>";
+                                ?>
+                            </tr>
 
 
-                        <?php
-                            }
-                        endforeach;
-                        ?>
+                        <?php 
+                            } 
+                      endforeach; 
+                       ?>
 
                     </tbody>
                 </table>
@@ -612,88 +533,179 @@ if ($show_alert) {
 <?php echo "<script>var statusCounts = " . json_encode($status_counts) . ";</script>"; ?>
 
 <script>
+    // Variables 
+    ultimoCaseNumber = 0;
+    ultimoCaseNumber = "<?php echo  $ultimoCaseNumber ?>"
+
+
+    // codigo 
     $(document).ready(function() {
+        //ultimoCaseNumber = "";
+        var ultimoStatus = "";
+        var ultimoOwnerName = "";
 
-        function createSelect2() {
-            $('#filter_status, #filter_account').select2({
-                placeholder: "Todos",
-                allowClear: false
-            });
-        }
+        var filterAccount = $('#filter_account');
+        ownerNames.forEach(function(owner) {
+            filterAccount.append(new Option(owner, owner));
+        });
 
-        function createDataTable() {
-            return $('#ticketsTable').DataTable({
-                paging: true,
-                pageLength: 10,
-                searching: true,
-                order: [1, 'desc'],
-                initComplete: function() {
-                    this.api().columns(2).search('^(?!Closed$).*$', true, false).draw();
+        $('#filter_status').select2({
+            placeholder: "Todos",
+            allowClear: false
+        });
+
+        
+        var table = $('#ticketsTable').DataTable({
+            paging: true,
+            pageLength: 10,
+            lengthMenu: [10, 15, 20],
+            searching: true,
+            columnDefs: [{
+                type: 'date',
+                targets: 4
+            }],
+            dom: '<"row align-items-center"<"col-md-6 d-flex"lB><"col-md-6"f>>rtip',
+            buttons: [{
+                extend: 'excelHtml5',
+                text: 'Exportar a Excel',
+                title: 'Tickets_Soporte_Remoto',
+                className: 'btn btn-default ml-3'
+            }],
+            order: [1, 'desc']
+        });
+
+        // Filtros para cada columna
+        $('#filter_date').select2({
+            placeholder: "Todos",
+            allowClear: false
+        });
+
+
+        $('#filter_case').on('change', function() {
+            valChange = ""
+            if ($('#filter_case').val() != 0) {
+                valChange = $('#filter_case').val()
+            }
+            table.column(1).search(valChange).draw();
+            updateChart();
+        });
+
+
+        $('#filter_status').on('change', function() {
+            var selectedStatuses = $(this).val();
+            if (selectedStatuses && selectedStatuses.length > 0) {
+                var filterValue = selectedStatuses.join('|');
+                table.column(2).search(filterValue, true, false).draw();
+            } else {
+                table.column(2).search('').draw();
+            }
+            updateChart();
+        });
+
+        $('#filter_account').on('change', function() {
+
+            valChange = ""
+            if ($('#filter_account').val() != 0) {
+                valChange = $('#filter_account').val()
+            }
+
+            table.column(3).search(valChange).draw();
+            updateChart();
+        });
+
+        // Función para actualizar el gráfico
+        function updateChart() {
+            var filteredData = table.rows({
+                filter: 'applied'
+            }).data().toArray();
+            var filteredStatusCounts = {};
+
+            // Contar la cantidad de tickets por estado
+            filteredData.forEach(function(row) {
+                var status = row[2];
+                if (status && status !== 'Closed') {
+                    filteredStatusCounts[status] = (filteredStatusCounts[status] || 0) + 1;
                 }
             });
+
+            if ($('#filter_status').val().length === 0 && $("#filter_account").val() == 0) {
+                filteredStatusCounts = Object.keys(statusCounts)
+                    .filter(function(status) {
+                        return status !== 'Closed';
+                    })
+                    .reduce(function(result, status) {
+                        result[status] = statusCounts[status];
+                        return result;
+                    }, {});
+            }
+
+            var updatedData = {
+                labels: Object.keys(filteredStatusCounts),
+                datasets: [{
+                    label: 'Tickets',
+                    data: Object.values(filteredStatusCounts),
+                    backgroundColor: ['#FCC003', '#B3DF60', '#7EC9D5', '#FF538A', '#06A59A'],
+                    borderColor: '#000000',
+                    borderWidth: 2
+                }]
+            };
+
+            // Actualizar el gráfico con los datos filtrados
+            statusChart.data = updatedData;
+            statusChart.update();
+            updateStatusSummary(filteredStatusCounts);
+            $('#rowsCount').text(filteredData.length);
         }
 
-        function createChart(data) {
-            const ctx = document.getElementById('statusChart').getContext('2d');
-            return new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: Object.keys(data),
-                    datasets: [{
-                        label: 'Cantidad de Tickets por Estado',
-                        data: Object.values(data),
-                        backgroundColor: ['#FCC003', '#B3DF60', '#7EC9D5', '#FF538A', '#06A59A'],
-                        borderColor: '#000000',
-                        borderWidth: 1
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    scales: {
-                        y: {
+        // Función para actualizar el resumen de estados
+        function updateStatusSummary(filteredStatusCounts) {
+            var statuses = ['Escalate PD', 'Escalate GT', 'Seeking Customer Clarification', 'Working', 'Assigned'];
+            statuses.forEach(function(status) {
+                var count = filteredStatusCounts[status] || 0;
+                $("#" + status.replace(/\s+/g, '_').toLowerCase()).text(count + ' tickets');
+            });
+
+            //alert(JSON.stringify(filteredStatusCounts));
+
+        }
+
+        // Inicializar gráfico
+
+
+        var ctx = document.getElementById('statusChart').getContext('2d');
+        var statusChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: Object.keys(statusCounts), // Inicializar con todos los estados
+                datasets: [{
+                    label: 'Cantidad de Tickets por Estado',
+                    data: Object.values(statusCounts),
+                    backgroundColor: ['#FCC003', '#B3DF60', '#7EC9D5', '#FF538A', '#06A59A'],
+                    borderColor: '#000000',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        ticks: {
+                            stepSize: 1,
                             beginAtZero: true,
-                            ticks: {
-                                stepSize: 1
+                            callback: function(value) {
+                                return Number.isInteger(value) ? value : '';
                             }
                         }
                     }
                 }
-            });
-        }
-
-        function applyFilter(table, selector, columnIndex, chart) {
-            const value = $(selector).val() || '';
-            table.column(columnIndex).search(value).draw();
-            updateChart(table, chart);
-        }
-
-        function updateChart(table, chart) {
-            const data = {};
-            table.rows({
-                filter: 'applied'
-            }).data().each(function(row) {
-                const status = row[2];
-                if (status && status !== 'Closed') {
-                    data[status] = (data[status] || 0) + 1;
-                }
-            });
-            chart.data.labels = Object.keys(data);
-            chart.data.datasets[0].data = Object.values(data);
-            chart.update();
-        }
-
-        createSelect2();
-        const table = createDataTable();
-        const chart = createChart({});
-
-        $('#filter_status').on('change', function() {
-            applyFilter(table, this, 2, chart);
-        });
-        $('#filter_account').on('change', function() {
-            applyFilter(table, this, 3, chart);
+            }
         });
 
-        updateChart(table, chart);
+
+        
+
+        updateChart();
+
     });
 </script>
 
@@ -718,8 +730,12 @@ if ($show_alert) {
 
 
 
+
+
+ 
+
+
 <script>
-    /*
     const source = "tickets";
     const socket = new WebSocket("ws://10.40.90.99:9503");
 
@@ -776,6 +792,4 @@ if ($show_alert) {
             console.log("Sincronización completa recibida.");
         }
     };
-
-    */
 </script>

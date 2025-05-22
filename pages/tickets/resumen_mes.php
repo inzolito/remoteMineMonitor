@@ -2,8 +2,32 @@
 
 $csv_file = "../../../globalData/tickets.csv";
 
-$account_numbers = [];
+$codelco_accounts = [
+    "Salvador" => "Codelco | División El Salvador",
+    "Hales" => 'Codelco | División Ministro Hales',
+    "Chuquicamata" => 'Codelco | División Chuquicamata',
+    "Radomiro" => 'Codelco | División Radomiro Tomic',
+    "Mina Sur" => 'Codelco | División Mina Sur',
+];
 
+$amsa_accounts = [
+    "Centinela " => "AMSA | Centinela",
+    "Zaldivar" => 'AMSA | Zaldivar',
+    "Antucoya" => 'AMSA | Antucoya',
+];
+
+$other_accounts = [
+    "Caserones" => "Caserones",
+    "Verde" => 'Mantoverde',
+    "Blanca" => 'Quebrada Blanca',
+    "Negro" => 'Cerro Negro',
+    "Veladero" => 'Veladero',
+    "Hexagon" => 'Hexagon Mining',
+    "Andacollo" => 'Carmen de Andacollo',
+];
+
+$account_numbers = [];
+ 
 if (($handle = fopen($csv_file, "r")) !== FALSE) {
 
     while (($row = fgetcsv($handle, 1000, ",")) !== FALSE) {
@@ -19,53 +43,31 @@ if (($handle = fopen($csv_file, "r")) !== FALSE) {
         $product_name = $row[10]; // "Product Name"
         $product_family = $row[11]; // "Product Family"
         $modified_account_name = $account_name;
-        
-        if (strtotime($create_date) >= strtotime("2025-01-01") && strtotime($create_date) < strtotime("2025-02-01")) {
+
+        if (strtotime($create_date) >= strtotime("2025-01-01")) {
+
 
             if (!isset($csv_data[$case_number])) {
 
-                if (preg_match('/sumarización|sumarizacion|sumarizar|rezumarizar/i', $subject)) { // Modificar 'product_name' si 'subject' contiene "sumarización"
+                if (preg_match('/sumarización|sumarizacion|sumarizar|rezumarizar/i', $subject)) {
                     $product_name = 'Sumarización';
                 }
 
-                if (preg_match('/importador|importando/i', $subject)) { // Modificar 'product_name' si 'subject' contiene "importador"
+                if (preg_match('/importador|importando/i', $subject)) {
                     $product_name = 'Importador';
                 }
 
-                if (preg_match('/servidores|servidor/i', $subject)) { // Modificar 'product_name' si 'subject' contiene "servidor"
+                if (preg_match('/servidores|servidor/i', $subject)) {
                     $product_name = 'Servidor';
                 }
 
-                if (preg_match('/Centinela Mine/i', $modified_account_name)) {
-                    $modified_account_name = 'AMSA | Centinela';
+                foreach (array_merge($codelco_accounts, $amsa_accounts, $other_accounts) as $key => $value) {
+                    if (stripos($modified_account_name, $key) !== false) {
+                        $modified_account_name = $value;
+                        break;
+                    }
                 }
 
-                if (preg_match('/Corporacion Nacional del Cobre Mina Sur/i',$modified_account_name)) {
-                    $modified_account_name = 'CODELCO | División Mina Sur';
-                }
-
-                if (preg_match('/Radomiro Tomic Mine/i', $modified_account_name)) {
-                    $modified_account_name = 'CODELCO | División Radomiro Tomic';
-                }
-
-                if (preg_match('/CODELCO | Division Mina Ministro Hales|Mina Ministro Hales/i', $modified_account_name)) {
-                    $modified_account_name = 'CODELCO | División Ministro Hales';
-                }
-
-                if (preg_match('/Division El Salvador | Codelco \| Division El Salvador/i', $modified_account_name)) {
-                    $modified_account_name = 'CODELCO | División El Salvador';
-                }
-
-                if (preg_match('/Zaldivar Mine|Compania Minera Zaldivar SPA/i', $modified_account_name)) {
-                    $modified_account_name = 'AMSA | Zaldivar';
-                }
-
-                if (preg_match('/Minera Antucoya/i', $modified_account_name)) {
-                    $modified_account_name = 'AMSA | Antucoya';
-                }
-
-
-                // Agregar cuenta a la lista de cuentas
                 if (!in_array($modified_account_name, $account_numbers)) {
                     $account_numbers[] = $modified_account_name;
                 }
@@ -74,6 +76,7 @@ if (($handle = fopen($csv_file, "r")) !== FALSE) {
     }
     fclose($handle);
 }
+sort($account_numbers);
 ?>
 
 
@@ -117,7 +120,7 @@ if (($handle = fopen($csv_file, "r")) !== FALSE) {
     <div class="col-md-3"></div>
     <div class="col-md-3">
 
-        <div class="form-group"><label for="filtro">Rango de fecha</label><br>
+        <div class="form-group"><label for="filtro">Filtrar por fecha</label><br>
             <div class="input-group">
 
                 <div class="input-group-prepend">
@@ -136,10 +139,14 @@ if (($handle = fopen($csv_file, "r")) !== FALSE) {
     <div class="col-md-3">
         <label for="accountFilter">Filtrar por Faena:</label>
         <select id="accountFilter" class="form-control">
-            <option value="">Todos</option>
-            <?php foreach ($account_numbers as $account): ?>
-                <option value="<?= htmlspecialchars($account) ?>"><?= htmlspecialchars($account) ?></option>
-            <?php endforeach; ?>
+            <option value="">Faenas</option>
+            <?php
+             $indiceFitlroFaena=1;
+             foreach ($account_numbers as $account): ?>
+                <option value="<?= htmlspecialchars($account)  ?>"><?= htmlspecialchars($account) ?></option>
+            <?php 
+             $indiceFitlroFaena++;
+             endforeach; ?>
         </select>
 
     </div>
@@ -170,7 +177,9 @@ if (($handle = fopen($csv_file, "r")) !== FALSE) {
 <script>
     function carga_modulo_resumen_mes(fechaInicio, fechaFin) {
 
-        $("#div_cont_resumen").load('pages/tickets/resumen_mes_detalle.php?startDate=' + fechaInicio + '&endDate=' + fechaFin + '&filtroFaena=')
+        var encodeFilter = encodeURIComponent($("#accountFilter").val());  // Codifica el valor
+
+        $("#div_cont_resumen").load('pages/tickets/resumen_mes_detalle.php?startDate=' + fechaInicio + '&endDate=' + fechaFin + '&filtroFaena='+encodeFilter )
     }
 </script>
 

@@ -27,21 +27,54 @@ if ($_SESSION["permiso"] == "Administrador" || $_SESSION["permiso"] == "Soporte"
 
         <div class="card-body">
             <div class="row ">
-                 <div class="col-md-6">
+                <!--
+                <div class="col-md-4 d-flex justify-content-center">
                     <a class="btn btn-app bg-info" onclick='monitoreoCAS("Amsa")'>
 
                         <i class="fas fa-hard-hat"></i> Amsa
                     </a>
                 </div>
-                <div class="col-md-6">
+                <div class="col-md-4 d-flex justify-content-center">
                     <a class="btn btn-app bg-info" onclick='monitoreoCAS("Codelco")'>
 
                         <i class="fas fa-hard-hat"></i> Codelco
                     </a>
                 </div>
 
+-->
+                <div class="col-md-3 d-flex justify-content-center">
+                    <a class="btn btn-app bg-info" href="https://10.40.90.99:13000" target="_blank">
 
-                <!--
+                        <img src="dist/img/system/grafana.webp" style="width: 25px;  filter: brightness(0) saturate(100%) invert(100%);">
+                        <br>Grafana OAS Centinela
+                    </a>
+                </div>
+
+                <div class="col-md-3 d-flex justify-content-center">
+                    <a class="btn btn-app bg-info" href="https://10.40.90.99:23000" target="_blank">
+
+                        <img src="dist/img/system/grafana.webp" style="width: 25px;  filter: brightness(0) saturate(100%) invert(100%);">
+                        <br>Grafana OAS Antucoya
+                    </a>
+                </div>
+
+
+                <div class="col-md-3 d-flex justify-content-center">
+
+                    <a class="btn btn-app bg-info" onclick='monitoreoOAS()'>
+
+                        <i class="fas fa-hard-hat"></i> Monitoreo OAS
+                    </a>
+                </div>
+
+                <div class="col-md-3 d-flex justify-content-center">
+                    <a class="btn btn-app bg-info bg-warning" onclick="carga_modulo_container('monitoreo_fms/monitoreo_fms.php','Monitoreo FMS')">
+
+                        <i class="fas fa-brands fa-connectdevelop"></i> develop - Msalas
+                    </a>
+
+                </div>
+                <!--<i class="fa-brands fa-connectdevelop"></i>
                 <div class="col-md-4">
 
                          <a class="btn btn-app bg-info" onclick='cargaMaster()'>
