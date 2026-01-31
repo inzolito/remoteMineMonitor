@@ -1,71 +1,64 @@
-# System / Log files
-*.DS_Store
-*.log
-
-# Archives
-*.zip
-
-# Sass Cache
-.sass-cache
-
-# Project files
-.idea
-nbproject
-nbproject/private
-.vscode/
-.vs/
-.config.json
-# Node / Bower
-node_modules/
-bower_components/
-
-# Plugins
-/plugins/**/*.html
-/plugins/**/*.less
-/plugins/**/*.md
-/plugins/**/*.scss
-/plugins/**/*.ts
-/plugins/**/bower.json
-/plugins/**/package.json
-/plugins/**/webpack.config.js
-/plugins/**/demo/
-/plugins/**/demos/
-/plugins/**/dev/
-/plugins/**/example/
-/plugins/**/examples/
-/plugins/**/less/
-/plugins/**/test/
-/plugins/**/tests/
-/plugins/daterangepicker/website/
-/plugins/daterangepicker/drp.png
-/plugins/daterangepicker/moment.min.js
-/plugins/daterangepicker/package.js
-/plugins/daterangepicker/website.css
-/plugins/daterangepicker/website.js
-/plugins/jquery-ui/AUTHORS.txt
-/plugins/jquery-ui/external/jquery/jquery.js
-/plugins/inputmask/bindings/
-/plugins/flot/plugins/jquery*.js
-!/plugins/flot/plugins/jquery.flot.*.js
-!/plugins/**/LICENSE.md
-!/plugins/**/LICENSE.txt
-!/plugins/**/license.md
-!/plugins/**/license.txt
-!/plugins/**/LICENSE
-!/plugins/**/license
-!/plugins/**/COPYING
-
-
-# Docs
-/docs/_site/
-/docs/vendor/
-/docs/.bundle/
-/docs_html/
+# --- Build & Output ---
+dist/
+build/
+bin/
+obj/
+out/
 .jekyll-cache/
 .jekyll-metadata
+v3/frontend/dist/
 
-# ETC
-TODO
-test.html
-ad.js
-/.cache/
+# --- Dependencies ---
+node_modules/
+bower_components/
+vendor/
+plugins/
+.bundle/
+v3/frontend/node_modules/
+v3/api/vendor/
+
+# --- Logs & Temp ---
+*.log
+traffic.log
+raw_data.log
+v3/api/*.log
+tmp/
+temp/
+debug_*.json
+debug_*.txt
+debug_*.js
+debug_*.php
+
+# --- Backups & Archives ---
+backup/
+backups/
+backup-*/
+*.zip
+*.tar.gz
+*.rar
+*.7z
+*.bak
+*.bakup
+archivo
+backup-13-9-23
+backup-13-9-23.zip
+backup.zip
+mi_archivo
+
+# --- Sensitive Data & Local Config ---
+# Protegemos la conexión a la base de datos y credenciales individuales
+.env
+config.php
+db.php
+auth.json
+*.pem
+*.key
+v3/api/db.php
+v3/api/.env
+
+# --- IDE & System ---
+.vscode/
+.idea/
+.vs/
+.DS_Store
+Thumbs.db
