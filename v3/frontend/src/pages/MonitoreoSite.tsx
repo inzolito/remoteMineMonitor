@@ -327,6 +327,26 @@ const DBHealthCard = ({ label, value, sublabel, color, icon: Icon, onClick }: an
 const SchemaBackupCard = ({ secondaryServer }: any) => {
     const metricObj = secondaryServer?.app?.['db.schema.date'];
     const dateStr = metricObj?.metric_value; // Expected: "YYYY-MM-DD HH:mm:ss"
+    const [elapsed, setElapsed] = useState('');
+
+    useEffect(() => {
+        const update = () => {
+            if (!dateStr) return;
+            const date = new Date(dateStr);
+            if (isNaN(date.getTime())) return;
+
+            const now = new Date();
+            const diff = Math.floor((now.getTime() - date.getTime()) / 1000);
+
+            if (diff < 60) setElapsed(`${diff}s`);
+            else if (diff < 3600) setElapsed(`${Math.floor(diff / 60)}m ${diff % 60}s`);
+            else if (diff < 86400) setElapsed(`${Math.floor(diff / 3600)}h ${Math.floor((diff % 3600) / 60)}m ${diff % 60}s`);
+            else setElapsed(`${Math.floor(diff / 86400)}d ${Math.floor((diff % 86400) / 3600)}h ${Math.floor((diff % 3600) / 60)}m ${diff % 60}s`);
+        };
+        update();
+        const timer = setInterval(update, 1000); // Update every second
+        return () => clearInterval(timer);
+    }, [dateStr]);
 
     // Status comes from DB evaluation (Single Source of Truth)
     const status = metricObj?.status || 'ok';
@@ -338,8 +358,8 @@ const SchemaBackupCard = ({ secondaryServer }: any) => {
     return (
         <DBHealthCard
             label="Schema Backup"
-            value={dateStr.split(' ')[1] || dateStr} // Show Time portion prominently, or full string
-            sublabel={dateStr.split(' ')[0] || "DATE"} // Show Date portion as sublabel
+            value={elapsed || '...'}
+            sublabel={dateStr}
             color={isDanger ? { bg: 'bg-red-600', text: 'text-white' } :
                 isWarning ? { bg: 'bg-amber-400', text: 'text-amber-950' } :
                     { bg: 'bg-indigo-50', text: 'text-indigo-600' }}
