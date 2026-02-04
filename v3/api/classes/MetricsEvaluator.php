@@ -90,6 +90,10 @@ class MetricsEvaluator {
 
                 if ($triggered) {
                     $currentStatus = $rule['alert_category'];
+                    // DEBUG LOG match
+                    if ($key === 'system.cpu.load') {
+                         file_put_contents(__DIR__ . '/../debug_cpu.log', date('Y-m-d H:i:s') . " RULE MATCH: ID={$rule['id']} Threshold={$rule['threshold_value']} Cat=$currentStatus triggered=" . ($triggered?'yes':'no') . "\n", FILE_APPEND);
+                    }
                     if ($this->isWorse($currentStatus, $status)) {
                         $status = $currentStatus;
                         $matchedRule = $rule; 
@@ -189,7 +193,7 @@ class MetricsEvaluator {
 
         if ($isDangerStatus) {
             if (!isset($this->contextCache[$serverId])) {
-                $ctxStmt = $this->mysqli->prepare("SELECT s.server_type, s.ip as ip_address, si.name as site_name, s.name as server_name FROM servers s JOIN site_servers ss ON s.id = ss.server_id JOIN sites si ON ss.site_id = si.id WHERE s.id = ?");
+                $ctxStmt = $this->mysqli->prepare("SELECT s.server_type, s.ip as ip_address, si.name as site_name, s.name as server_name, s.is_deleted FROM servers s JOIN site_servers ss ON s.id = ss.server_id JOIN sites si ON ss.site_id = si.id WHERE s.id = ?");
                 if ($ctxStmt) {
                     $ctxStmt->bind_param("i", $serverId);
                     $ctxStmt->execute();
@@ -200,6 +204,11 @@ class MetricsEvaluator {
             }
             
             $ctx = $this->contextCache[$serverId];
+            
+            // Do not alert if server is deleted
+            if ($ctx && isset($ctx['is_deleted']) && (int)$ctx['is_deleted'] === 1) {
+                return;
+            }
             
             $stmt = $this->mysqli->prepare("SELECT id FROM alerts WHERE server_id = ? AND metric_key = ? AND status IN ('active', 'acknowledged') LIMIT 1");
             $stmt->bind_param("is", $serverId, $key);

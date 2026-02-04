@@ -15,6 +15,8 @@ require_once __DIR__ . '/vendor/autoload.php';
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
 
+require_once __DIR__ . '/classes/MetricsEvaluator.php';
+
 $secret_key = "MONITOREO_LAB_V3_SECRET_KEY_CHANGE_ME_IN_PROD";
 // Direct connection to bypass potential class autoloading weirdness or state issues
 $mysqli = new mysqli('localhost', 'jigsaw', 'Jigsaw1', 'monitoring_system');
@@ -189,6 +191,32 @@ if ($method === 'GET') {
         while ($row = mysqli_fetch_assoc($res)) {
             $data[] = $row;
         }
+    } elseif ($action === 'connections') {
+        $res = mysqli_query($mysqli, "SELECT c.*, s.name as server_name FROM connections c JOIN servers s ON c.server_id = s.id WHERE s.is_deleted = 0");
+        while ($row = mysqli_fetch_assoc($res)) {
+            $data[] = $row;
+        }
+    } elseif ($action === 'connection_details') {
+        $sid = intval($_GET['server_id'] ?? 0);
+        $cRes = mysqli_query($mysqli, "SELECT * FROM connections WHERE server_id = $sid LIMIT 1");
+        $connection = mysqli_fetch_assoc($cRes);
+        
+        $paths = [];
+        if ($connection) {
+            $cid = $connection['id'];
+            $pRes = mysqli_query($mysqli, "SELECT cp.*, s.name as jump_server_name, s.ip as jump_server_ip 
+                                         FROM connection_paths cp 
+                                         LEFT JOIN servers s ON cp.jump_server_id = s.id 
+                                         WHERE cp.connection_id = $cid 
+                                         ORDER BY cp.jump_order ASC");
+
+            while ($row = mysqli_fetch_assoc($pRes)) $paths[] = $row;
+        }
+        
+        $data = [
+            'connection' => $connection,
+            'paths' => $paths
+        ];
     }
     echo json_encode($data);
 
@@ -279,6 +307,47 @@ if ($method === 'GET') {
         } else {
             http_response_code(500);
             echo json_encode(["message" => "DB Error: " . $mysqli->error]);
+        }
+    } elseif ($action === 'connections') {
+        $sid = intval($input['server_id']);
+        $name = $mysqli->real_escape_string($input['connection_name'] ?? '');
+        $cst = intval($input['connection_status'] ?? 0);
+        
+        $check = $mysqli->query("SELECT id FROM connections WHERE server_id = $sid");
+        if ($row = $check->fetch_assoc()) {
+            $cid = $row['id'];
+            $res = $mysqli->query("UPDATE connections SET connection_name = '$name', connection_status = $cst WHERE id = $cid");
+        } else {
+            $res = $mysqli->query("INSERT INTO connections (server_id, connection_name, connection_status) VALUES ($sid, '$name', $cst)");
+            $cid = $mysqli->insert_id;
+        }
+        
+        if ($res) {
+            echo json_encode(["message" => "Connection saved", "id" => $cid]);
+        } else {
+            http_response_code(500);
+            echo json_encode(["message" => "DB Error: " . $mysqli->error]);
+        }
+    } elseif ($action === 'connection_paths') {
+        $cid = intval($input['connection_id']);
+        $hops = $input['hops']; // Array of jump_server_id
+        
+        // Transactional overwrite
+        $mysqli->begin_transaction();
+        try {
+            $mysqli->query("DELETE FROM connection_paths WHERE connection_id = $cid");
+            $order = 1;
+            foreach ($hops as $jsid) {
+                $jsid = intval($jsid);
+                $mysqli->query("INSERT INTO connection_paths (connection_id, jump_server_id, jump_order) VALUES ($cid, $jsid, $order)");
+                $order++;
+            }
+            $mysqli->commit();
+            echo json_encode(["message" => "Path updated"]);
+        } catch (Exception $e) {
+            $mysqli->rollback();
+            http_response_code(500);
+            echo json_encode(["message" => "Error: " . $e->getMessage()]);
         }
     }
 

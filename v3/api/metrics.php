@@ -154,6 +154,10 @@ function processMetric($mysqli, $evaluator, $server_id, $site_id, $key, $val) {
     // Evaluate against DB Rules (Now passing metric_id for better accuracy)
     $status = $evaluator->evaluate($key, $evalVal, $server_id, $metric_id);
     
+    if ($key === 'system.cpu.load') {
+        file_put_contents(__DIR__ . '/debug_cpu.log', date('Y-m-d H:i:s') . " [SID:$server_id] Key:$key Val:$val Status:$status\n", FILE_APPEND);
+    }
+
     // Persist to unified table (State)
     $stmt = $mysqli->prepare("INSERT INTO server_app_metrics (server_id, metric_key, metric_value, status, last_updated) VALUES (?, ?, ?, ?, NOW()) ON DUPLICATE KEY UPDATE metric_value = VALUES(metric_value), status = VALUES(status), last_updated = NOW()");
     $stmt->bind_param("isss", $server_id, $key, $val, $status);
@@ -295,6 +299,10 @@ if ($method === 'POST') {
     } elseif (isset($_GET['site_id'])) {
         $site_id = intval($_GET['site_id']);
         $site_servers = $mysqli->query("SELECT s.*, ss.is_primary FROM servers s JOIN site_servers ss ON s.id = ss.server_id WHERE ss.site_id = $site_id AND s.is_deleted = 0");
+        
+        // [READ-TIME EVALUATOR]
+        // Instantiate here to re-evaluate rules against current data on every read.
+        $rtEvaluator = new MetricsEvaluator($mysqli);
 
         while ($server = $site_servers->fetch_assoc()) {
             $server_id = $server['id'];
@@ -394,23 +402,33 @@ if ($method === 'POST') {
                 'uptime_seconds' => $app['system.uptime']['metric_value'] ?? 0
             ];
 
+            // [READ-TIME EVALUATION]
+            // Re-run the evaluator against the fetched values to ensure status matches active DB rules exactly.
+            // This overrides any stale status stored in the DB from previous write-time evaluations.
+            $sys['cpu_status'] = $rtEvaluator->evaluate('system.cpu.load', $sys['cpu_usage'], $server_id);
+            $sys['ram_status'] = $rtEvaluator->evaluate('system.ram.percent', $sys['ram_percent'], $server_id);
+            $sys['disk_status'] = $rtEvaluator->evaluate('system.disk.percent', $sys['disk_percent'], $server_id);
+
             // Ensure compatibility with frontend gauge expectations (inject back into $app)
             if (!isset($app['system.cpu.load'])) {
-                $app['system.cpu.load'] = ['metric_key' => 'system.cpu.load', 'metric_value' => $sys['cpu_usage'], 'status' => 'ok'];
+                $app['system.cpu.load'] = ['metric_key' => 'system.cpu.load', 'metric_value' => $sys['cpu_usage'], 'status' => $sys['cpu_status']];
             } else {
                 $app['system.cpu.load']['metric_value'] = $sys['cpu_usage'];
+                $app['system.cpu.load']['status'] = $sys['cpu_status'];
             }
 
             if (!isset($app['system.ram.percent'])) {
-                $app['system.ram.percent'] = ['metric_key' => 'system.ram.percent', 'metric_value' => $sys['ram_percent'], 'status' => 'ok'];
+                $app['system.ram.percent'] = ['metric_key' => 'system.ram.percent', 'metric_value' => $sys['ram_percent'], 'status' => $sys['ram_status']];
             } else {
                 $app['system.ram.percent']['metric_value'] = $sys['ram_percent'];
+                $app['system.ram.percent']['status'] = $sys['ram_status'];
             }
 
             if (!isset($app['system.disk.percent'])) {
-                $app['system.disk.percent'] = ['metric_key' => 'system.disk.percent', 'metric_value' => $sys['disk_percent'], 'status' => 'ok'];
+                $app['system.disk.percent'] = ['metric_key' => 'system.disk.percent', 'metric_value' => $sys['disk_percent'], 'status' => $sys['disk_status']];
             } else {
                 $app['system.disk.percent']['metric_value'] = $sys['disk_percent'];
+                $app['system.disk.percent']['status'] = $sys['disk_status'];
             }
             
             // Clean units from percent values if they exist (e.g. "1.4%" -> "1.4")

@@ -874,7 +874,7 @@ const MonitoreoSite = () => {
                                     </div>
                                 </div>
                                 {(() => {
-                                    const cpuStatus = primaryServer?.system?.cpu_status;
+                                    const cpuStatus = primaryServer?.system?.cpu_status || 'ok';
                                     const cpuColor = cpuStatus === 'danger' ? '#ef4444' : (cpuStatus === 'warning' ? '#f59e0b' : '#10b981');
                                     return (
                                         <ResponsiveContainer width="100%" height="100%">
@@ -989,7 +989,7 @@ const MonitoreoSite = () => {
                                             </div>
                                         </div>
                                         {(() => {
-                                            const cpuStatus = secondaryServer?.system?.cpu_status;
+                                            const cpuStatus = secondaryServer?.system?.cpu_status || 'ok';
                                             const cpuColor = cpuStatus === 'danger' ? '#ef4444' : (cpuStatus === 'warning' ? '#f59e0b' : '#10b981');
                                             return (
                                                 <ResponsiveContainer width="100%" height="100%">
@@ -1314,9 +1314,9 @@ const MonitoreoSite = () => {
                                 })()}
                                 sublabel={(() => {
                                     const val = primaryServer?.app?.['db.top_ten_tables']?.metric_value;
-                                    if (!val) return '0 GB';
+                                    if (!val) return '0.00 GB';
                                     const lines = val.split(/\r?\n/).filter((l: string) => l.trim().length > 0);
-                                    if (!lines[0]) return '0 GB';
+                                    if (!lines[0]) return '0.00 GB';
 
                                     let count = 0;
                                     if (lines[0].includes('|')) {
@@ -1470,8 +1470,8 @@ const MonitoreoSite = () => {
                                                         [table, count] = line.split('|');
                                                     } else {
                                                         const parts = line.trim().split(/\s+/);
-                                                        count = parts.pop() || "0";
-                                                        table = parts.join(' ');
+                                                        count = parts[parts.length - 1] || "0";
+                                                        table = parts.slice(0, -1).join(' ');
                                                     }
 
                                                     return (

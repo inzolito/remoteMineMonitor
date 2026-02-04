@@ -4,7 +4,7 @@ import { Navigate } from 'react-router-dom';
 import {
     ShieldCheck, Server, Activity, Terminal,
     FileText, Plus, Trash2, Save, RefreshCw, Search,
-    AlertCircle, ChevronRight, Settings, Eye, XOctagon
+    AlertCircle, ChevronRight, Settings, Eye, XOctagon, Network
 } from 'lucide-react';
 import RooteoTab from '../components/RooteoTab';
 
@@ -31,6 +31,7 @@ const SuperAdmin = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [detailMetric, setDetailMetric] = useState<any>(null); // For generic modal
     const [purgeData, setPurgeData] = useState<any>(null); // For deletion review modal
+    const [selectedConnection, setSelectedConnection] = useState<any>(null); // For Connection Path modal
 
     // Security: Only maik
     if (user?.username !== 'maik') {
@@ -41,7 +42,11 @@ const SuperAdmin = () => {
         setLoading(true);
         try {
             const resp = await fetch(`${API_BASE}?action=${action}${params}`, {
-                headers: { 'Authorization': `Bearer ${user.token}` }
+                headers: {
+                    'Authorization': `Bearer ${user.token}`,
+                    'Cache-Control': 'no-cache',
+                    'Pragma': 'no-cache'
+                }
             });
             const data = await resp.json();
             if (resp.ok) return data;
@@ -272,11 +277,29 @@ const SuperAdmin = () => {
                                                     </td>
                                                     <td className="py-3 px-4 text-right">
                                                         <button
-                                                            className="text-primary hover:bg-primary/10 p-1.5 rounded transition-all opacity-0 group-hover:opacity-100"
+                                                            className="text-primary hover:bg-primary/10 p-1.5 rounded transition-all"
                                                             title="Sincronizar forzosamente"
                                                         >
                                                             <RefreshCw className="w-3.5 h-3.5" />
                                                         </button>
+
+                                                        <button
+                                                            onClick={async () => {
+                                                                const details = await fetchData('connection_details', `&server_id=${s.id}`);
+                                                                if (details) {
+                                                                    setSelectedConnection({
+                                                                        server: s,
+                                                                        connection: details.connection || { server_id: s.id, connection_name: s.name, connection_status: 1 },
+                                                                        paths: details.paths || []
+                                                                    });
+                                                                }
+                                                            }}
+                                                            className="text-indigo-600 hover:bg-indigo-50 p-1.5 rounded transition-all"
+                                                            title="Configurar Ruta de Conexión (Saltos)"
+                                                        >
+                                                            <Network className="w-3.5 h-3.5" />
+                                                        </button>
+
                                                     </td>
                                                 </tr>
                                             ))}
@@ -1215,6 +1238,204 @@ const SuperAdmin = () => {
                                 className="px-8 bg-white border-2 border-slate-200 hover:bg-slate-50 text-slate-600 font-bold rounded-xl transition-all"
                             >
                                 Cancelar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* Connection Path Modal */}
+            {selectedConnection && (
+                <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-300">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+                        <div className="bg-indigo-600 p-6 text-white flex justify-between items-center">
+                            <div className="flex items-center gap-3">
+                                <Network className="w-6 h-6" />
+                                <div>
+                                    <h3 className="text-xl font-bold">Ruta de Conexión</h3>
+                                    <p className="text-indigo-100 text-sm opacity-80">Configuración de saltos para: <span className="font-bold">{selectedConnection.server.name}</span></p>
+                                </div>
+                            </div>
+                            <button onClick={() => setSelectedConnection(null)} className="p-2 hover:bg-white/20 rounded-lg transition-colors text-2xl leading-none">&times;</button>
+                        </div>
+
+                        <div className="p-6 space-y-6">
+                            {/* Connection Info */}
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Nombre Conexión</label>
+                                    <input
+                                        type="text"
+                                        value={selectedConnection.connection.connection_name}
+                                        onChange={e => setSelectedConnection({
+                                            ...selectedConnection,
+                                            connection: { ...selectedConnection.connection, connection_name: e.target.value }
+                                        })}
+                                        className="w-full p-2.5 bg-slate-50 border rounded-xl text-sm focus:ring-2 ring-indigo-500/20 outline-none"
+                                    />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Estado de Seguimiento</label>
+                                    <select
+                                        value={selectedConnection.connection.connection_status}
+                                        onChange={e => setSelectedConnection({
+                                            ...selectedConnection,
+                                            connection: { ...selectedConnection.connection, connection_status: parseInt(e.target.value) }
+                                        })}
+                                        className="w-full p-2.5 bg-slate-50 border rounded-xl text-sm focus:ring-2 ring-indigo-500/20 outline-none"
+                                    >
+                                        <option value={1}>Activo (Monitoreado)</option>
+                                        <option value={0}>Inactivo / Pausado</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            {/* Hops List */}
+                            <div className="space-y-3">
+                                <div className="flex justify-between items-center">
+                                    <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                                        <Terminal className="w-4 h-4 text-indigo-500" /> Secuencia de Saltos (Hops)
+                                    </h4>
+                                    <button
+                                        onClick={() => {
+                                            const newHops = [...selectedConnection.paths, { jump_server_id: '', jump_order: selectedConnection.paths.length + 1 }];
+                                            setSelectedConnection({ ...selectedConnection, paths: newHops });
+                                        }}
+                                        className="text-[10px] bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-full font-black hover:bg-indigo-100 transition-colors uppercase tracking-widest"
+                                    >
+                                        + Agregar Salto
+                                    </button>
+                                </div>
+
+                                <div className="space-y-2 max-h-64 overflow-y-auto pr-2 custom-scrollbar">
+                                    {selectedConnection.paths.map((path: any, idx: number) => (
+                                        <div key={idx} className="flex items-center gap-3 p-3 bg-slate-50 border rounded-xl group transition-all hover:border-indigo-200">
+                                            <div className="w-6 h-6 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center text-[10px] font-black">
+                                                {idx + 1}
+                                            </div>
+                                            <div className="flex-1">
+                                                <select
+                                                    value={path.jump_server_id ? String(path.jump_server_id) : ''}
+                                                    onChange={e => {
+                                                        const newPaths = [...selectedConnection.paths];
+                                                        const val = e.target.value;
+                                                        const selectedServ = servers.find(s => String(s.id) === val);
+                                                        newPaths[idx].jump_server_id = val ? parseInt(val) : null;
+                                                        newPaths[idx].jump_server_name = selectedServ ? selectedServ.name : '';
+                                                        setSelectedConnection({ ...selectedConnection, paths: newPaths });
+                                                    }}
+                                                    className="w-full bg-transparent text-sm font-medium outline-none focus:text-indigo-600"
+                                                >
+                                                    <option value="">Seleccionar servidor de salto...</option>
+                                                    {(() => {
+                                                        const jid = path.jump_server_id;
+                                                        if (!jid) return null;
+
+                                                        const sjid = String(jid);
+                                                        const isSelf = sjid === String(selectedConnection.server.id);
+                                                        const isActive = servers.some(s => String(s.id) === sjid);
+
+                                                        if (isSelf || !isActive) {
+                                                            return (
+                                                                <option value={sjid}>
+                                                                    {path.jump_server_name || 'Desconocido'} {isSelf ? '(Mismo Servidor)' : '(Inactivo/Eliminado)'}
+                                                                </option>
+                                                            );
+                                                        }
+                                                        return null;
+                                                    })()}
+
+                                                    {servers
+                                                        .filter(serv => String(serv.id) !== String(selectedConnection.server.id))
+                                                        .map(serv => (
+                                                            <option key={serv.id} value={String(serv.id)}>
+                                                                {serv.name} ({serv.ip_address})
+                                                            </option>
+                                                        ))
+                                                    }
+
+                                                </select>
+
+                                            </div>
+                                            <button
+                                                onClick={() => {
+                                                    const newPaths = selectedConnection.paths.filter((_: any, i: number) => i !== idx);
+                                                    setSelectedConnection({ ...selectedConnection, paths: newPaths });
+                                                }}
+                                                className="opacity-0 group-hover:opacity-100 p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    ))}
+                                    {selectedConnection.paths.length === 0 && (
+                                        <div className="text-center py-8 bg-slate-50 border border-dashed rounded-xl text-slate-400 text-xs italic">
+                                            Sin saltos configurados. La conexión es directa.
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="p-4 bg-indigo-50 rounded-xl border border-indigo-100 flex gap-3 italic">
+                                <AlertCircle className="w-4 h-4 text-indigo-500 mt-0.5" />
+                                <p className="text-[10px] text-indigo-800 leading-relaxed">
+                                    El orden de los saltos define la ruta lógica. El sistema usará esta jerarquía para determinar si una falla es de conectividad local o de un salto intermedio.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="p-6 bg-slate-50 border-t flex gap-3">
+                            <button
+                                onClick={() => setSelectedConnection(null)}
+                                className="px-6 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-600 text-sm font-bold hover:bg-slate-50 transition-all"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={async () => {
+                                    setLoading(true);
+                                    try {
+                                        // 1. Save Connection
+                                        const connectionResp = await fetch(`${API_BASE}?action=connections`, {
+                                            method: 'POST',
+                                            headers: {
+                                                'Authorization': `Bearer ${user.token}`,
+                                                'Content-Type': 'application/json'
+                                            },
+                                            body: JSON.stringify(selectedConnection.connection)
+                                        });
+                                        const connData = await connectionResp.json();
+
+                                        if (!connectionResp.ok) throw new Error(connData.message);
+
+                                        const cid = connData.id;
+
+                                        // 2. Save Paths
+                                        const pathResp = await fetch(`${API_BASE}?action=connection_paths`, {
+                                            method: 'POST',
+                                            headers: {
+                                                'Authorization': `Bearer ${user.token}`,
+                                                'Content-Type': 'application/json'
+                                            },
+                                            body: JSON.stringify({
+                                                connection_id: cid,
+                                                hops: selectedConnection.paths.map((p: any) => p.jump_server_id).filter((id: any) => id)
+                                            })
+                                        });
+                                        const pathData = await pathResp.json();
+
+                                        if (!pathResp.ok) throw new Error(pathData.message);
+
+                                        setMessage({ type: 'success', text: 'Ruta de conexión actualizada perfectamente.' });
+                                        setSelectedConnection(null);
+                                    } catch (err: any) {
+                                        setMessage({ type: 'error', text: 'Error al guardar la ruta: ' + err.message });
+                                    } finally {
+                                        setLoading(false);
+                                    }
+                                }}
+                                className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-xl shadow-lg shadow-indigo-200 transition-all flex items-center justify-center gap-2"
+                            >
+                                <Save className="w-4 h-4" /> Guardar Configuración
                             </button>
                         </div>
                     </div>

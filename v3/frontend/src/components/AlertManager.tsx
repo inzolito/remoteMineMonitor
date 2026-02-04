@@ -97,17 +97,29 @@ const AlertManager: React.FC<{ initialDataLoaded?: boolean }> = ({ initialDataLo
                 const currentSiteId = siteIdx > -1 ? pathParts[siteIdx + 1] : null;
 
                 const filteredData = data.filter(alert => {
+                    if (ignoredAlertsRef.current.has(alert.id)) return false;
+
                     if (!currentSiteId || currentSiteId === 'undefined') return true;
                     return String(alert.site_id) === String(currentSiteId);
                 });
 
+                // Cleanup ignored set: Remove IDs that are no longer in the backend response
+                // This means the backend has finally caught up and stopped sending them
+                const backendIds = new Set(data.map(a => a.id));
+                for (const id of ignoredAlertsRef.current) {
+                    if (!backendIds.has(id)) {
+                        ignoredAlertsRef.current.delete(id);
+                    }
+                }
+
                 setAlerts(filteredData);
                 if (filteredData.length > 0) {
-                    // Normalize creation date for display comparison if needed
-                    setCurrentAlert(filteredData[0]);
+                    // Update only if different to avoid re-triggering effects excessively
+                    if (!currentAlert || currentAlert.id !== filteredData[0].id) {
+                        setCurrentAlert(filteredData[0]);
+                    }
                 } else {
                     setCurrentAlert(null);
-                    // Cancel speech if no alerts
                     if (synthRef.current) synthRef.current.cancel();
                 }
             } catch (error: any) {
@@ -166,22 +178,26 @@ const AlertManager: React.FC<{ initialDataLoaded?: boolean }> = ({ initialDataLo
     }, [currentAlert, hasInteracted, voices]);
 
     const [isExiting, setIsExiting] = useState(false);
+    const ignoredAlertsRef = useRef<Set<number>>(new Set());
 
     const handleAcknowledge = async () => {
         if (!currentAlert) return;
         setIsExiting(true);
 
+        // Optimistically ignore this alert immediately
+        ignoredAlertsRef.current.add(currentAlert.id);
+
         // Wait for exit animation
         await new Promise(resolve => setTimeout(resolve, 300));
 
         try {
-            await acknowledgeAlert(currentAlert.id);
-            if (synthRef.current) synthRef.current.cancel();
-
-            // Store local state update
+            // Store local state update immediately to visually remove it
             const remaining = alerts.filter(a => a.id !== currentAlert.id);
             setAlerts(remaining);
             setCurrentAlert(remaining.length > 0 ? remaining[0] : null);
+
+            await acknowledgeAlert(currentAlert.id);
+            if (synthRef.current) synthRef.current.cancel();
         } catch (error) {
             console.error("Failed to acknowledge", error);
         } finally {
