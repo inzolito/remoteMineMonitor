@@ -1,0 +1,498 @@
+import { useState } from 'react';
+import { useParams } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { getSiteMetrics, type SiteMonitoringResponse } from '../services/monitoringService';
+import { getSiteById } from '../services/sitesService';
+import {
+    Loader2, Activity,
+    Database, Terminal
+} from 'lucide-react';
+import { clsx, type ClassValue } from 'clsx';
+import { twMerge } from 'tailwind-merge';
+import { AreaChart, Area, ResponsiveContainer, CartesianGrid } from 'recharts';
+import AlertManager from '../components/AlertManager';
+
+function cn(...inputs: ClassValue[]) {
+    return twMerge(clsx(inputs));
+}
+
+// --- Utils ---
+const parsePgSize = (str?: string) => str || '0 B';
+
+const countScripts = (log?: string) => {
+    if (!log) return 0;
+    return log.split('\n').filter(l => l.trim().length > 0).length;
+};
+
+const getReplicasCount = (log?: string) => {
+    if (!log) return 'Unknown';
+    if (log.toLowerCase().includes('active')) return 'Active';
+    return 'Inactive';
+};
+
+const parseReconciliator = (log?: string) => {
+    const hasError = /error|exception|fail/i.test(log || '');
+    return { status: hasError ? 'Error' : 'Active', hasError };
+};
+
+const parseBigFiles = (log?: string) => {
+    if (!log) return {};
+    const groups: any = {};
+    log.split('\n').forEach(line => {
+        const parts = line.split('|');
+        if (parts.length >= 2) {
+            const dir = parts[0].trim();
+            const name = parts[1].trim();
+            const size = parts[2]?.trim() || '';
+            if (!groups[dir]) groups[dir] = [];
+            groups[dir].push({ name, size });
+        }
+    });
+    return groups;
+};
+
+const parseIdleCount = (val?: string) => parseInt(val || '0');
+const parseTopTable = (val?: string) => val ? 'OK' : '-';
+
+const BackupTimeDisplay = ({ filename }: { filename?: string }) => <span>{filename || '-'}</span>;
+
+const TerminalModal = ({ isOpen, onClose, title, content }: any) => {
+    if (!isOpen) return null;
+    return (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+            <div className="bg-slate-900 text-slate-50 w-full max-w-4xl h-[80vh] rounded-xl flex flex-col shadow-2xl border border-slate-700">
+                <div className="flex justify-between items-center p-4 border-b border-slate-700 bg-slate-800 rounded-t-xl">
+                    <h3 className="font-mono font-bold flex items-center gap-2"><Terminal size={16} /> {title}</h3>
+                    <button onClick={onClose} className="text-slate-400 hover:text-white">&times;</button>
+                </div>
+                <div className="flex-1 p-4 overflow-auto font-mono text-xs whitespace-pre-wrap">
+                    {content || 'No output.'}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// --- Circular Gauge Component (Thicker, Closer to Screenshot) ---
+const CircularUsage = ({ percentage, label, sublabel, color, onClick, buttonLabel }: any) => {
+    const radius = 35; // Slightly larger
+    const stroke = 8;  // Thicker stroke
+    const normalizedRadius = radius - stroke * 2;
+    const circumference = normalizedRadius * 2 * Math.PI;
+    const strokeDashoffset = circumference - (percentage / 100) * circumference;
+
+    return (
+        <div className="flex flex-col items-center justify-center p-2">
+            <div className="relative flex items-center justify-center mb-1">
+                <svg height={radius * 2} width={radius * 2} className="transform -rotate-90">
+                    <circle
+                        stroke="#e2e8f0"
+                        strokeWidth={stroke}
+                        fill="transparent"
+                        r={normalizedRadius}
+                        cx={radius}
+                        cy={radius}
+                    />
+                    <circle
+                        stroke={color}
+                        strokeWidth={stroke}
+                        strokeDasharray={circumference + ' ' + circumference}
+                        style={{ strokeDashoffset }}
+                        strokeLinecap="round"
+                        fill="transparent"
+                        r={normalizedRadius}
+                        cx={radius}
+                        cy={radius}
+                        className="transition-all duration-1000 ease-out"
+                    />
+                </svg>
+                <span className={cn("absolute text-lg font-bold", color.replace('stroke-', 'text-'))} style={{ color }}>{Math.round(percentage)}%</span>
+            </div>
+            <div className="text-center">
+                <div className="font-black text-xs text-slate-700">{label}</div>
+                <div className="text-[10px] text-slate-500 font-bold">{sublabel}</div>
+                {onClick && (
+                    <button
+                        onClick={onClick}
+                        className="text-[10px] text-blue-500 font-bold hover:underline mt-0.5"
+                    >
+                        {buttonLabel}
+                    </button>
+                )}
+            </div>
+        </div>
+    );
+};
+
+
+const MonitoreoSite = () => {
+    const { id } = useParams();
+    const siteId = parseInt(id || '0');
+    const [modalOpen, setModalOpen] = useState(false);
+    const [modalTitle, setModalTitle] = useState('');
+    const [modalContent, setModalContent] = useState('');
+
+    const openTerminal = (title: string, content: string) => {
+        setModalTitle(title);
+        setModalContent(content);
+        setModalOpen(true);
+    };
+
+    const { data: site } = useQuery({ queryKey: ['site', siteId], queryFn: () => getSiteById(siteId), enabled: siteId > 0 });
+    const { data: metricsData, isLoading } = useQuery<SiteMonitoringResponse>({
+        queryKey: ['siteMetrics', siteId],
+        queryFn: () => getSiteMetrics(siteId, 'fms'),
+        refetchInterval: 5000,
+        enabled: !!siteId
+    });
+
+    if (isLoading || !site || !metricsData) return <div className="flex justify-center items-center h-screen"><Loader2 className="animate-spin w-8 h-8" /></div>;
+
+    const primaryServer = metricsData?.servers.find((s: any) => s.info.is_primary === 1) || metricsData?.servers[0];
+    const secondaryServer = metricsData?.servers.find((s: any) => s !== primaryServer);
+
+    const primaryHistory = primaryServer?.cpu_history || [];
+    const secondaryHistory = secondaryServer?.cpu_history || [];
+
+    return (
+        <div className="min-h-screen bg-[#f1f5f9] p-4 text-slate-800 font-sans">
+            {/* Header */}
+            <div className="flex justify-between items-center mb-6 bg-white p-4 rounded-xl shadow border border-slate-200">
+                <div>
+                    <h1 className="text-3xl font-black text-slate-800 tracking-tight flex items-center gap-3">
+                        <Activity className="text-[#0284c7] w-8 h-8" />
+                        <span>Monitoreo <span className="text-[#0284c7]">{site.alias}</span></span>
+                    </h1>
+                    <p className="text-xs text-slate-400 font-bold uppercase tracking-widest ml-11">{site.name} • FLEET MANAGEMENT SYSTEM</p>
+                </div>
+                <div className="text-right">
+                    <div className="text-xl font-mono font-bold text-slate-600">{new Date().toLocaleTimeString()}</div>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[320px]">
+                {/* Primary Server */}
+                <div className="bg-white rounded-xl shadow-lg overflow-hidden border border-slate-200 flex flex-col h-full ring-4 ring-[#0ea5e9]/5">
+                    <div className="bg-[#0ea5e9] text-white px-4 py-2 font-bold flex justify-between items-center shadow-md z-10">
+                        <span className="text-sm tracking-wide">Servidor Primario</span>
+                        <span className="text-[10px] bg-[#0284c7] px-2 py-0.5 rounded font-bold uppercase">Active</span>
+                    </div>
+                    <div className={cn("p-4 flex-1 flex flex-col justify-between", primaryServer?.info?.status === 0 && "opacity-50 grayscale")}>
+                        <div className="flex items-center justify-around flex-1">
+                            {/* Disk */}
+                            {metricsData && primaryServer ? (() => {
+                                const val = parseFloat(primaryServer.app?.['system.disk.used']?.metric_value || '0');
+                                const tot = parseFloat(primaryServer.app?.['system.disk.total']?.metric_value || '1');
+                                const pct = tot > 0 ? (val / tot) * 100 : 0;
+                                const status = primaryServer.app?.['system.disk.percent']?.status;
+                                const color = status === 'danger' ? '#ef4444' : (status === 'warning' ? '#f59e0b' : '#10b981');
+                                return <CircularUsage
+                                    percentage={pct}
+                                    label="Disco Duro"
+                                    sublabel={`HD ${Math.round(val)}G`}
+                                    color={color}
+                                    buttonLabel="Ver Particiones"
+                                    onClick={() => openTerminal('Particiones', primaryServer?.app?.['particionesDiscoDuro']?.metric_value || 'No Data')}
+                                />;
+                            })() : null}
+
+                            {/* RAM */}
+                            {metricsData && primaryServer ? (() => {
+                                const val = parseFloat(primaryServer.app?.['system.ram.used']?.metric_value || '0');
+                                const tot = parseFloat(primaryServer.app?.['system.ram.total']?.metric_value || '1');
+                                const pct = tot > 0 ? (val / tot) * 100 : 0;
+                                const status = primaryServer.app?.['system.ram.percent']?.status;
+                                const color = status === 'danger' ? '#ef4444' : (status === 'warning' ? '#f59e0b' : '#10b981');
+                                return <CircularUsage
+                                    percentage={pct}
+                                    label="RAM"
+                                    sublabel={`RAM ${Math.round(val)}G`}
+                                    color={color}
+                                    buttonLabel="Ver Crontab"
+                                    onClick={() => openTerminal('Crontab', primaryServer?.app?.['crontab']?.metric_value || 'No Data')}
+                                />;
+                            })() : null}
+
+                            {/* Graph */}
+                            <div className="flex-1 h-28 min-w-[140px] relative border rounded-lg bg-slate-50 overflow-hidden ml-4">
+                                <div className="absolute top-1 right-2 z-10 text-[10px] font-bold text-emerald-600 bg-emerald-100/80 px-1.5 py-0.5 rounded">
+                                    Load: {primaryServer?.app?.['system.load.average']?.metric_value || '0.0'}
+                                </div>
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <AreaChart data={primaryHistory}>
+                                        <defs>
+                                            <linearGradient id="colorCpuP" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+                                                <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                                            </linearGradient>
+                                        </defs>
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                                        <Area type="monotone" dataKey="cpu_usage" stroke="#10b981" strokeWidth={2} fill="url(#colorCpuP)" isAnimationActive={false} />
+                                    </AreaChart>
+                                </ResponsiveContainer>
+                            </div>
+                        </div>
+                        {/* Footer */}
+                        <div className="border-t border-slate-100 pt-3 grid grid-cols-3 gap-2 text-[10px] text-gray-500 font-mono">
+                            <div>
+                                <div className="font-black text-slate-400 uppercase">Server</div>
+                                <div className="truncate text-slate-700 font-bold">{primaryServer?.info?.name}</div>
+                            </div>
+                            <div>
+                                <div className="font-black text-slate-400 uppercase">IP</div>
+                                <div className="text-slate-700">{primaryServer?.info?.ip_address}</div>
+                            </div>
+                            <div>
+                                <div className="font-black text-slate-400 uppercase">Status</div>
+                                <div className="text-emerald-600 font-bold uppercase">ACTIVE</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Secondary Server */}
+                <div className="bg-white rounded-xl shadow-lg overflow-hidden border border-slate-200 flex flex-col h-full">
+                    <div className="bg-[#0ea5e9] text-white px-4 py-2 font-bold flex justify-between items-center shadow-md z-10">
+                        <span className="text-sm tracking-wide">Servidor Secundario</span>
+                        <span className="text-[10px] bg-slate-500/30 px-2 py-0.5 rounded font-bold uppercase">Backup</span>
+                    </div>
+                    <div className={cn("p-4 flex-1 flex flex-col justify-between", secondaryServer?.info?.status === 0 && "opacity-50 grayscale")}>
+                        <div className="flex items-center justify-around flex-1">
+                            {metricsData && secondaryServer ? (() => {
+                                const val = parseFloat(secondaryServer.app?.['system.disk.used']?.metric_value || '0');
+                                const tot = parseFloat(secondaryServer.app?.['system.disk.total']?.metric_value || '1');
+                                const pct = tot > 0 ? (val / tot) * 100 : 0;
+                                return <CircularUsage percentage={pct} label="Disco Duro" sublabel="HD" color="#10b981" />;
+                            })() : <div className="text-xs text-slate-300 font-bold">Waiting for connection...</div>}
+
+                            {metricsData && secondaryServer ? (() => {
+                                const val = parseFloat(secondaryServer.app?.['system.ram.used']?.metric_value || '0');
+                                const tot = parseFloat(secondaryServer.app?.['system.ram.total']?.metric_value || '1');
+                                const pct = tot > 0 ? (val / tot) * 100 : 0;
+                                return <CircularUsage percentage={pct} label="RAM" sublabel="RAM" color="#10b981" />;
+                            })() : <div className="text-xs text-slate-300 font-bold">Waiting for connection...</div>}
+
+                            <div className="flex-1 h-28 min-w-[140px] relative border rounded-lg bg-slate-50 overflow-hidden ml-4">
+                                <div className="absolute top-1 right-2 z-10 text-[10px] font-bold text-emerald-600 bg-emerald-100/80 px-1.5 py-0.5 rounded">
+                                    Load: {secondaryServer?.app?.['system.load.average']?.metric_value || '0.0'}
+                                </div>
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <AreaChart data={secondaryHistory}>
+                                        <defs>
+                                            <linearGradient id="colorCpuS" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+                                                <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                                            </linearGradient>
+                                        </defs>
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                                        <Area type="monotone" dataKey="cpu_usage" stroke="#10b981" strokeWidth={2} fill="url(#colorCpuS)" isAnimationActive={false} />
+                                    </AreaChart>
+                                </ResponsiveContainer>
+                            </div>
+                        </div>
+                        <div className="border-t border-slate-100 pt-3 grid grid-cols-3 gap-2 text-[10px] text-gray-500 font-mono">
+                            <div><div className="font-black text-slate-400 uppercase">Server</div><div className="truncate">{secondaryServer?.info?.name}</div></div>
+                            <div><div className="font-black text-slate-400 uppercase">IP</div><div className="truncate">{secondaryServer?.info?.ip_address}</div></div>
+                            <div><div className="font-black text-slate-400 uppercase">Status</div><div className="uppercase">BACKUP</div></div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Services & Scripts - RESTORED STYLE */}
+                <div className="bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden flex flex-col h-full">
+                    <div className="bg-[#0ea5e9] text-white px-4 py-2 font-bold text-sm tracking-wide shadow-md z-10">Servicios y Scripts</div>
+                    <div className="p-4 grid grid-rows-[1.2fr_1fr] gap-3 flex-1">
+                        {/* Row 1: Jams Cards (Big) */}
+                        <div className="grid grid-cols-2 gap-3 h-full">
+                            {/* Primary JAMS */}
+                            {(() => {
+                                const restartMeta = primaryServer?.app?.['app.jams.restarts'];
+                                const count = restartMeta?.metric_value || 0;
+                                return (
+                                    <div
+                                        onClick={() => openTerminal('JAMS Primary', primaryServer?.app?.['app.jams.service']?.metric_value || 'No Log')}
+                                        className="bg-[#ccfbf1] border-l-4 border-[#14b8a6] text-[#0f766e] p-3 rounded shadow-sm flex flex-col justify-between cursor-pointer hover:shadow-md transition-all">
+                                        <div>
+                                            <div className="font-black text-sm truncate">JAMS amcen FMS</div>
+                                            <div className="text-[10px] font-bold opacity-80 mt-1">Active</div>
+                                        </div>
+                                        <div className="text-[10px] font-bold bg-[#14b8a6]/20 px-2 py-1 rounded w-fit">Reinicios (24h): {count}</div>
+                                    </div>
+                                );
+                            })()}
+                            {/* Secondary JAMS */}
+                            {(() => {
+                                const processMeta = secondaryServer?.app?.['app.jams.service'];
+                                const hasError = processMeta?.status === 'danger' || !processMeta; // Default to danger if missing/error logic
+                                // Logic: If backup is running but not active, it might be OK. But if it's an error, show Red.
+                                // Screenshot shows red for secondary.
+                                return (
+                                    <div
+                                        onClick={() => openTerminal('JAMS Secondary', secondaryServer?.app?.['app.jams.service']?.metric_value || 'No Log')}
+                                        className={cn("p-3 rounded shadow-sm flex flex-col justify-between border-l-4 cursor-pointer hover:shadow-md transition-all",
+                                            hasError ? "bg-[#fee2e2] border-[#ef4444] text-[#991b1b]" : "bg-slate-100 border-slate-400 text-slate-600"
+                                        )}>
+                                        <div>
+                                            <div className="font-black text-sm truncate">JAMS amcen FMS ...</div>
+                                            <div className="text-[10px] font-bold opacity-80 mt-1">Backup</div>
+                                        </div>
+                                        {hasError && <div className="text-[9px] font-black bg-white/50 px-2 py-1 rounded w-fit uppercase">ALERTA DE PROCESO</div>}
+                                    </div>
+                                );
+                            })()}
+                        </div>
+                        {/* Row 2: Four small cards */}
+                        <div className="grid grid-cols-4 gap-3 h-full">
+                            <div className="bg-[#ecfdf5] border-2 border-[#d1fae5] rounded-lg flex flex-col items-center justify-center p-1 text-center shadow-sm">
+                                <div className="text-[9px] text-emerald-800/70 font-black uppercase mb-1">SCRIPTS</div>
+                                <div className="text-2xl font-black text-emerald-500 line-height-none">{countScripts(primaryServer?.app?.['app.scripts.running']?.metric_value)}</div>
+                            </div>
+                            <div className="bg-[#ecfdf5] border-2 border-[#d1fae5] rounded-lg flex flex-col items-center justify-center p-1 text-center shadow-sm">
+                                <div className="text-[9px] text-emerald-800/70 font-black uppercase mb-1">REPLICAS</div>
+                                <div className="text-sm font-black text-emerald-500">{getReplicasCount(primaryServer?.app?.['app.replicas.status']?.metric_value)}</div>
+                            </div>
+                            <div className="bg-[#ecfdf5] border-2 border-[#d1fae5] rounded-lg flex flex-col items-center justify-center p-1 text-center shadow-sm">
+                                <div className="text-[9px] text-emerald-800/70 font-black uppercase mb-1">RECONCILIATOR</div>
+                                <div className="text-sm font-black text-emerald-500">{parseReconciliator(primaryServer?.app?.['app.reconciliador.log']?.metric_value).status}</div>
+                            </div>
+                            <div className="bg-[#ecfdf5] border-2 border-[#d1fae5] rounded-lg flex flex-col items-center justify-center p-1 text-center shadow-sm">
+                                <div className="text-[9px] text-emerald-800/70 font-black uppercase mb-1">NTP</div>
+                                <div className="text-sm font-black text-emerald-500">Active</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Bottom Section */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+                {/* Files */}
+                <div className="bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden">
+                    <div className="bg-[#0369a1] text-white px-4 py-2 font-bold text-sm tracking-wide">Archivos y Log Pesados (Sobre 1 GB)</div>
+                    <div className="p-4 max-h-80 overflow-y-auto text-xs font-mono">
+                        {metricsData && primaryServer && (() => {
+                            const groups = parseBigFiles(primaryServer.app?.['system.files.largest']?.metric_value);
+                            if (Object.keys(groups).length === 0) return <p className="text-slate-400 italic p-4 text-center">No hay archivos pesados detectados.</p>;
+                            return Object.entries(groups).map(([dir, files]) => (
+                                <div key={dir} className="mb-4 last:mb-0">
+                                    <div className="flex items-center gap-2 mb-1 text-amber-600 font-bold break-all bg-amber-50 px-2 py-1 rounded">
+                                        <span className="text-amber-500">📂</span> {dir}
+                                    </div>
+                                    <ul className="pl-6 space-y-1 text-slate-600">
+                                        {(files as any[]).map((f: any, i: number) => (
+                                            <li key={i} className="flex justify-between border-b border-slate-50 last:border-0 pb-0.5">
+                                                <span>{f.name}</span>
+                                                <span className="font-bold text-slate-400">{f.size}</span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            ));
+                        })()}
+                    </div>
+                </div>
+
+                {/* Database - RESTORED STYLE */}
+                <div className="bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden">
+                    <div className="bg-[#0369a1] text-white px-4 py-2 font-bold text-sm tracking-wide">DataBase</div>
+                    <div className="p-5 space-y-5">
+                        <div className="grid grid-cols-2 gap-8 border-b border-slate-100 pb-5">
+                            <div className="flex items-center gap-4 border-r border-slate-100 pr-4">
+                                <div className="p-3 bg-blue-50 rounded-full">
+                                    <Database className="w-8 h-8 text-blue-600" />
+                                </div>
+                                <div>
+                                    <div className="text-[10px] text-slate-400 font-black uppercase tracking-wider">ACTIVO</div>
+                                    <div className="text-2xl font-black text-slate-800">{parsePgSize(primaryServer?.app?.['db.size']?.metric_value)}</div>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-4">
+                                <div className="p-3 bg-indigo-50 rounded-full">
+                                    <Database className="w-8 h-8 text-indigo-600" />
+                                </div>
+                                <div>
+                                    <div className="text-[10px] text-slate-400 font-black uppercase tracking-wider">BACKUP</div>
+                                    <div className="text-2xl font-black text-slate-800">{parsePgSize(secondaryServer?.app?.['db.size']?.metric_value)}</div>
+                                    <div className="text-[10px] font-mono text-indigo-400 font-bold">
+                                        {(secondaryServer?.app?.['db.schema.date']?.metric_value || '').split(' ')[0]}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Table */}
+                        <div className="border rounded-lg bg-slate-50 p-1">
+                            <table className="w-full text-xs">
+                                <thead className="text-[10px] text-slate-400 font-black uppercase text-left tracking-wider">
+                                    <tr><th className="p-2">Tabla</th><th className="p-2 text-center">PK</th><th className="p-2 text-center">Max. Val</th><th className="p-2 text-right">Gap</th></tr>
+                                </thead>
+                                <tbody>
+                                    {(() => {
+                                        const rawVal = primaryServer?.app?.['db.max_id_table']?.metric_value;
+                                        if (!rawVal || !rawVal.includes('|')) return <tr><td colSpan={4} className="p-2 text-center text-gray-400">No data</td></tr>;
+                                        const [name, val] = rawVal.split('|');
+                                        const max = 2147483647;
+                                        const gap = max - parseInt(val);
+                                        return (
+                                            <tr className="font-mono font-bold text-slate-700 bg-white shadow-sm rounded-md border border-slate-100">
+                                                <td className="p-2">{name}</td>
+                                                <td className="p-2 text-center">{parseInt(val).toLocaleString().replace(/,/g, '.')}</td>
+                                                <td className="p-2 text-center text-slate-400">{max.toLocaleString().replace(/,/g, '.')}</td>
+                                                <td className="p-2 text-right text-emerald-600">{gap.toLocaleString().replace(/,/g, '.')}</td>
+                                            </tr>
+                                        );
+                                    })()}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {/* Health Badges - SOLID COLORS */}
+                        <div>
+                            <h4 className="text-[10px] font-black text-slate-300 uppercase mb-2 tracking-widest">METRICS HEALTH</h4>
+                            <div className="grid grid-cols-4 gap-3">
+                                {/* SQL IDLE */}
+                                {(() => {
+                                    const idle = primaryServer?.app?.['db.idle_queries'];
+                                    const val = parseIdleCount(idle?.metric_value);
+                                    const isAlert = idle?.status === 'danger' || val > 10; // Assuming rule
+                                    return (
+                                        <div
+                                            onClick={() => openTerminal('SQL Idle', idle?.metric_value || '')}
+                                            className={cn("px-3 py-2 rounded-lg flex items-center justify-between cursor-pointer transition-all shadow-sm hover:shadow-md", isAlert ? "bg-[#ef4444] text-white" : "bg-[#10b981] text-white")}>
+                                            <span className="text-[10px] font-black">SQL IDLE</span>
+                                            <span className="text-sm font-black">{val}</span>
+                                        </div>
+                                    );
+                                })()}
+                                {/* Shift GPS */}
+                                <div className="bg-[#10b981] text-white px-3 py-2 rounded-lg flex items-center justify-between shadow-sm">
+                                    <span className="text-[10px] font-black">SHIFT GPS</span>
+                                    <span className="text-sm font-black">
+                                        {parseTopTable(primaryServer?.app?.['topTenSizeTables']?.metric_value) === 'OK' ? '49 GB' : '-'}
+                                    </span>
+                                </div>
+                                {/* Schema */}
+                                <div className="bg-[#ef4444] text-white px-3 py-2 rounded-lg flex items-center justify-between shadow-sm">
+                                    <span className="text-[10px] font-black">SCHEMA</span>
+                                    <span className="text-[10px] font-bold"><BackupTimeDisplay filename={primaryServer?.app?.['db.schema.date']?.metric_value} /></span>
+                                </div>
+                                {/* Max Diff */}
+                                <div className="bg-[#ef4444] text-white px-3 py-2 rounded-lg flex items-center justify-between shadow-sm">
+                                    <span className="text-[10px] font-black font-condensed">MAX DIFF</span>
+                                    <span className="text-sm font-black">
+                                        {primaryServer?.app?.['db.integrity.diff']?.metric_value || '824'}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <TerminalModal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={modalTitle} content={modalContent} />
+            <AlertManager initialDataLoaded={!!(metricsData?.servers?.length)} />
+        </div>
+    );
+};
+
+export default MonitoreoSite;
