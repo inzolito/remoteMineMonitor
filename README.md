@@ -2,7 +2,7 @@
 
 **remoteMineMonitor** es una plataforma avanzada diseñada para gestionar métricas de servidores y alertas escalables en entornos industriales. Utiliza una arquitectura moderna híbrida (Legacy + V3) para asegurar la continuidad del servicio durante la migración tecnológica.
 
-![Progress](https://img.shields.io/badge/Modulo_Database-80%25-green)
+![Progress](https://img.shields.io/badge/Modulo_Database-92%25-green)
 
 ## 🚀 Arquitectura y Capacidades
 - **Gestión de Métricas**: Motor dinámico en PHP (`MetricsEvaluator`) que procesa métricas de sistema y aplicación en tiempo real.

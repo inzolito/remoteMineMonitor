@@ -347,6 +347,7 @@ if ($method === 'POST') {
                 'db.max_id_table',
                 'db.idle_queries',
                 'db.integrity.tables',
+                'db.top_ten_tables',
                 'db.tables.shifts',
                 'system.files.largest'
             ];

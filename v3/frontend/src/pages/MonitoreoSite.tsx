@@ -1303,13 +1303,29 @@ const MonitoreoSite = () => {
                             <DBHealthCard
                                 label="Tabla mas pesada"
                                 value={(() => {
-                                    const lines = (primaryServer?.app?.['db.integrity.tables']?.metric_value || '').split('\n');
-                                    return lines[0]?.split('|')[0] || '-';
+                                    const val = primaryServer?.app?.['db.top_ten_tables']?.metric_value;
+                                    if (!val) return '-';
+                                    const lines = val.split(/\r?\n/).filter((l: string) => l.trim().length > 0);
+                                    if (!lines[0]) return '-';
+
+                                    // Handle pipe or space
+                                    if (lines[0].includes('|')) return lines[0].split('|')[0];
+                                    return lines[0].trim().split(/\s+/)[0];
                                 })()}
                                 sublabel={(() => {
-                                    const lines = (primaryServer?.app?.['db.integrity.tables']?.metric_value || '').split('\n');
-                                    const count = parseInt(lines[0]?.split('|')[1] || '0');
-                                    return (count * 0.0000004).toFixed(1) + " GB";
+                                    const val = primaryServer?.app?.['db.top_ten_tables']?.metric_value;
+                                    if (!val) return '0 GB';
+                                    const lines = val.split(/\r?\n/).filter((l: string) => l.trim().length > 0);
+                                    if (!lines[0]) return '0 GB';
+
+                                    let count = 0;
+                                    if (lines[0].includes('|')) {
+                                        count = parseInt(lines[0].split('|')[1]);
+                                    } else {
+                                        const parts = lines[0].trim().split(/\s+/);
+                                        count = parseInt(parts[parts.length - 1]);
+                                    }
+                                    return `${(count * 0.0000004).toFixed(2)} GB • ${count.toLocaleString()} reg`;
                                 })()}
                                 color={{ bg: 'bg-blue-50', text: 'text-blue-600' }}
                                 icon={Layers}
@@ -1442,11 +1458,11 @@ const MonitoreoSite = () => {
                                         </thead>
                                         <tbody className="text-[10px] tabular-nums">
                                             {(() => {
-                                                const val = primaryServer?.app?.['db.integrity.tables']?.metric_value;
+                                                const val = primaryServer?.app?.['db.top_ten_tables']?.metric_value;
                                                 if (!val) return <tr><td colSpan={2} className="text-center py-2 text-xs text-slate-400 italic">Sin datos</td></tr>;
 
                                                 const lines = val.split(/\r?\n/).filter((l: string) => l.trim().length > 0);
-                                                return lines.slice(0, 8).map((line: string) => {
+                                                return lines.slice(0, 10).map((line: string) => {
                                                     let table = "Unknown";
                                                     let count = "0";
 
