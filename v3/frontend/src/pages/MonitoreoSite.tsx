@@ -602,23 +602,6 @@ const MonitoreoSite = () => {
 
             {/* --- SECCIÓN ALERTAS DE SISTEMA (Inesperado) - Moved to bottom if needed, but keeping structure --- */}
 
-            {/* --- SECCION ARCHIVOS Y LOGS PESADOS (RECUPERADO) --- */}
-            {primaryServer?.app?.['system.files.largest']?.metric_value && (
-                <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden mb-6">
-                    <div className="bg-slate-50 px-4 py-3 border-b border-slate-200 flex justify-between items-center">
-                        <h3 className="font-bold text-slate-700 flex items-center gap-2">
-                            <FolderOpen size={18} className="text-slate-400" />
-                            Archivos y Log Pesados (Sobre 1 GB)
-                        </h3>
-                        <span className="text-[10px] uppercase font-bold text-slate-400 bg-white px-2 py-1 rounded border border-slate-200">
-                            {primaryServer.info.name}
-                        </span>
-                    </div>
-                    <div className="p-0">
-                        <FileTree rawData={primaryServer.app['system.files.largest'].metric_value} />
-                    </div>
-                </div>
-            )}
             <div className="mb-6 flex justify-between items-center px-1">
                 <div className="flex items-center gap-3">
                     <div className="p-2 bg-white rounded shadow-sm text-slate-600 border border-slate-200">
