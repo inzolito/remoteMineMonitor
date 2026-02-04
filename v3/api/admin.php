@@ -119,25 +119,39 @@ if ($method === 'GET') {
         }
 
     } elseif ($action === 'metric_details') {
-        $mid = intval($_GET['metric_id']);
+        $mid = intval($_GET['metric_id'] ?? 0);
+        $pattern = $_GET['pattern'] ?? '';
         
+        if ($mid === 0 && !empty($pattern)) {
+            // Try to find a metric that matches the pattern (removing % for search if needed)
+            $searchPattern = str_replace('%', '', $pattern);
+            $pRes = mysqli_query($mysqli, "SELECT id FROM metrics WHERE name LIKE '%$searchPattern%' LIMIT 1");
+            if ($row = mysqli_fetch_assoc($pRes)) {
+                $mid = intval($row['id']);
+            }
+        }
+
         // 1. Metric Info
         $mRes = mysqli_query($mysqli, "SELECT * FROM metrics WHERE id = $mid");
-        $metric = mysqli_fetch_assoc($mRes);
+        $metric = mysqli_fetch_assoc($mRes) ?: ['id' => 0, 'name' => $pattern, 'display_name' => $pattern, 'description' => 'Métrica definida por patrón (Legacy)'];
         
         // 2. Command
         $cRes = mysqli_query($mysqli, "SELECT * FROM remote_commands WHERE metric_id = $mid ORDER BY priority ASC LIMIT 1");
         $command = mysqli_fetch_assoc($cRes);
         
         // 3. Profiles (Templates) using it
-        $pRes = mysqli_query($mysqli, "SELECT st.name, stm.default_frequency FROM server_type_metrics stm JOIN server_types st ON stm.server_type_id = st.id WHERE stm.metric_id = $mid");
         $profiles = [];
-        while ($r = mysqli_fetch_assoc($pRes)) $profiles[] = $r;
+        if ($mid > 0) {
+            $pRes = mysqli_query($mysqli, "SELECT st.name, stm.default_frequency FROM server_type_metrics stm JOIN server_types st ON stm.server_type_id = st.id WHERE stm.metric_id = $mid");
+            while ($r = mysqli_fetch_assoc($pRes)) $profiles[] = $r;
+        }
         
         // 4. Servers effectively using it (via Profile)
-        $sRes = mysqli_query($mysqli, "SELECT s.name, s.ip FROM servers s JOIN server_type_metrics stm ON s.server_type_id = stm.server_type_id WHERE stm.metric_id = $mid AND s.is_deleted = 0 ORDER BY s.name ASC");
         $servers = [];
-        while ($r = mysqli_fetch_assoc($sRes)) $servers[] = $r;
+        if ($mid > 0) {
+            $sRes = mysqli_query($mysqli, "SELECT s.name, s.ip FROM servers s JOIN server_type_metrics stm ON s.server_type_id = stm.server_type_id WHERE stm.metric_id = $mid AND s.is_deleted = 0 ORDER BY s.name ASC");
+            while ($r = mysqli_fetch_assoc($sRes)) $servers[] = $r;
+        }
         
         $data = [
             'metric' => $metric,
@@ -162,6 +176,15 @@ if ($method === 'GET') {
                     END,
                     si.name ASC, 
                     s.name ASC";
+        $res = mysqli_query($mysqli, $sql);
+        while ($row = mysqli_fetch_assoc($res)) {
+            $data[] = $row;
+        }
+    } elseif ($action === 'alert_rules') {
+        $sql = "SELECT ar.*, m.name as metric_technical_name, m.display_name as metric_display_name 
+                FROM alert_rules ar 
+                LEFT JOIN metrics m ON ar.metric_id = m.id 
+                ORDER BY ar.priority DESC, m.name ASC";
         $res = mysqli_query($mysqli, $sql);
         while ($row = mysqli_fetch_assoc($res)) {
             $data[] = $row;
@@ -234,6 +257,29 @@ if ($method === 'GET') {
              http_response_code(500);
              echo json_encode(["message" => "DB Error: " . $mysqli->error]);
         }
+    } elseif ($action === 'alert_rules') {
+        $mid = isset($input['metric_id']) ? intval($input['metric_id']) : 'NULL';
+        $pattern = $mysqli->real_escape_string($input['metric_pattern'] ?? '');
+        $type = $mysqli->real_escape_string($input['rule_type'] ?? 'threshold');
+        $op = $mysqli->real_escape_string($input['operator'] ?? '>');
+        $val = $mysqli->real_escape_string($input['threshold_value'] ?? '');
+        $cat = $mysqli->real_escape_string($input['alert_category'] ?? 'warning');
+        $desc = $mysqli->real_escape_string($input['description'] ?? '');
+        $prio = intval($input['priority'] ?? 1);
+
+        if (isset($input['id'])) {
+            $id = intval($input['id']);
+            $sql = "UPDATE alert_rules SET metric_id = $mid, metric_pattern = '$pattern', rule_type = '$type', operator = '$op', threshold_value = '$val', alert_category = '$cat', description = '$desc', priority = $prio WHERE id = $id";
+        } else {
+            $sql = "INSERT INTO alert_rules (metric_id, metric_pattern, rule_type, operator, threshold_value, alert_category, description, priority) VALUES ($mid, '$pattern', '$type', '$op', '$val', '$cat', '$desc', $prio)";
+        }
+
+        if ($mysqli->query($sql)) {
+            echo json_encode(["message" => "Rule saved"]);
+        } else {
+            http_response_code(500);
+            echo json_encode(["message" => "DB Error: " . $mysqli->error]);
+        }
     }
 
 } elseif ($method === 'PUT') {
@@ -253,6 +299,11 @@ if ($method === 'GET') {
 } elseif ($method === 'DELETE') {
     $id = intval($_GET['id']);
     if ($action === 'metrics') {
+        // Deep delete: remove related commands and rules linked by ID
+        mysqli_query($mysqli, "DELETE FROM remote_commands WHERE metric_id = $id");
+        mysqli_query($mysqli, "DELETE FROM alert_rules WHERE metric_id = $id");
+        mysqli_query($mysqli, "DELETE FROM server_metric_values WHERE metric_id = $id");
+        mysqli_query($mysqli, "DELETE FROM server_type_metrics WHERE metric_id = $id");
         $mysqli->query("DELETE FROM metrics WHERE id = $id");
     } elseif ($action === 'commands') {
         $mysqli->query("DELETE FROM remote_commands WHERE id = $id");
@@ -260,6 +311,8 @@ if ($method === 'GET') {
         $tid = intval($_GET['type_id']);
         $mid = intval($_GET['metric_id']);
         $mysqli->query("DELETE FROM server_type_metrics WHERE server_type_id = $tid AND metric_id = $mid");
+    } elseif ($action === 'alert_rules') {
+        $mysqli->query("DELETE FROM alert_rules WHERE id = $id");
     }
     echo json_encode(["message" => "Deleted"]);
 }

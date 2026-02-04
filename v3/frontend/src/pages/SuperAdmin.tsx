@@ -4,7 +4,7 @@ import { Navigate } from 'react-router-dom';
 import {
     ShieldCheck, Server, Activity, Terminal,
     FileText, Plus, Trash2, Save, RefreshCw, Search,
-    AlertCircle, ChevronRight, Settings, Eye
+    AlertCircle, ChevronRight, Settings, Eye, XOctagon
 } from 'lucide-react';
 import RooteoTab from '../components/RooteoTab';
 
@@ -22,12 +22,15 @@ const SuperAdmin = () => {
     const [serverTypes, setServerTypes] = useState<any[]>([]);
     const [commands, setCommands] = useState<any[]>([]);
     const [templateMetrics, setTemplateMetrics] = useState<any[]>([]);
+    const [alertRules, setAlertRules] = useState<any[]>([]);
 
     // Selected items for editing
     const [selectedMetric, setSelectedMetric] = useState<any>(null);
     const [selectedType, setSelectedType] = useState<any>(null);
+    const [selectedRule, setSelectedRule] = useState<any>(null);
     const [searchTerm, setSearchTerm] = useState('');
-    const [detailMetric, setDetailMetric] = useState<any>(null); // For modal
+    const [detailMetric, setDetailMetric] = useState<any>(null); // For generic modal
+    const [purgeData, setPurgeData] = useState<any>(null); // For deletion review modal
 
     // Security: Only maik
     if (user?.username !== 'maik') {
@@ -51,10 +54,10 @@ const SuperAdmin = () => {
         }
     };
 
-    const sendData = async (action: string, method: string, body: any) => {
+    const sendData = async (action: string, method: string, body: any, params: string = '') => {
         setLoading(true);
         try {
-            const resp = await fetch(`${API_BASE}?action=${action}`, {
+            const resp = await fetch(`${API_BASE}?action=${action}${params}`, {
                 method,
                 headers: {
                     'Authorization': `Bearer ${user.token}`,
@@ -111,6 +114,10 @@ const SuperAdmin = () => {
                 const [st, m] = await Promise.all([fetchData('server_types'), fetchData('metrics')]);
                 if (st) setServerTypes(st);
                 if (m) setMetrics(m);
+            } else if (activeTab === 'alerts') {
+                const [r, m] = await Promise.all([fetchData('alert_rules'), fetchData('metrics')]);
+                if (r) setAlertRules(r);
+                if (m) setMetrics(m);
             }
         };
         loadInitial();
@@ -159,6 +166,7 @@ const SuperAdmin = () => {
                     { id: 'metrics', label: 'Catálogo Métricas', icon: Activity },
                     { id: 'commands', label: 'Comandos Fallback', icon: Terminal },
                     { id: 'templates', label: 'Perfiles (Templates)', icon: FileText },
+                    { id: 'alerts', label: 'Alertas', icon: AlertCircle },
                     { id: 'rooteo', label: 'Rooteo', icon: Eye }
                 ].map((tab) => {
                     const Icon = tab.icon;
@@ -314,10 +322,11 @@ const SuperAdmin = () => {
                                             <td className="p-3 font-mono text-xs">{m.name}</td>
                                             <td className="p-3">{m.display_name}</td>
                                             <td className="p-3 text-right space-x-2">
-                                                <button onClick={() => setSelectedMetric(m)} className="p-1.5 hover:bg-muted rounded text-primary"><Settings className="w-4 h-4" /></button>
+                                                <button onClick={() => setSelectedMetric(m)} className="p-1.5 hover:bg-muted rounded text-primary" title="Editar Info Básica"><Settings className="w-4 h-4" /></button>
                                                 <button onClick={async () => {
-                                                    if (await deleteItem('metrics', m.id)) setMetrics(metrics.filter(x => x.id !== m.id));
-                                                }} className="p-1.5 hover:bg-muted rounded text-red-500"><Trash2 className="w-4 h-4" /></button>
+                                                    const details = await fetchData('metric_details', `&metric_id=${m.id}`);
+                                                    if (details) setPurgeData(details);
+                                                }} className="p-1.5 hover:bg-muted rounded text-red-500" title="Borrar Métrica (Deep Purge)"><Trash2 className="w-4 h-4" /></button>
                                             </td>
                                         </tr>
                                     ))}
@@ -648,8 +657,10 @@ const SuperAdmin = () => {
                                             onClick={async () => {
                                                 const cmd = detailMetric.command || { metric_id: detailMetric.metric.id, command: '', priority: 1, timeout_seconds: 30, os_family: 'linux' };
                                                 if (await sendData('commands', 'POST', cmd)) {
-                                                    // Refresh handled by caller or manual update
                                                     setMessage({ type: 'success', text: 'Comando guardado' });
+                                                    // Re-fetch details to get the new ID and updated fields
+                                                    const updated = await fetchData('metric_details', `&metric_id=${detailMetric.metric.id}`);
+                                                    if (updated) setDetailMetric(updated);
                                                 }
                                             }}
                                             className="ml-auto text-xs bg-primary/10 text-primary px-2 py-1 rounded hover:bg-primary/20 transition-colors"
@@ -775,6 +786,21 @@ const SuperAdmin = () => {
                                         Actualizar Descripción
                                     </button>
                                 </div>
+
+                                <div className="pt-6 border-t">
+                                    <div className="bg-red-50 p-4 rounded-xl border border-red-100 flex items-center justify-between">
+                                        <div>
+                                            <h4 className="text-red-900 font-bold">Zona de Peligro</h4>
+                                            <p className="text-[10px] text-red-600">Eliminar esta métrica borrará comandos, históricos y perfiles.</p>
+                                        </div>
+                                        <button
+                                            onClick={() => setPurgeData(detailMetric)}
+                                            className="bg-red-600 text-white px-4 py-2 rounded-lg text-xs font-black shadow-lg hover:bg-red-700 transition-all flex items-center gap-2"
+                                        >
+                                            <Trash2 className="w-3.5 h-3.5" /> ELIMINAR MÉTRICA
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                             <div className="p-4 border-t bg-muted/5 flex justify-end">
                                 <button onClick={() => setDetailMetric(null)} className="px-6 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity shadow-sm">Cerrar Detalle</button>
@@ -784,10 +810,422 @@ const SuperAdmin = () => {
                 )
             }
 
+            {/* Tab: Alerts */}
+            {activeTab === 'alerts' && (
+                <div className="grid grid-cols-12 gap-6">
+                    <div className="col-span-8 bg-card rounded-xl border overflow-hidden flex flex-col">
+                        <div className="p-4 border-b bg-muted/50 flex justify-between items-center">
+                            <h2 className="font-semibold flex items-center gap-2">
+                                <AlertCircle className="w-5 h-5 text-primary" />
+                                Reglas de Alerta ({alertRules.length})
+                            </h2>
+                            <button
+                                onClick={() => setSelectedRule({
+                                    metric_id: null,
+                                    metric_pattern: '',
+                                    rule_type: 'threshold',
+                                    operator: '>',
+                                    threshold_value: '',
+                                    alert_category: 'warning',
+                                    description: '',
+                                    priority: 1
+                                })}
+                                className="flex items-center gap-1 text-xs bg-primary text-primary-foreground px-3 py-1.5 rounded-lg hover:opacity-90 transition-opacity"
+                            >
+                                <Plus className="w-4 h-4" /> Nueva Regla
+                            </button>
+                        </div>
+                        <div className="max-h-[700px] overflow-y-auto border-t">
+                            {(() => {
+                                const linked = alertRules.filter(r => r.metric_id);
+                                const unlinked = alertRules.filter(r => !r.metric_id);
+
+                                const grouped = linked.reduce((acc: any, rule) => {
+                                    if (!acc[rule.metric_id]) acc[rule.metric_id] = {
+                                        id: rule.metric_id,
+                                        name: rule.metric_technical_name,
+                                        display: rule.metric_display_name,
+                                        rules: []
+                                    };
+                                    acc[rule.metric_id].rules.push(rule);
+                                    return acc;
+                                }, {});
+
+                                return (
+                                    <div className="divide-y divide-slate-100">
+                                        {Object.values(grouped).map((group: any) => (
+                                            <div key={group.id} className="p-4 hover:bg-muted/5 transition-colors">
+                                                <div className="flex justify-between items-start mb-3">
+                                                    <div>
+                                                        <h3 className="font-black text-slate-800 flex items-center gap-2 text-sm uppercase">
+                                                            <Activity className="w-4 h-4 text-primary" />
+                                                            {group.display}
+                                                        </h3>
+                                                        <p className="text-[10px] font-mono text-slate-400">{group.name}</p>
+                                                    </div>
+                                                    <button
+                                                        onClick={async () => {
+                                                            const details = await fetchData('metric_details', `&metric_id=${group.id}`);
+                                                            if (details) setPurgeData(details);
+                                                        }}
+                                                        className="text-[9px] font-black text-red-500 hover:bg-red-500 hover:text-white px-2 py-1 rounded border border-red-100 transition-all uppercase flex items-center gap-1 shadow-sm"
+                                                    >
+                                                        <XOctagon className="w-3 h-3" /> Purgar Métrica
+                                                    </button>
+                                                </div>
+
+                                                <div className="space-y-1.5 ml-6">
+                                                    {group.rules.map((rule: any) => (
+                                                        <div key={rule.id} className={`flex items-center justify-between p-2 rounded-lg border text-xs shadow-sm transition-all ${selectedRule?.id === rule.id ? 'bg-primary/5 border-primary/30 ring-1 ring-primary/10' : 'bg-white hover:border-slate-300'}`}>
+                                                            <div className="flex items-center gap-4 flex-1 min-w-0">
+                                                                <div className="flex items-center gap-2 min-w-[120px]">
+                                                                    <span className="bg-slate-100 px-1.5 py-0.5 rounded text-[10px] font-black border uppercase tracking-tighter">
+                                                                        {rule.operator}
+                                                                    </span>
+                                                                    <span className="font-mono text-xs text-primary font-black">
+                                                                        {rule.threshold_value}
+                                                                    </span>
+                                                                </div>
+
+                                                                <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase border tracking-widest ${rule.alert_category === 'danger' ? 'bg-red-50 text-red-600 border-red-100' : 'bg-amber-50 text-amber-600 border-amber-100'
+                                                                    }`}>
+                                                                    {rule.alert_category}
+                                                                </span>
+
+                                                                <span className="text-[10px] text-slate-400 italic truncate ml-2">
+                                                                    "{rule.description}"
+                                                                </span>
+                                                            </div>
+
+                                                            <div className="flex items-center gap-1 ml-4 border-l pl-2 border-slate-100">
+                                                                <button onClick={() => setSelectedRule(rule)} className="p-1.5 hover:bg-slate-50 rounded text-primary transition-all" title="Editar"><Settings className="w-4 h-4" /></button>
+                                                                <button
+                                                                    onClick={async () => {
+                                                                        if (confirm(`¿Eliminar solo esta regla?`)) {
+                                                                            if (await deleteItem('alert_rules', rule.id)) {
+                                                                                const r = await fetchData('alert_rules');
+                                                                                setAlertRules(r || []);
+                                                                            }
+                                                                        }
+                                                                    }}
+                                                                    className="p-1.5 hover:bg-orange-50 rounded text-orange-400 hover:text-orange-600 transition-all"
+                                                                >
+                                                                    <Trash2 className="w-4 h-4" />
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        ))}
+
+                                        {unlinked.length > 0 && (
+                                            <div className="bg-slate-50 border-t-8 border-slate-100 shadow-inner">
+                                                <div className="p-4 bg-slate-100/50 flex items-center justify-between">
+                                                    <div className="flex items-center gap-2">
+                                                        <Trash2 className="w-4 h-4 text-slate-400" />
+                                                        <h3 className="font-black text-slate-500 uppercase text-[10px] tracking-widest">Depósito de Reglas de Patrón / Basura</h3>
+                                                    </div>
+                                                    <span className="text-[10px] bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full font-bold">{unlinked.length}</span>
+                                                </div>
+                                                <div className="px-6 py-4 space-y-2">
+                                                    {unlinked.map((rule: any) => (
+                                                        <div key={rule.id} className="flex items-center justify-between p-3 bg-white border-2 border-dashed border-slate-200 rounded-xl hover:border-slate-400 transition-all shadow-sm">
+                                                            <div className="flex-1 min-w-0">
+                                                                <div className="font-mono text-[10px] font-bold text-slate-500 truncate mb-1 bg-slate-50 px-2 py-1 rounded inline-block">{rule.metric_pattern}</div>
+                                                                <div className="flex items-center gap-3">
+                                                                    <span className="text-[10px] bg-muted px-2 py-0.5 rounded font-black border uppercase">{rule.operator} {rule.threshold_value}</span>
+                                                                    <span className={`text-[9px] px-2 py-0.5 rounded font-black uppercase border shadow-sm ${rule.alert_category === 'danger' ? 'bg-red-500 text-white border-red-600' : 'bg-amber-400 text-white border-amber-500'
+                                                                        }`}>{rule.alert_category}</span>
+                                                                    <span className="text-[10px] text-slate-400 italic font-medium ml-2">"{rule.description}"</span>
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex gap-1 ml-4 border-l pl-3 border-slate-100">
+                                                                <button onClick={() => setSelectedRule(rule)} className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-primary transition-all"><Settings className="w-4 h-4" /></button>
+                                                                <button
+                                                                    onClick={async () => {
+                                                                        const params = rule.metric_id ? `&metric_id=${rule.metric_id}` : `&pattern=${encodeURIComponent(rule.metric_pattern)}`;
+                                                                        const details = await fetchData('metric_details', params);
+                                                                        if (details) setPurgeData({ ...details, rule_id: rule.id });
+                                                                    }}
+                                                                    className="p-2 hover:bg-red-50 rounded text-red-300 hover:text-red-500 transition-all"
+                                                                >
+                                                                    <XOctagon className="w-4 h-4" />
+                                                                </button>
+                                                                <button
+                                                                    onClick={async () => {
+                                                                        if (confirm('¿Eliminar regla?')) {
+                                                                            if (await deleteItem('alert_rules', rule.id)) {
+                                                                                const r = await fetchData('alert_rules');
+                                                                                setAlertRules(r || []);
+                                                                            }
+                                                                        }
+                                                                    }}
+                                                                    className="p-2 hover:bg-orange-50 rounded text-orange-300 hover:text-orange-500 transition-all"
+                                                                >
+                                                                    <Trash2 className="w-4 h-4" />
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })()}
+                        </div>
+                    </div>
+
+                    <div className="col-span-4 bg-card rounded-xl border p-6 h-fit sticky top-6 shadow-sm">
+                        <div className="flex items-center gap-2 mb-6 border-b pb-4">
+                            <Settings className="w-5 h-5 text-primary" />
+                            <h2 className="font-bold">{selectedRule?.id ? 'Configurar Regla' : 'Nueva Regla de Alerta'}</h2>
+                        </div>
+
+                        {selectedRule ? (
+                            <form className="space-y-5" onSubmit={async (e) => {
+                                e.preventDefault();
+                                if (await sendData('alert_rules', 'POST', selectedRule)) {
+                                    const r = await fetchData('alert_rules');
+                                    setAlertRules(r || []);
+                                    setSelectedRule(null);
+                                }
+                            }}>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-bold text-muted-foreground uppercase flex items-center gap-1">
+                                        Métrica Asociada
+                                        <div className="h-px bg-border flex-1 ml-1 opacity-50"></div>
+                                    </label>
+                                    <select
+                                        className="w-full p-2.5 border rounded-lg bg-muted/30 focus:ring-1 ring-primary outline-none transition-all text-sm font-medium"
+                                        value={selectedRule.metric_id || ''}
+                                        onChange={e => setSelectedRule({
+                                            ...selectedRule,
+                                            metric_id: e.target.value ? parseInt(e.target.value) : null,
+                                            metric_pattern: e.target.value ? '' : selectedRule.metric_pattern
+                                        })}
+                                    >
+                                        <option value="">-- Usar Patrón Manual (Regex/Like) --</option>
+                                        {metrics.map(m => (
+                                            <option key={m.id} value={m.id}>{m.display_name} ({m.name})</option>
+                                        ))}
+                                    </select>
+                                    {!selectedRule.metric_id && (
+                                        <input
+                                            type="text"
+                                            placeholder="Patrón (ej: system.cpu.%)"
+                                            className="w-full p-2.5 border rounded-lg bg-orange-50/30 border-orange-200 text-sm font-mono focus:ring-1 ring-orange-500 outline-none"
+                                            value={selectedRule.metric_pattern}
+                                            onChange={e => setSelectedRule({ ...selectedRule, metric_pattern: e.target.value })}
+                                        />
+                                    )}
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-bold text-muted-foreground uppercase">Evaluación</label>
+                                        <select
+                                            className="w-full p-2.5 border rounded-lg bg-muted/30 text-sm font-bold"
+                                            value={selectedRule.operator}
+                                            onChange={e => setSelectedRule({ ...selectedRule, operator: e.target.value })}
+                                        >
+                                            <optgroup label="Numérico">
+                                                <option value=">">Mayor que {'>'}</option>
+                                                <option value=">=">Mayor o igual {'>='}</option>
+                                                <option value="<">Menor que {'<'}</option>
+                                                <option value="<=">Menor o igual {'<='}</option>
+                                                <option value="BETWEEN">Entre (X,Y)</option>
+                                            </optgroup>
+                                            <optgroup label="Texto / Especial">
+                                                <option value="CONTAINS">Contiene texto</option>
+                                                <option value="NOT_CONTAINS">NO contiene</option>
+                                                <option value="REGEX">Expresión Regular</option>
+                                            </optgroup>
+                                            <optgroup label="Tiempo / Fecha">
+                                                <option value="AGE_GREATER_THAN">Antigüedad {'>'} a...</option>
+                                                <option value="DURATION_GREATER_THAN">Duración {'>'} a...</option>
+                                            </optgroup>
+                                        </select>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-bold text-muted-foreground uppercase">Valor Umbral</label>
+                                        <input
+                                            type="text"
+                                            placeholder={selectedRule.operator === 'BETWEEN' ? "ej: 10,20" : "5.5, Error..."}
+                                            className="w-full p-2.5 border rounded-lg bg-muted/30 text-sm font-bold focus:ring-1 ring-primary outline-none"
+                                            value={selectedRule.threshold_value}
+                                            onChange={e => setSelectedRule({ ...selectedRule, threshold_value: e.target.value })}
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-bold text-muted-foreground uppercase">Gravedad / Categoría</label>
+                                    <div className="grid grid-cols-3 gap-2">
+                                        {['warning', 'danger', 'critical'].map(cat => (
+                                            <button
+                                                key={cat}
+                                                type="button"
+                                                onClick={() => setSelectedRule({ ...selectedRule, alert_category: cat })}
+                                                className={`py-2 rounded-lg text-[10px] font-black uppercase border transition-all ${selectedRule.alert_category === cat
+                                                    ? (cat === 'warning' ? 'bg-amber-100 border-amber-400 text-amber-700 ring-2 ring-amber-400/20' :
+                                                        cat === 'danger' ? 'bg-orange-100 border-orange-400 text-orange-700 ring-2 ring-orange-400/20' :
+                                                            'bg-red-100 border-red-400 text-red-700 ring-2 ring-red-400/20')
+                                                    : 'bg-muted/30 border-transparent text-muted-foreground opacity-50 grayscale hover:grayscale-0'
+                                                    }`}
+                                            >
+                                                {cat}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-bold text-muted-foreground uppercase">Mensaje de la Alerta (Descripción)</label>
+                                    <textarea
+                                        className="w-full p-3 border rounded-lg bg-muted/30 h-28 text-sm focus:ring-1 ring-primary outline-none"
+                                        placeholder="Ej: Se ha detectado una sobrecarga crítica en la CPU..."
+                                        value={selectedRule.description}
+                                        onChange={e => setSelectedRule({ ...selectedRule, description: e.target.value })}
+                                    />
+                                    <p className="text-[10px] text-muted-foreground italic">Este texto aparecerá en el FS de Alerta cuando se cumpla la condición.</p>
+                                </div>
+
+                                <div className="pt-2 flex gap-2">
+                                    <button type="submit" className="flex-1 bg-primary text-primary-foreground py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg hover:shadow-primary/20 active:scale-[0.98] transition-all">
+                                        <Save className="w-5 h-5" /> Guardar Regla
+                                    </button>
+                                    <button type="button" onClick={() => setSelectedRule(null)} className="px-4 border rounded-xl hover:bg-muted font-bold text-xs uppercase tracking-wider">Cancelar</button>
+                                </div>
+                            </form>
+                        ) : (
+                            <div className="text-center py-20 border-2 border-dashed rounded-2xl bg-muted/10 opacity-60">
+                                <AlertCircle className="w-16 h-16 text-muted-foreground/30 mx-auto mb-4" />
+                                <p className="text-sm text-muted-foreground px-10">Selecciona una regla para editar sus parámetros o define una condición nueva.</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* Purge Metric & Rules Modal */}
+            {purgeData && (
+                <div className="fixed inset-0 bg-red-950/40 z-[60] flex items-center justify-center p-4 backdrop-blur-md">
+                    <div className="bg-white rounded-2xl border-4 border-red-200 shadow-[0_20px_50px_rgba(0,0,0,0.3)] w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
+                        <div className="p-6 bg-red-600 text-white flex justify-between items-start">
+                            <div className="flex items-center gap-4">
+                                <div className="p-3 bg-white/20 rounded-xl">
+                                    <Trash2 className="w-8 h-8" />
+                                </div>
+                                <div>
+                                    <h3 className="text-2xl font-black uppercase tracking-tight">Confirmar Eliminación Total</h3>
+                                    <p className="text-red-100 font-medium">Estás a punto de borrar una métrica y todos sus vínculos.</p>
+                                </div>
+                            </div>
+                            <button onClick={() => setPurgeData(null)} className="text-4xl leading-6 hover:scale-110 transition-transform">&times;</button>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto p-8 space-y-6">
+                            <div className="bg-red-50 border border-red-100 p-4 rounded-xl">
+                                <h4 className="text-xs font-black text-red-800 uppercase mb-2">Métrica del Catálogo</h4>
+                                <div className="text-xl font-bold text-red-900">{purgeData.metric.display_name}</div>
+                                <div className="text-sm font-mono text-red-700 opacity-60">{purgeData.metric.name}</div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-6">
+                                <div className="space-y-3">
+                                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                                        <Terminal className="w-4 h-4" /> Comandos que se borrarán
+                                    </h4>
+                                    {purgeData.command ? (
+                                        <div className="bg-slate-100 p-3 rounded-lg border font-mono text-[10px] text-slate-600 break-all leading-relaxed">
+                                            {purgeData.command.command}
+                                        </div>
+                                    ) : <div className="text-xs italic text-slate-400">Sin comandos asociados</div>}
+                                </div>
+
+                                <div className="space-y-3">
+                                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                                        <Server className="w-4 h-4" /> Servidores Afectados
+                                    </h4>
+                                    <div className="max-h-32 overflow-y-auto space-y-1.5 pr-2">
+                                        {purgeData.servers.length > 0 ? (
+                                            purgeData.servers.map((s: any, i: number) => (
+                                                <div key={i} className="text-xs bg-slate-50 border p-2 rounded flex justify-between">
+                                                    <span className="font-bold">{s.name}</span>
+                                                    <span className="opacity-50 font-mono">{s.ip}</span>
+                                                </div>
+                                            ))
+                                        ) : <div className="text-xs italic text-slate-400">No asiganda a servidores actualmente</div>}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl flex items-start gap-4">
+                                <AlertCircle className="w-6 h-6 text-amber-600 flex-none mt-1" />
+                                <div className="text-sm text-amber-900">
+                                    <p className="font-bold">Esta acción es irreversible:</p>
+                                    <ul className="list-disc ml-5 mt-2 space-y-1 opacity-80">
+                                        <li>Se borrará la regla de alerta asociada.</li>
+                                        <li>Se borrará la métrica del catálogo global.</li>
+                                        <li>Se eliminarán todos los comandos vinculados.</li>
+                                        <li>Se borrará el histórico de valores de esta métrica.</li>
+                                        <li>Se quitará esta métrica de todos los perfiles (Templates).</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="p-6 bg-slate-50 border-t flex gap-4">
+                            <button
+                                onClick={async () => {
+                                    setLoading(true);
+                                    try {
+                                        let ok = true;
+                                        if (purgeData.metric.id > 0) {
+                                            ok = await sendData('metrics', 'DELETE', {}, `&id=${purgeData.metric.id}`);
+                                        }
+
+                                        if (ok) {
+                                            if (purgeData.rule_id) {
+                                                await deleteItem('alert_rules', purgeData.rule_id);
+                                            }
+
+                                            // Refresh everything
+                                            const r = await fetchData('alert_rules');
+                                            setAlertRules(r || []);
+                                            const m = await fetchData('metrics');
+                                            setMetrics(m || []);
+                                            setPurgeData(null);
+                                            setMessage({ type: 'success', text: purgeData.metric.id > 0 ? 'Métrica y vínculos purgados completamente.' : 'Regla eliminada correctamente.' });
+                                        }
+                                    } catch (err: any) {
+                                        setMessage({ type: 'error', text: 'Error al purgar datos: ' + err.message });
+                                    } finally {
+                                        setLoading(false);
+                                    }
+                                }}
+                                className="flex-1 bg-red-600 hover:bg-red-700 text-white font-black py-4 rounded-xl shadow-lg shadow-red-200 transition-all active:scale-95 uppercase tracking-wider"
+                            >
+                                Sí, borrar todo permanentemente
+                            </button>
+                            <button
+                                onClick={() => setPurgeData(null)}
+                                className="px-8 bg-white border-2 border-slate-200 hover:bg-slate-50 text-slate-600 font-bold rounded-xl transition-all"
+                            >
+                                Cancelar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Tab: Rooteo */}
             {activeTab === 'rooteo' && <RooteoTab />}
         </div >
     );
 };
+
 
 export default SuperAdmin;

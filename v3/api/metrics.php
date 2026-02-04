@@ -36,32 +36,31 @@ $evaluator = new MetricsEvaluator($mysqli);
  */
 function processMetric($mysqli, $evaluator, $server_id, $site_id, $key, $val) {
     if (is_array($val) || is_object($val)) $val = json_encode($val);
+    
+    // Normalize metric names (mapping legacy or inconsistent keys to V3 standard)
+    $mapping = [
+        'app.reconciliador.log' => 'app.jams.reconcilie',
+        'logReconciliador' => 'app.jams.reconcilie',
+        'app.jams.restart' => 'app.jams.restarts_log',
+        'app.jams.restarts' => 'app.jams.restarts_log',
+        'jamsRestart' => 'app.jams.restarts_log',
+        'jams_restart' => 'app.jams.restarts_log',
+        'ramPercent' => 'system.ram.percent',
+        'porcentajeCpu' => 'system.cpu.load',
+        'reiniciosJAMS' => 'app.jams.restarts_log'
+    ];
+    if (isset($mapping[$key])) $key = $mapping[$key];
+
     $evalVal = $val;
     
-    // 1. Virtual Metric: IDLE Query Count (Multiline parsing)
-    if (($key === 'db.idle_queries' || $key === 'idleQuery') && is_string($val) && strpos($val, '|') !== false) {
-        $lines = explode("\n", $val);
-        $lines = array_filter($lines, function($l) {
-            $l = trim($l);
-            return !empty($l) && strpos($l, '|') !== false && stripos($l, 'pid') === false && strpos($l, '---') === false;
-        });
-        $evalVal = count($lines);
-    }
+    // 1. Virtual Metric: IDLE Query Count
+    // [MOVED TO MetricsEvaluator::normalizeValue]
     
-    // 2. Virtual Metric: Max ID Gap Calculation
-    if ($key === 'db.max_id_table' && is_string($val) && strpos($val, '|') !== false) {
-        $parts = explode('|', $val);
-        $currentId = intval($parts[1] ?? 0);
-        $evalVal = 2147483647 - $currentId;
-    }
+    // 2. Virtual Metric: Max ID Gap
+    // [MOVED TO MetricsEvaluator::normalizeValue]
     
-    // 3. Virtual Metric: Connectivity Count
-    if ($key === 'app.connectivity.trucks' && is_string($val) && strpos($val, "\n") !== false) {
-        $lines = array_filter(explode("\n", trim($val)), function($l) {
-            return trim($l) !== "" && stripos($l, "name") === false && stripos($l, "symbol") === false && stripos($l, "---") === false;
-        });
-        $evalVal = count($lines);
-    }
+    // 3. Virtual Metric: Connectivity Count (Trucks/Equipment)
+    // [MOVED TO MetricsEvaluator::normalizeValue]
 
     // 4. Virtual Metric: Integrity Diff (Requires site context)
     if ($key === 'db.integrity.tables' && $site_id && is_string($val) && strpos($val, '|') !== false) {
@@ -91,16 +90,59 @@ function processMetric($mysqli, $evaluator, $server_id, $site_id, $key, $val) {
         }
     }
 
-    // Evaluate against DB Rules
-    $status = $evaluator->evaluate($key, $evalVal, $server_id);
-    
-    // Persist to unified table (State)
-    $stmt = $mysqli->prepare("INSERT INTO server_app_metrics (server_id, metric_key, metric_value, status, last_updated) VALUES (?, ?, ?, ?, NOW()) ON DUPLICATE KEY UPDATE metric_value = VALUES(metric_value), status = VALUES(status), last_updated = NOW()");
-    $stmt->bind_param("isss", $server_id, $key, $val, $status);
-    $stmt->execute();
+    // 6. Alert Logic: Active Scripts Duration (Alert if > 5 minutes)
+    if ($key === 'app.fms.active_scripts' && is_string($val)) {
+        $lines = explode("\n", trim($val));
+        $hasLongRunning = false;
+        foreach ($lines as $line) {
+            $parts = preg_split('/\s+/', trim($line));
+            if (count($parts) >= 3) {
+                $timeStr = $parts[2]; // 3rd column: MM:SS or HH:MM:SS
+                if (preg_match('/(?:(\d+):)?(\d+):(\d+)/', $timeStr, $m)) {
+                    // $m[1] is HH, $m[2] is MM, $m[3] is SS (if HH exists)
+                    // if only MM:SS, $m[1] is empty, $m[2] is MM, $m[3] is SS? NO.
+                    // preg_match('/(?:(\d+):)?(\d+):(\d+)/', "05:10") -> $m[1] is undefined, $m[2] is 05, $m[3] is 10.
+                    // Actually let's just count groups.
+                    if (isset($m[3]) && $m[1] !== "") {
+                        $hours = intval($m[1]);
+                        $mins = intval($m[2]);
+                        $secs = intval($m[3]);
+                    } else {
+                        $hours = 0;
+                        $mins = intval($m[2]);
+                        $secs = intval($m[3]);
+                    }
+                    $totalSecs = ($hours * 3600) + ($mins * 60) + $secs;
+                    if ($totalSecs > 300) $hasLongRunning = true;
+                }
+            }
+        }
+        if ($hasLongRunning) $status = 'danger';
+    }
 
-    // Persist to History (Generic Value Tracking)
-    // Auto-discovery: If metric is not in catalogue, add it.
+    // 7. Summarizer Aggregate Alert (Check both service and crontab)
+    if ($key === 'app.summarizer.service' || $key === 'app.summarizer.crontab') {
+        $otherKey = ($key === 'app.summarizer.service') ? 'app.summarizer.crontab' : 'app.summarizer.service';
+        $otherVal = $mysqli->query("SELECT metric_value FROM server_app_metrics WHERE server_id = $server_id AND metric_key = '$otherKey' LIMIT 1")->fetch_assoc()['metric_value'] ?? 'stopped';
+        
+        $aggrStatus = 'ok';
+        // If BOTH are stopped/empty/error, trigger aggregate danger
+        $isStopped = function($v) { return empty($v) || stripos($v, 'stopped') !== false || stripos($v, 'failed') !== false || stripos($v, 'error') !== false; };
+        
+        if ($isStopped($val) && $isStopped($otherVal)) {
+            $aggrStatus = 'stopped';
+        }
+        
+        // This triggers the 'app.summarizer.status' rule in DB
+        $evaluator->evaluate('app.summarizer.status', $aggrStatus, $server_id);
+    }
+
+    // 8. Backup Latency
+    // [MOVED TO MetricsEvaluator::normalizeValue]
+
+    // Auto-discovery / Get Metric ID: If metric is not in catalogue, add it.
+    // We do this BEFORE evaluate so we can pass the ID to the evaluator for explicit rules
+    $metric_id = null;
     $check = $mysqli->query("SELECT id FROM metrics WHERE name = '" . $mysqli->real_escape_string($key) . "' LIMIT 1");
     if (!$check || $check->num_rows === 0) {
         $mysqli->query("INSERT INTO metrics (name, display_name) VALUES ('" . $mysqli->real_escape_string($key) . "', '" . $mysqli->real_escape_string($key) . "')");
@@ -109,9 +151,19 @@ function processMetric($mysqli, $evaluator, $server_id, $site_id, $key, $val) {
         $metric_id = $check->fetch_assoc()['id'];
     }
 
+    // Evaluate against DB Rules (Now passing metric_id for better accuracy)
+    $status = $evaluator->evaluate($key, $evalVal, $server_id, $metric_id);
+    
+    // Persist to unified table (State)
+    $stmt = $mysqli->prepare("INSERT INTO server_app_metrics (server_id, metric_key, metric_value, status, last_updated) VALUES (?, ?, ?, ?, NOW()) ON DUPLICATE KEY UPDATE metric_value = VALUES(metric_value), status = VALUES(status), last_updated = NOW()");
+    $stmt->bind_param("isss", $server_id, $key, $val, $status);
+    $stmt->execute();
+
+    // Persist to History (Generic Value Tracking)
     if ($metric_id) {
+        $historyStatus = $status ?: 'ok';
         $h_ins = $mysqli->prepare("INSERT INTO server_metric_values (server_id, metric_id, value, status, created_at) VALUES (?, ?, ?, ?, NOW())");
-        $h_ins->bind_param("iiss", $server_id, $metric_id, $val, $status);
+        $h_ins->bind_param("iiss", $server_id, $metric_id, $val, $historyStatus);
         $h_ins->execute();
     }
     
@@ -207,7 +259,8 @@ if ($method === 'POST') {
             $stmt->bind_param("isss", $server_id, $svc['name'], $svc['status'], $svc['message']);
             $stmt->execute();
 
-            processMetric($mysqli, $evaluator, $server_id, $site_id, "system.services." . $svc['name'], $svc['status']);
+            // NOTE: processMetric call for "system.services.X" removed. 
+            // Services are now handled exclusively via server_services table to avoid redundancy.
         }
     }
 
@@ -246,11 +299,59 @@ if ($method === 'POST') {
         while ($server = $site_servers->fetch_assoc()) {
             $server_id = $server['id'];
 
-            // 1. Fetch App Metrics FIRST
+            // 1. Fetch App Metrics FIRST (Current State)
             $app = [];
             $appRes = $mysqli->query("SELECT metric_key, metric_value, status FROM server_app_metrics WHERE server_id = $server_id");
             while($ar = $appRes->fetch_assoc()) {
                 $app[$ar['metric_key']] = $ar;
+            }
+
+            // [ROBUST FALLBACK]: Prioritize history (Rooteo source) over app_metrics cache for critical identifiers
+            $injectMetric = function($mysqli, $server_id, &$app, $key, $force = false) {
+                // If force is true, we always query history and override cache if history has data
+                if ($force || !isset($app[$key]) || empty($app[$key]['metric_value'])) {
+                    $res = $mysqli->query("SELECT value, status FROM server_metric_values WHERE server_id = $server_id AND metric_id = (SELECT id FROM metrics WHERE name = '$key' LIMIT 1) ORDER BY created_at DESC LIMIT 1");
+                    if ($row = $res->fetch_assoc()) {
+                        $app[$key] = ['metric_key' => $key, 'metric_value' => $row['value'], 'status' => $row['status']];
+                        return true;
+                    }
+                }
+                return false;
+            };
+
+            // Force fresh names and cluster from history (Always override if history exists)
+            $injectMetric($mysqli, $server_id, $app, 'system.name', true);
+            $injectMetric($mysqli, $server_id, $app, 'system.hostname', true);
+            $injectMetric($mysqli, $server_id, $app, 'hostname', true);
+            $injectMetric($mysqli, $server_id, $app, 'app.fms.cluster', true);
+            $injectMetric($mysqli, $server_id, $app, 'app.jams.status', true);
+            $injectMetric($mysqli, $server_id, $app, 'app.jams.restarts_log', true);
+            $injectMetric($mysqli, $server_id, $app, 'app.fms.active_scripts', true);
+            $injectMetric($mysqli, $server_id, $app, 'app.fms.replica', true);
+            $injectMetric($mysqli, $server_id, $app, 'app.summarizer.service', true);
+            $injectMetric($mysqli, $server_id, $app, 'app.summarizer.crontab', true);
+            $injectMetric($mysqli, $server_id, $app, 'system.ntp.status', true);
+            $injectMetric($mysqli, $server_id, $app, 'backup.daily.log', true);
+            $injectMetric($mysqli, $server_id, $app, 'backup.hourly.log', true);
+            $injectMetric($mysqli, $server_id, $app, 'db.schema.date', true);
+
+            // [ROBUST FALLBACK]: Explicitly whitelist ALL dashboard metrics to prevent stale cache
+            $dashboardMetrics = [
+                'app.jams.version',
+                'app.repc',
+                'app.station.ping',
+                'app.station.name',
+                'backup.daily.status',
+                'backup.hourly.status',
+                'db.size',
+                'db.max_id_table',
+                'db.idle_queries',
+                'db.integrity.tables',
+                'db.tables.shifts',
+                'system.files.largest'
+            ];
+            foreach ($dashboardMetrics as $dm) {
+                $injectMetric($mysqli, $server_id, $app, $dm, true);
             }
 
             // 2. Fetch Services
@@ -279,12 +380,15 @@ if ($method === 'POST') {
 
             $sys = [
                 'cpu_usage' => $getMetricVal($mysqli, $server_id, $app, 'system.cpu.load', $history),
+                'cpu_status' => $app['system.cpu.load']['status'] ?? 'ok',
                 'ram_used' => $app['system.ram.used']['metric_value'] ?? 0,
                 'ram_total' => $app['system.ram.total']['metric_value'] ?? 0,
                 'ram_percent' => $getMetricVal($mysqli, $server_id, $app, 'system.ram.percent'),
+                'ram_status' => $app['system.ram.percent']['status'] ?? 'ok',
                 'disk_used' => $app['system.disk.used']['metric_value'] ?? 0,
                 'disk_total' => $app['system.disk.total']['metric_value'] ?? 0,
                 'disk_percent' => $getMetricVal($mysqli, $server_id, $app, 'system.disk.percent'),
+                'disk_status' => $app['system.disk.percent']['status'] ?? 'ok',
                 'load_average' => $app['system.load.average']['metric_value'] ?? '0.0',
                 'uptime_seconds' => $app['system.uptime']['metric_value'] ?? 0
             ];

@@ -14,12 +14,15 @@ const getAuthHeaders = () => {
 export interface ServerMetric {
     id: number;
     cpu_usage: number;
-    ram_total: any; // Can be string like "125Gi" or number
+    cpu_status: string;
+    ram_total: any;
     ram_used: any;
     ram_percent: number;
+    ram_status: string;
     disk_total: any;
     disk_used: any;
     disk_percent: number;
+    disk_status: string;
     load_average: string;
     uptime_seconds: number;
     created_at: string;

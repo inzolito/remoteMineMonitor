@@ -12,6 +12,7 @@ import {
     Activity
 } from 'lucide-react';
 import { getAlerts, acknowledgeAlert, type Alert } from '../services/alertsService';
+import { cn } from '../lib/utils';
 
 const getAlertIcon = (key: string) => {
     if (key.includes('disk')) return <HardDrive className="w-20 h-20 text-red-600 animate-pulse" />;
@@ -24,6 +25,7 @@ const getAlertIcon = (key: string) => {
     if (key.includes('idleQuery')) return <Activity className="w-20 h-20 text-red-600 animate-pulse" />;
     if (key.includes('db.diff')) return <Layers className="w-20 h-20 text-red-700 animate-bounce" />;
     if (key.includes('backup.schema')) return <Database className="w-20 h-20 text-purple-600 animate-pulse" />;
+    if (key.includes('replica')) return <Database className="w-20 h-20 text-red-600 animate-pulse" />;
     return <AlertCircle className="w-20 h-20 text-red-600 animate-bounce" />;
 };
 
@@ -163,81 +165,95 @@ const AlertManager: React.FC<{ initialDataLoaded?: boolean }> = ({ initialDataLo
         }
     }, [currentAlert, hasInteracted, voices]);
 
+    const [isExiting, setIsExiting] = useState(false);
+
     const handleAcknowledge = async () => {
         if (!currentAlert) return;
+        setIsExiting(true);
+
+        // Wait for exit animation
+        await new Promise(resolve => setTimeout(resolve, 300));
+
         try {
             await acknowledgeAlert(currentAlert.id);
             if (synthRef.current) synthRef.current.cancel();
 
-            // Remove locally to instant update UI
+            // Store local state update
             const remaining = alerts.filter(a => a.id !== currentAlert.id);
             setAlerts(remaining);
             setCurrentAlert(remaining.length > 0 ? remaining[0] : null);
         } catch (error) {
             console.error("Failed to acknowledge", error);
+        } finally {
+            setIsExiting(false);
         }
     };
 
     if (!currentAlert || isSafetyDelayActive) return <DebugOverlay alerts={alerts} error={errorMsg} user={auth?.user} isDelayed={isSafetyDelayActive} />;
 
-    // Simplified styles to guarantee visibility (removed animate-in dependencies)
     return (
         <>
             <DebugOverlay alerts={alerts} error={errorMsg} user={auth?.user} isDelayed={isSafetyDelayActive} />
-            <div style={{ zIndex: 99999, position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(50, 0, 0, 0.95)' }} className="animate-in fade-in duration-500">
-                <div className="bg-white rounded-xl shadow-2xl p-8 max-w-2xl w-full mx-4 relative overflow-hidden border-4 border-red-600 animate-in zoom-in slide-in-from-bottom-5 duration-300">
-                    {/* Pulse Effect Background */}
-                    <div className="absolute top-0 left-0 w-full h-2 bg-red-600 animate-pulse"></div>
+            <div
+                style={{ zIndex: 99999, position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(20, 0, 0, 0.9)', backdropFilter: 'blur(12px)' }}
+                className={cn("transition-all duration-500", isExiting ? "opacity-0" : "opacity-100")}
+            >
+                <div className={cn(
+                    "bg-white rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.5)] p-10 max-w-2xl w-full mx-4 relative overflow-hidden border-b-8 border-red-600 transition-all duration-300 transform",
+                    isExiting ? "scale-95 translate-y-8 opacity-0" : "scale-100 translate-y-0 opacity-100 animate-in zoom-in-95 duration-300"
+                )}>
+                    {/* Animated Danger Stripe */}
+                    <div className="absolute top-0 left-0 w-full h-3 bg-red-600">
+                        <div className="w-full h-full bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer" />
+                    </div>
 
                     <div className="flex flex-col items-center text-center">
-                        <div className="bg-red-100 p-4 rounded-full mb-6 ring-8 ring-red-500/20 animate-pulse">
+                        <div className="bg-red-50 p-6 rounded-full mb-8 ring-12 ring-red-500/10 animate-pulse">
                             {getAlertIcon(currentAlert.metric_key)}
                         </div>
 
-                        <h2 className="text-3xl font-extrabold text-red-700 mb-2 uppercase tracking-wide">{currentAlert.title}</h2>
+                        <span className="text-[10px] font-black uppercase tracking-[0.3em] text-red-500 mb-2">Estado Crítico Detectado</span>
+                        <h2 className="text-4xl font-black text-slate-900 mb-6 uppercase tracking-tight leading-none">{currentAlert.title}</h2>
 
-                        {/* Descriptive Badge for Role specificity if needed in title, but usually already in title */}
-                        <div className="flex gap-2 mb-4">
-                            <span className="px-3 py-1 bg-red-100 text-red-700 rounded-full text-xs font-bold uppercase ring-1 ring-red-200 shadow-sm">
-                                {currentAlert.server_name}
-                            </span>
-                        </div>
+                        <div className="w-16 h-1 bg-slate-100 mb-8 rounded-full" />
 
-                        <p className="text-xl text-gray-800 font-medium mb-8">
+                        <p className="text-xl text-slate-600 font-medium mb-10 leading-relaxed max-w-lg">
                             {currentAlert.description.split('] ').pop()}
                         </p>
 
-                        <div className="bg-gray-50 rounded-lg p-4 w-full mb-8 text-left border border-gray-300 shadow-inner">
-                            <div className="grid grid-cols-2 gap-4 text-sm">
-                                <div>
-                                    <span className="block text-gray-400 uppercase text-[10px] font-bold">Servidor</span>
-                                    <span className="font-mono font-bold text-gray-900 text-base">{currentAlert.server_name}</span>
-                                </div>
-                                <div>
-                                    <span className="block text-gray-400 uppercase text-[10px] font-bold">IP / Métrica</span>
-                                    <div className="flex flex-col">
-                                        <span className="font-mono font-bold text-blue-600 text-sm">{currentAlert.description.match(/\[IP: (.*?)\]/)?.[1] || 'N/A'}</span>
-                                        <span className="font-mono font-bold text-gray-500 text-xs">{currentAlert.metric_key}</span>
-                                    </div>
-                                </div>
-                                <div className="col-span-2">
-                                    <span className="block text-gray-400 uppercase text-[10px] font-bold">Instante de Detección</span>
-                                    <span className="font-mono font-bold text-gray-900">{currentAlert.created_at}</span>
-                                </div>
+                        <div className="bg-slate-50 rounded-xl p-6 w-full mb-10 text-left border border-slate-100 shadow-inner grid grid-cols-2 gap-6 relative overflow-hidden">
+                            <div className="absolute top-0 right-0 p-4 opacity-5">
+                                <Activity className="w-20 h-20 text-slate-900" />
+                            </div>
+
+                            <div className="relative z-10">
+                                <span className="block text-slate-400 uppercase text-[9px] font-black tracking-widest mb-1">Servidor Originador</span>
+                                <span className="font-bold text-slate-800 text-lg block truncate">{currentAlert.server_name}</span>
+                                <span className="font-mono text-blue-600 text-xs font-bold">{currentAlert.description.match(/\[IP: (.*?)\]/)?.[1] || 'N/A'}</span>
+                            </div>
+
+                            <div className="relative z-10">
+                                <span className="block text-slate-400 uppercase text-[9px] font-black tracking-widest mb-1">Detección y Métrica</span>
+                                <span className="font-bold text-slate-800 text-sm block">{new Date(currentAlert.created_at).toLocaleTimeString()}</span>
+                                <span className="font-mono text-slate-400 text-[10px] lowercase">{currentAlert.metric_key}</span>
                             </div>
                         </div>
 
                         <button
                             onClick={handleAcknowledge}
-                            className="w-full bg-red-600 hover:bg-red-700 text-white font-extrabold py-5 px-8 rounded-lg shadow-xl transform transition hover:scale-105 flex items-center justify-center gap-3 text-xl"
+                            className="group relative w-full bg-red-600 hover:bg-red-700 text-white font-black py-6 px-8 rounded-xl shadow-[0_10px_30px_rgba(220,38,38,0.3)] transform transition-all active:scale-[0.98] flex items-center justify-center gap-4 text-xl overflow-hidden"
                         >
-                            <CheckCircle className="w-8 h-8" />
-                            MARCAR EN REVISIÓN
+                            <div className="absolute inset-0 bg-gradient-to-r from-red-500 to-red-700 opacity-0 group-hover:opacity-100 transition-opacity" />
+                            <CheckCircle className="w-8 h-8 relative z-10" />
+                            <span className="relative z-10 tracking-wide uppercase">MARCAR EN REVISIÓN</span>
                         </button>
 
-                        <p className="mt-6 text-sm text-gray-300">
-                            * El audio puede requerir interacción con la página para iniciarse.
-                        </p>
+                        <div className="mt-8 flex items-center gap-2 text-slate-400">
+                            <Clock size={14} />
+                            <p className="text-[10px] font-bold uppercase tracking-widest italic">
+                                * Se requiere interacción para activar el sistema de voz
+                            </p>
+                        </div>
                     </div>
                 </div>
             </div>
