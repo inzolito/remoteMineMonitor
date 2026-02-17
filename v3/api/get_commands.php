@@ -40,6 +40,7 @@ $query = "
         rc.priority,
         rc.timeout_seconds,
         rc.os_family,
+        rc.frequency_cycle,
         smc.frequency
     FROM server_metrics_config smc
     JOIN metrics m ON smc.metric_id = m.id
@@ -62,11 +63,14 @@ while ($row = $result->fetch_assoc()) {
     $metric_id = $row['metric_id'];
     
     if (!isset($metrics[$metric_id])) {
+        // Prioritize server-specific frequency, then command default frequency, then 60
+        $freq = $row['frequency'] ?? $row['frequency_cycle'] ?? 60;
+        
         $metrics[$metric_id] = [
             'metric_id' => $metric_id,
             'metric_name' => $row['metric_name'],
             'display_name' => $row['display_name'],
-            'frequency' => $row['frequency'] ?? 60,
+            'frequency' => $freq,
             'commands' => []
         ];
     }

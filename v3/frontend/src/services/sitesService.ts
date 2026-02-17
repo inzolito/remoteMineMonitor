@@ -17,6 +17,7 @@ export interface Site {
     name: string;
     alias: string;
     status: number; // 1 = online, 0 = offline (example)
+    is_visible?: number; // 1 = visible, 0 = hidden
     conglomerate: string;
     logo_url: string;
     contract_number?: string;

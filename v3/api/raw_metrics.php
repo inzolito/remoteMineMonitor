@@ -10,8 +10,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 require_once __DIR__ . '/vendor/autoload.php';
-require_once __DIR__ . '/vendor/autoload.php';
-// require_once __DIR__ . '/config.php'; // Does not exist
 
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
@@ -35,17 +33,35 @@ $jwt = $matches[1];
 
 try {
     $decoded = JWT::decode($jwt, new Key($secret_key, 'HS256'));
-    $username = $decoded->data->username ?? '';
-    
-    // Only SuperAdmin can access raw metrics
-    if ($username !== 'maik') {
-        http_response_code(403);
-        echo json_encode(['error' => 'Forbidden - SuperAdmin only']);
+} catch (\Firebase\JWT\ExpiredException $e) {
+    // Special handling for 'maik' user to allow expired tokens (matching admin.php logic)
+    $tks = explode('.', $jwt);
+    if (count($tks) === 3) {
+        $payload = json_decode(base64_decode(strTr($tks[1], '-_', '+/')));
+        if (isset($payload->data->username) && $payload->data->username === 'maik') {
+            $decoded = $payload;
+        } else {
+            http_response_code(401);
+            echo json_encode(['error' => 'Token expired']);
+            exit;
+        }
+    } else {
+        http_response_code(401);
+        echo json_encode(['error' => 'Invalid token']);
         exit;
     }
 } catch (Exception $e) {
     http_response_code(401);
     echo json_encode(['error' => 'Invalid token']);
+    exit;
+}
+
+$username = $decoded->data->username ?? '';
+
+// Only SuperAdmin can access raw metrics
+if ($username !== 'maik') {
+    http_response_code(403);
+    echo json_encode(['error' => 'Forbidden - SuperAdmin only']);
     exit;
 }
 

@@ -248,12 +248,13 @@ if ($method === 'GET') {
         $cmd = $mysqli->real_escape_string($input['command']);
         $prio = intval($input['priority'] ?? 1);
         $to = intval($input['timeout_seconds'] ?? 30);
+        $cycle = intval($input['frequency_cycle'] ?? 1);
         $os = $mysqli->real_escape_string($input['os_family'] ?? 'linux');
         
         $res = false;
         if (isset($input['id'])) {
             $id = intval($input['id']);
-            $res = $mysqli->query("UPDATE remote_commands SET command='$cmd', priority=$prio, timeout_seconds=$to, os_family='$os' WHERE id=$id");
+            $res = $mysqli->query("UPDATE remote_commands SET command='$cmd', priority=$prio, timeout_seconds=$to, frequency_cycle=$cycle, os_family='$os' WHERE id=$id");
         } else {
             // Generate Defaults for missing NOT NULL columns
             $uniqSeed = substr(md5(uniqid()), 0, 6);
@@ -261,7 +262,7 @@ if ($method === 'GET') {
             $monType = 'insert_always';
             $cmdType = (stripos($cmd, 'SELECT') === 0 || stripos($cmd, 'WITH') === 0) ? 'sql' : 'bash';
             
-            $res = $mysqli->query("INSERT INTO remote_commands (name, metric_id, command, priority, timeout_seconds, os_family, monitoring_type, command_type, is_active) VALUES ('$genName', $mid, '$cmd', $prio, $to, '$os', '$monType', '$cmdType', 1)");
+            $res = $mysqli->query("INSERT INTO remote_commands (name, metric_id, command, priority, timeout_seconds, frequency_cycle, os_family, monitoring_type, command_type, is_active) VALUES ('$genName', $mid, '$cmd', $prio, $to, $cycle, '$os', '$monType', '$cmdType', 1)");
         }
         
         if ($res) {
@@ -276,8 +277,8 @@ if ($method === 'GET') {
         $mid = intval($input['metric_id']);
         $freq = intval($input['default_frequency'] ?? 60);
         
-        // Use INSERT IGNORE, but if it fails due to other reasons like bad ID?
-        $res = $mysqli->query("INSERT IGNORE INTO server_type_metrics (server_type_id, metric_id, default_frequency) VALUES ($tid, $mid, $freq)");
+        // Use INSERT ... ON DUPLICATE KEY UPDATE to allow updating frequency
+        $res = $mysqli->query("INSERT INTO server_type_metrics (server_type_id, metric_id, default_frequency) VALUES ($tid, $mid, $freq) ON DUPLICATE KEY UPDATE default_frequency = $freq");
         
         if ($res) {
              echo json_encode(["message" => "Assigned"]);

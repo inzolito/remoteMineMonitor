@@ -13,9 +13,20 @@ const UsersPage = () => {
         first_name: '', last_name: '', username: '', email: '', permission_id: 2, password: ''
     });
 
-    const { data: users, isLoading } = useQuery({
+    const { data: users, isLoading: usersLoading } = useQuery({
         queryKey: ['users'],
         queryFn: getUsers
+    });
+
+    const { data: permissions, isLoading: permsLoading } = useQuery({
+        queryKey: ['permissions'],
+        queryFn: async () => {
+            const token = localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')!).token : '';
+            const resp = await fetch('/monitoreoLaboratorio/v3/api/permissions.php', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            return resp.json();
+        }
     });
 
     const createMutation = useMutation({
@@ -48,7 +59,7 @@ const UsersPage = () => {
         } else {
             setEditingUser(null);
             setFormData({
-                first_name: '', last_name: '', username: '', email: '', permission_id: 2, password: ''
+                first_name: '', last_name: '', username: '', email: '', permission_id: permissions?.[0]?.id || 2, password: ''
             });
         }
         setIsModalOpen(true);
@@ -68,7 +79,7 @@ const UsersPage = () => {
         }
     };
 
-    if (isLoading) {
+    if (usersLoading || permsLoading) {
         return <div className="flex items-center justify-center h-96"><Loader2 className="w-10 h-10 text-primary animate-spin" /></div>;
     }
 
@@ -119,7 +130,7 @@ const UsersPage = () => {
                                     </div>
                                 </td>
                                 <td className="p-6">
-                                    <span className={`px-3 py-1 rounded-lg text-xs font-medium border ${user.permission_id === 1 ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20' : 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20'}`}>
+                                    <span className={`px-3 py-1 rounded-lg text-xs font-medium border ${user.permission_id === 69 ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20' : 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20'}`}>
                                         {user.role || 'Usuario'}
                                     </span>
                                 </td>
@@ -195,15 +206,15 @@ const UsersPage = () => {
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-foreground mb-1">Rol (ID Permiso)</label>
+                                <label className="block text-sm font-medium text-foreground mb-1">Rol de Usuario</label>
                                 <select
                                     value={formData.permission_id}
                                     onChange={(e) => setFormData({ ...formData, permission_id: parseInt(e.target.value) })}
                                     className="w-full px-4 py-2 bg-muted/50 border border-input rounded-xl focus:ring-2 focus:ring-primary outline-none text-foreground appearance-none"
                                 >
-                                    <option value={1}>Administrador (1)</option>
-                                    <option value={2}>Usuario (2)</option>
-                                    <option value={3}>Solo Lectura (3)</option>
+                                    {permissions?.map((p: any) => (
+                                        <option key={p.id} value={p.id}>{p.name}</option>
+                                    ))}
                                 </select>
                             </div>
                             <div>

@@ -21,7 +21,8 @@ const ClientsPage = () => {
 
         // Filter out inactive sites AND check search term
         const filtered = sites.filter(site => {
-            const isVisible = site.status == 1;
+            // Check visibility (fallback to status if strict type check fails, but API provides is_visible now)
+            const isVisible = (site.is_visible !== undefined && site.is_visible !== null ? Number(site.is_visible) : Number(site.status)) === 1;
             if (!isVisible) return false;
 
             const searchMatch =

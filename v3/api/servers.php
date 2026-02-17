@@ -52,7 +52,7 @@ if ($method === 'GET') {
 
     if ($site_id > 0) {
         // Exclude soft-deleted items
-        $query = "SELECT s.* 
+        $query = "SELECT s.*, s.ip as ip_address 
                   FROM servers s 
                   JOIN site_servers ss ON s.id = ss.server_id 
                   WHERE ss.site_id = ? AND s.is_deleted = 0
@@ -94,6 +94,7 @@ if ($method === 'GET') {
     $os = $mysqli->real_escape_string($data->os ?? 'Linux');
     $type = $mysqli->real_escape_string($data->server_type ?? 'Generic');
     $desc = $mysqli->real_escape_string($data->description ?? '');
+    $notes = $mysqli->real_escape_string($data->notes ?? '');
     
     // New Fields Phase 8.2
     $port = $mysqli->real_escape_string($data->port ?? '');
@@ -111,13 +112,10 @@ if ($method === 'GET') {
     // db_name defaulted to empty for now
     $db_name = $mysqli->real_escape_string($data->db_name ?? '');
 
-    // Transaction to ensure consistency
-    $mysqli->begin_transaction();
-
     try {
         // 1. Insert Server
-        $stmt = $mysqli->prepare("INSERT INTO servers (name, ip_address, os, server_type, description, status, ssh_user, ssh_password, db_user, db_password, is_deleted, port, protocol, db_engine, db_name) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, 0, ?, ?, ?, ?)");
-        $stmt->bind_param("sssssssssssss", $name, $ip, $os, $type, $desc, $ssh_user, $ssh_password, $db_user, $db_password, $port, $protocol, $db_engine, $db_name);
+        $stmt = $mysqli->prepare("INSERT INTO servers (name, ip, os, server_type, description, notes, status, ssh_user, ssh_password, db_user, db_password, is_deleted, port, protocol, db_engine, db_name) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, 0, ?, ?, ?, ?)");
+        $stmt->bind_param("ssssssssssssss", $name, $ip, $os, $type, $desc, $notes, $ssh_user, $ssh_password, $db_user, $db_password, $port, $protocol, $db_engine, $db_name);
         $stmt->execute();
         $server_id = $mysqli->insert_id;
 
@@ -131,9 +129,9 @@ if ($method === 'GET') {
         http_response_code(201);
         echo json_encode(["message" => "Server created successfully.", "id" => $server_id]);
 
-    } catch (Exception $e) {
+    } catch (Throwable $e) {
         $mysqli->rollback();
-        error_log("Server Create Error: " . $e->getMessage()); // Debug log
+        error_log("Server Create Error: " . $e->getMessage());
         http_response_code(500);
         echo json_encode(["message" => "Failed to create server.", "error" => $e->getMessage()]);
     }
@@ -153,6 +151,7 @@ if ($method === 'GET') {
     $os = $mysqli->real_escape_string($data->os);
     $type = $mysqli->real_escape_string($data->server_type);
     $desc = $mysqli->real_escape_string($data->description);
+    $notes = $mysqli->real_escape_string($data->notes ?? '');
     
     // New Fields Phase 8.2
     $port = $mysqli->real_escape_string($data->port ?? '');
@@ -169,14 +168,15 @@ if ($method === 'GET') {
     // db_name defaulted to empty for now
     $db_name = $mysqli->real_escape_string($data->db_name ?? '');
 
-    $stmt = $mysqli->prepare("UPDATE servers SET name=?, ip_address=?, os=?, server_type=?, description=?, ssh_user=?, ssh_password=?, db_user=?, db_password=?, port=?, protocol=?, db_engine=?, db_name=? WHERE id=?");
-    $stmt->bind_param("sssssssssssssi", $name, $ip, $os, $type, $desc, $ssh_user, $ssh_password, $db_user, $db_password, $port, $protocol, $db_engine, $db_name, $id);
+    $stmt = $mysqli->prepare("UPDATE servers SET name=?, ip=?, os=?, server_type=?, description=?, notes=?, ssh_user=?, ssh_password=?, db_user=?, db_password=?, port=?, protocol=?, db_engine=?, db_name=? WHERE id=?");
+    $stmt->bind_param("ssssssssssssssi", $name, $ip, $os, $type, $desc, $notes, $ssh_user, $ssh_password, $db_user, $db_password, $port, $protocol, $db_engine, $db_name, $id);
 
     if ($stmt->execute()) {
         echo json_encode(["message" => "Server updated successfully."]);
     } else {
+        error_log("Server Update Error: " . $stmt->error);
         http_response_code(500);
-        echo json_encode(["message" => "Failed to update server."]);
+        echo json_encode(["message" => "Failed to update server.", "error" => $stmt->error]);
     }
 } elseif ($method === 'DELETE') {
      // Soft Delete

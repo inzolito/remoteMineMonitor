@@ -53,30 +53,31 @@ const Login = () => {
                 {/* Left Side: Brand & Live Visualization */}
                 <div className="hidden lg:flex flex-col gap-10 flex-1 max-w-xl animate-in fade-in slide-in-from-left duration-1000">
                     <div className="space-y-6">
-                        <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-blue-500/10 border border-blue-500/20 rounded-full text-blue-600 text-[10px] font-black tracking-[0.2em] uppercase shadow-sm">
+                        <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-[#0284c7]/10 border border-[#0284c7]/20 rounded-full text-[#0284c7] text-[10px] font-black tracking-[0.2em] uppercase shadow-sm">
                             <span className="relative flex h-2.5 w-2.5">
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-                                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-600"></span>
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#0284c7]/40 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#0284c7]"></span>
                             </span>
-                            Sistema de Monitoreo Pro v3
+                            Remote Mine Monitor v3
                         </div>
 
                         <div className="space-y-4">
                             <h1 className="text-6xl xl:text-8xl font-black text-slate-900 tracking-tighter leading-[0.9]">
-                                Network <br />
-                                <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600">Intelligence.</span>
+                                Remote <br />
+                                Mine <br />
+                                <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#0284c7] via-indigo-600 to-violet-600">Monitor</span>
                             </h1>
                             <p className="text-slate-500 text-xl max-w-md leading-relaxed font-medium opacity-80">
-                                Gestión avanzada de infraestructura crítica con analítica en tiempo real y seguridad de grado industrial.
+                                Sistema de monitoreo remoto gestionado por el area de soporte de Hexagon Minning
                             </p>
                         </div>
                     </div>
 
                     {/* Pseudo-Dashboard Elements for Visual Density */}
                     <div className="grid grid-cols-2 gap-6 animate-pulse-slow">
-                        <div className="p-8 bg-white/40 border border-white/60 rounded-[2.5rem] backdrop-blur-md shadow-2xl shadow-blue-500/5 group hover:bg-white/60 transition-all border-b-[6px] border-b-blue-500/20">
+                        <div className="p-8 bg-white/40 border border-white/60 rounded-[2.5rem] backdrop-blur-md shadow-2xl shadow-[#0284c7]/5 group hover:bg-white/60 transition-all border-b-[6px] border-b-[#0284c7]/20">
                             <div className="flex justify-between items-start mb-6">
-                                <div className="p-4 bg-blue-500 rounded-2xl shadow-lg shadow-blue-500/30 text-white">
+                                <div className="p-4 bg-[#0284c7] rounded-2xl shadow-lg shadow-[#0284c7]/30 text-white">
                                     <Activity className="w-6 h-6" />
                                 </div>
                                 <div className="text-[10px] font-black text-green-500 flex items-center gap-1 bg-green-500/10 px-3 py-1 rounded-full border border-green-500/10">
@@ -102,17 +103,17 @@ const Login = () => {
                 {/* Right Side: Enhanced Login Card */}
                 <div className="w-full max-w-[460px] relative">
                     {/* Decorative Ring around card */}
-                    <div className="absolute -inset-6 bg-gradient-to-br from-blue-500/10 via-indigo-500/5 to-transparent rounded-[4rem] -z-10 blur-3xl opacity-60"></div>
+                    <div className="absolute -inset-6 bg-gradient-to-br from-[#0284c7]/10 via-indigo-500/5 to-transparent rounded-[4rem] -z-10 blur-3xl opacity-60"></div>
 
-                    <div className="animate-in fade-in slide-in-from-bottom lg:slide-in-from-right duration-1000 bg-white/40 border border-white/80 p-1.5 rounded-[3.5rem] shadow-2xl shadow-blue-900/10 backdrop-blur-3xl">
+                    <div className="animate-in fade-in slide-in-from-bottom lg:slide-in-from-right duration-1000 bg-white/40 border border-white/80 p-1.5 rounded-[3.5rem] shadow-2xl shadow-[#0284c7]/10 backdrop-blur-3xl">
                         <div className="bg-white/95 rounded-[3.2rem] p-12 lg:p-14 border border-white/50 relative overflow-hidden">
                             {/* Subtle internal gradient effect */}
-                            <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 blur-3xl rounded-full"></div>
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-[#0284c7]/5 blur-3xl rounded-full"></div>
 
                             <div className="text-center mb-12 relative z-10 transition-transform hover:scale-[1.02] duration-500">
                                 <div className="relative inline-block group">
-                                    <div className="absolute -inset-4 bg-blue-500/20 rounded-full blur-xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                                    <div className="w-24 h-24 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-[2rem] mx-auto flex items-center justify-center mb-8 shadow-2xl shadow-blue-600/30 -rotate-3 group-hover:rotate-0 transition-all duration-500 cursor-pointer relative z-10">
+                                    <div className="absolute -inset-4 bg-[#0284c7]/20 rounded-full blur-xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                                    <div className="w-24 h-24 bg-gradient-to-br from-[#0284c7] to-indigo-700 rounded-[2rem] mx-auto flex items-center justify-center mb-8 shadow-2xl shadow-[#0284c7]/30 -rotate-3 group-hover:rotate-0 transition-all duration-500 cursor-pointer relative z-10">
                                         <Activity className="w-12 h-12 text-white group-hover:scale-110 transition-transform" />
                                     </div>
                                 </div>
@@ -129,16 +130,16 @@ const Login = () => {
 
                             <form onSubmit={handleSubmit} className="space-y-8 relative z-10">
                                 <div className="space-y-3 group">
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] ml-4 group-focus-within:text-blue-600 transition-colors">ID de Usuario</label>
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] ml-4 group-focus-within:text-[#0284c7] transition-colors">ID de Usuario</label>
                                     <div className="relative">
-                                        <div className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-blue-600 transition-colors">
+                                        <div className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-[#0284c7] transition-colors">
                                             <User className="w-6 h-6" />
                                         </div>
                                         <input
                                             type="text"
                                             value={username}
                                             onChange={(e) => setUsername(e.target.value)}
-                                            className="w-full pl-16 pr-6 py-5 bg-slate-50/50 border border-slate-200 rounded-[2rem] focus:ring-[8px] focus:ring-blue-500/5 focus:border-blue-500 focus:bg-white outline-none text-slate-900 placeholder-slate-300 transition-all font-bold text-xl"
+                                            className="w-full pl-16 pr-6 py-5 bg-slate-50/50 border border-slate-200 rounded-[2rem] focus:ring-[8px] focus:ring-[#0284c7]/5 focus:border-[#0284c7] focus:bg-white outline-none text-slate-900 placeholder-slate-300 transition-all font-bold text-xl"
                                             placeholder="Nombre de usuario"
                                             required
                                         />
@@ -146,16 +147,16 @@ const Login = () => {
                                 </div>
 
                                 <div className="space-y-3 group">
-                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] ml-4 group-focus-within:text-blue-600 transition-colors">Contraseña Segura</label>
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] ml-4 group-focus-within:text-[#0284c7] transition-colors">Contraseña Segura</label>
                                     <div className="relative">
-                                        <div className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-blue-600 transition-colors">
+                                        <div className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-[#0284c7] transition-colors">
                                             <Lock className="w-6 h-6" />
                                         </div>
                                         <input
                                             type="password"
                                             value={password}
                                             onChange={(e) => setPassword(e.target.value)}
-                                            className="w-full pl-16 pr-6 py-5 bg-slate-50/50 border border-slate-200 rounded-[2rem] focus:ring-[8px] focus:ring-blue-500/5 focus:border-blue-500 focus:bg-white outline-none text-slate-900 placeholder-slate-300 transition-all font-bold text-xl"
+                                            className="w-full pl-16 pr-6 py-5 bg-slate-50/50 border border-slate-200 rounded-[2rem] focus:ring-[8px] focus:ring-[#0284c7]/5 focus:border-[#0284c7] focus:bg-white outline-none text-slate-900 placeholder-slate-300 transition-all font-bold text-xl"
                                             placeholder="••••••••"
                                             required
                                         />
@@ -165,7 +166,7 @@ const Login = () => {
                                 <button
                                     type="submit"
                                     disabled={loading}
-                                    className="w-full py-6 bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-800 hover:from-blue-500 hover:to-indigo-700 text-white font-black rounded-[2rem] shadow-xl shadow-blue-700/20 transition-all transform hover:-translate-y-1.5 active:translate-y-0 disabled:opacity-50 disabled:cursor-not-allowed group flex items-center justify-center gap-4 relative overflow-hidden shadow-[0_25px_50px_-15px_rgba(37,99,235,0.4)]"
+                                    className="w-full py-6 bg-gradient-to-r from-[#0284c7] via-[#0270a9] to-indigo-800 hover:from-[#0369a1] hover:to-indigo-700 text-white font-black rounded-[2rem] shadow-xl shadow-[#0284c7]/20 transition-all transform hover:-translate-y-1.5 active:translate-y-0 disabled:opacity-50 disabled:cursor-not-allowed group flex items-center justify-center gap-4 relative overflow-hidden shadow-[0_25px_50px_-15px_rgba(2,132,199,0.4)]"
                                 >
                                     <div className="absolute inset-0 bg-white/20 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 skew-x-[45deg]"></div>
                                     {loading ? (
@@ -182,7 +183,7 @@ const Login = () => {
                             <div className="mt-16 text-center">
                                 <p className="text-[10px] text-slate-400 uppercase tracking-[0.6em] font-black opacity-80">
                                     <span className="opacity-40">System Architect</span> <br />
-                                    <span className="text-slate-900 mt-2 inline-block border-b-2 border-blue-600/10 hover:border-blue-600 transition-colors cursor-default">Maikol Salas</span>
+                                    <span className="text-slate-900 mt-2 inline-block border-b-2 border-[#0284c7]/10 hover:border-[#0284c7] transition-colors cursor-default">Maikol Salas</span>
                                 </p>
                             </div>
                         </div>

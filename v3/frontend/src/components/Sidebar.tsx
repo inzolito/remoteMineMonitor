@@ -8,6 +8,7 @@ const Sidebar = () => {
     const location = useLocation();
     const { user } = useAuth();
     const [collapsed, setCollapsed] = useState(false);
+    const [modules, setModules] = useState<any[]>([]);
 
     // Auto-collapse on Monitoreo pages for more space
     useEffect(() => {
@@ -16,19 +17,37 @@ const Sidebar = () => {
         }
     }, [location.pathname]);
 
-    const menuItems = [
-        { path: '/', label: 'Inicio', icon: LayoutDashboard },
-        { path: '/clients', label: 'Clientes', icon: Briefcase },
-        { path: '/monitoreo', label: 'Monitoreo Remoto', icon: Activity },
-        { path: '/tickets', label: 'Tickets', icon: Ticket },
-        { path: '/shifts', label: 'Turnos', icon: Clock },
-        { path: '/users', label: 'Gestión Usuarios', icon: Users },
-    ];
+    useEffect(() => {
+        const fetchModules = async () => {
+            if (!user?.token) return;
+            try {
+                const resp = await fetch('/monitoreoLaboratorio/v3/api/modules.php?action=allowed', {
+                    headers: { 'Authorization': `Bearer ${user.token}` }
+                });
+                if (resp.ok) {
+                    const data = await resp.json();
+                    setModules(data);
+                }
+            } catch (err) {
+                console.error("Failed to load modules", err);
+            }
+        };
+        fetchModules();
+    }, [user?.token]);
 
-    // Strictly for maik
-    if (user?.username === 'maik') {
-        menuItems.push({ path: '/super-admin', label: 'Super Admin', icon: ShieldCheck });
-    }
+    // Map icon string to component
+    const getIcon = (iconName: string) => {
+        switch (iconName) {
+            case 'LayoutDashboard': return LayoutDashboard;
+            case 'Briefcase': return Briefcase;
+            case 'Activity': return Activity;
+            case 'Ticket': return Ticket;
+            case 'Clock': return Clock;
+            case 'Users': return Users;
+            case 'ShieldCheck': return ShieldCheck;
+            default: return LayoutDashboard;
+        }
+    };
 
     return (
         <aside className={`bg-card border-r border-border transition-all duration-300 flex flex-col ${collapsed ? 'w-20' : 'w-64'} hidden md:flex`}>
@@ -42,9 +61,9 @@ const Sidebar = () => {
 
             {/* Menu Items */}
             <div className="flex-1 py-6 space-y-1 px-3">
-                {menuItems.map((item) => {
+                {modules.map((item) => {
                     const isActive = location.pathname === item.path;
-                    const Icon = item.icon;
+                    const Icon = getIcon(item.icon);
 
                     return (
                         <button
@@ -58,12 +77,12 @@ const Sidebar = () => {
                         `}
                         >
                             <Icon className={`w-5 h-5 ${isActive ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground'}`} />
-                            {!collapsed && <span>{item.label}</span>}
+                            {!collapsed && <span>{item.name}</span>}
 
                             {/* Tooltip for collapsed state */}
                             {collapsed && (
                                 <div className="absolute left-full ml-2 px-2 py-1 bg-popover text-popover-foreground text-xs rounded shadow-md opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50">
-                                    {item.label}
+                                    {item.name}
                                 </div>
                             )}
                         </button>

@@ -27,6 +27,7 @@ export interface Server {
     db_name?: string;
     status: number; // 0 or 1
     description: string;
+    notes?: string;
     last_seen?: string;
 }
 

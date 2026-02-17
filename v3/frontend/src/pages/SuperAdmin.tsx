@@ -4,17 +4,42 @@ import { Navigate } from 'react-router-dom';
 import {
     ShieldCheck, Server, Activity, Terminal,
     FileText, Plus, Trash2, Save, RefreshCw, Search,
-    AlertCircle, ChevronRight, Settings, Eye, XOctagon, Network
+    AlertCircle, ChevronRight, Settings, Eye, XOctagon, Network,
+    Users, Palette, LayoutGrid
 } from 'lucide-react';
+import UsersManagementTab from './admin/UsersManagementTab';
+import MiningIconGallery from '../components/icons/MiningIconGallery';
 import RooteoTab from '../components/RooteoTab';
 
 const API_BASE = '/monitoreoLaboratorio/v3/api/admin.php';
 
 const SuperAdmin = () => {
     const { user } = useAuth();
+    const [activeCategory, setActiveCategory] = useState('infrastructure');
     const [activeTab, setActiveTab] = useState('servers');
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+
+    const categories = [
+        { id: 'infrastructure', label: 'Infraestructura', icon: LayoutGrid, description: 'Servidores, Métricas y Monitoreo' },
+        { id: 'general', label: 'Administración', icon: Settings, description: 'Usuarios, Permisos y Recursos' },
+    ];
+
+    const tabsByCategory: Record<string, any[]> = {
+        infrastructure: [
+            { id: 'servers', label: 'Servidores', icon: Server },
+            { id: 'metrics', label: 'Catálogo Métricas', icon: Activity },
+            { id: 'commands', label: 'Comandos Fallback', icon: Terminal },
+            { id: 'profiles', label: 'Perfiles / Templates', icon: FileText },
+            { id: 'alerts', label: 'Reglas Alerta', icon: AlertCircle },
+            { id: 'rooteo', label: 'Inspección Red', icon: Network },
+        ],
+        general: [
+            { id: 'users', label: 'Gestión Usuarios', icon: Users },
+            { id: 'permissions', label: 'Matriz Permisos', icon: ShieldCheck },
+            { id: 'iconography', label: 'Galería Iconos', icon: Palette },
+        ]
+    };
 
     // Data states
     const [servers, setServers] = useState<any[]>([]);
@@ -23,6 +48,8 @@ const SuperAdmin = () => {
     const [commands, setCommands] = useState<any[]>([]);
     const [templateMetrics, setTemplateMetrics] = useState<any[]>([]);
     const [alertRules, setAlertRules] = useState<any[]>([]);
+    const [permissions, setPermissions] = useState<any[]>([]); // Roles
+    const [modules, setModules] = useState<any[]>([]); // All Modules
 
     // Selected items for editing
     const [selectedMetric, setSelectedMetric] = useState<any>(null);
@@ -41,7 +68,15 @@ const SuperAdmin = () => {
     const fetchData = async (action: string, params: string = '') => {
         setLoading(true);
         try {
-            const resp = await fetch(`${API_BASE}?action=${action}${params}`, {
+            // Special handling for permissions/modules endpoints which are separate files
+            let url = `${API_BASE}?action=${action}${params}`;
+            if (action === 'permissions') {
+                url = '/monitoreoLaboratorio/v3/api/permissions.php';
+            } else if (action === 'modules') {
+                url = '/monitoreoLaboratorio/v3/api/modules.php?action=all';
+            }
+
+            const resp = await fetch(url, {
                 headers: {
                     'Authorization': `Bearer ${user.token}`,
                     'Cache-Control': 'no-cache',
@@ -59,10 +94,16 @@ const SuperAdmin = () => {
         }
     };
 
+    // ... existing sendData ...
     const sendData = async (action: string, method: string, body: any, params: string = '') => {
         setLoading(true);
         try {
-            const resp = await fetch(`${API_BASE}?action=${action}${params}`, {
+            let url = `${API_BASE}?action=${action}${params}`;
+            if (action === 'permissions') {
+                url = '/monitoreoLaboratorio/v3/api/permissions.php'; // POST to permissions.php
+            }
+
+            const resp = await fetch(url, {
                 method,
                 headers: {
                     'Authorization': `Bearer ${user.token}`,
@@ -84,20 +125,33 @@ const SuperAdmin = () => {
         }
     };
 
-    const deleteItem = async (action: string, id: number, extra: string = '') => {
-        if (!confirm('¿Estás seguro de eliminar este elemento?')) return;
+    const deleteItem = async (action: string, id: number, extraParams: string = '') => {
+        if (!confirm('¿Estás seguro de eliminar este elemento?')) return false;
+
         setLoading(true);
         try {
-            const resp = await fetch(`${API_BASE}?action=${action}&id=${id}${extra}`, {
+            const resp = await fetch(`${API_BASE}?action=${action}&id=${id}${extraParams}`, {
                 method: 'DELETE',
-                headers: { 'Authorization': `Bearer ${user.token}` }
+                headers: {
+                    'Authorization': `Bearer ${user.token}`
+                }
             });
-            if (resp.ok) {
-                setMessage({ type: 'success', text: 'Eliminado correctamente' });
-                return true;
-            }
             const data = await resp.json();
-            throw new Error(data.message || 'Error al eliminar');
+            if (!resp.ok) throw new Error(data.message || 'Error deleting item');
+
+            setMessage({ type: 'success', text: 'Elemento eliminado correctamente' });
+            // Refresh data based on the current action/tab
+            if (activeTab === 'alerts' && action === 'alert_rules') {
+                const rules = await fetchData('alert_rules');
+                if (rules) setAlertRules(rules);
+            } else {
+                // Generic refresh attempts
+                if (action === 'servers') {
+                    const s = await fetchData('servers');
+                    if (s) setServers(s);
+                }
+            }
+            return true;
         } catch (err: any) {
             setMessage({ type: 'error', text: err.message });
             return false;
@@ -123,6 +177,10 @@ const SuperAdmin = () => {
                 const [r, m] = await Promise.all([fetchData('alert_rules'), fetchData('metrics')]);
                 if (r) setAlertRules(r);
                 if (m) setMetrics(m);
+            } else if (activeTab === 'permissions') {
+                const [p, m] = await Promise.all([fetchData('permissions'), fetchData('modules')]);
+                if (p) setPermissions(p);
+                if (m) setModules(m);
             }
         };
         loadInitial();
@@ -142,44 +200,50 @@ const SuperAdmin = () => {
 
     return (
         <div className="p-8 max-w-7xl mx-auto space-y-6">
-            {/* Header */}
-            <div className="flex items-center justify-between border-b pb-4">
+            {/* Header with Categories */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-6">
                 <div className="flex items-center gap-3">
-                    <div className="p-2 bg-primary/10 rounded-lg">
-                        <ShieldCheck className="w-8 h-8 text-primary" />
+                    <div className="p-2.5 bg-primary/10 rounded-2xl">
+                        <Settings className="w-8 h-8 text-primary" />
                     </div>
                     <div>
-                        <h1 className="text-2xl font-bold">Super Admin Panel</h1>
-                        <p className="text-sm text-muted-foreground">Gestión de arquitectura de métricas y comandos (Exclusivo Maik)</p>
+                        <h1 className="text-2xl font-black tracking-tight">Super Admin Panel</h1>
+                        <p className="text-sm text-muted-foreground font-medium">Arquitectura de monitoreo y administración general</p>
                     </div>
                 </div>
-                {loading && <RefreshCw className="w-5 h-5 animate-spin text-muted-foreground" />}
+
+                <div className="flex bg-muted/50 p-1.5 rounded-2xl border border-border/50">
+                    {categories.map((cat) => (
+                        <button
+                            key={cat.id}
+                            onClick={() => {
+                                setActiveCategory(cat.id);
+                                setActiveTab(tabsByCategory[cat.id][0].id);
+                            }}
+                            className={`flex items-center gap-2.5 px-6 py-2.5 rounded-xl transition-all duration-300 font-bold text-xs uppercase tracking-wider ${activeCategory === cat.id
+                                ? 'bg-background text-primary shadow-xl shadow-primary/5 border border-border/50 scale-[1.02]'
+                                : 'text-muted-foreground hover:text-foreground'
+                                }`}
+                        >
+                            <cat.icon className={`w-4 h-4 ${activeCategory === cat.id ? 'text-primary' : ''}`} />
+                            {cat.label}
+                        </button>
+                    ))}
+                </div>
             </div>
 
-            {message && (
-                <div className={`p-4 rounded-lg flex items-center gap-3 ${message.type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                    {message.type === 'success' ? <RefreshCw className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
-                    <span>{message.text}</span>
-                    <button onClick={() => setMessage(null)} className="ml-auto font-bold">&times;</button>
-                </div>
-            )}
-
-            {/* Tabs Navigation */}
-            <div className="flex gap-2 p-1 bg-muted rounded-xl w-fit">
-                {[
-                    { id: 'servers', label: 'Servidores', icon: Server },
-                    { id: 'metrics', label: 'Catálogo Métricas', icon: Activity },
-                    { id: 'commands', label: 'Comandos Fallback', icon: Terminal },
-                    { id: 'templates', label: 'Perfiles (Templates)', icon: FileText },
-                    { id: 'alerts', label: 'Alertas', icon: AlertCircle },
-                    { id: 'rooteo', label: 'Rooteo', icon: Eye }
-                ].map((tab) => {
+            {/* Sub-navigation Tabs */}
+            <div className="flex flex-wrap gap-2 py-2 border-b">
+                {tabsByCategory[activeCategory].map((tab) => {
                     const Icon = tab.icon;
                     return (
                         <button
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id)}
-                            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${activeTab === tab.id ? 'bg-background shadow-sm text-primary font-medium' : 'text-muted-foreground hover:text-foreground'}`}
+                            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl transition-all duration-200 text-sm font-bold ${activeTab === tab.id
+                                ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20 scale-[1.02]'
+                                : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
+                                }`}
                         >
                             <Icon className="w-4 h-4" />
                             {tab.label}
@@ -656,6 +720,382 @@ const SuperAdmin = () => {
                                 <p className="font-medium">Selecciona un perfil para gestionar sus métricas habilitadas.</p>
                             </div>
                         )}
+                    </div>
+                </div>
+            )}
+            {/* Detail Modal */}
+
+            {/* Tab: Alerts */}
+            {activeTab === 'alerts' && (
+                <div className="grid grid-cols-12 gap-6">
+                    <div className="col-span-8 bg-card rounded-xl border overflow-hidden flex flex-col">
+                        <div className="p-4 border-b bg-muted/50 flex justify-between items-center">
+                            <h2 className="font-semibold flex items-center gap-2">
+                                <AlertCircle className="w-5 h-5 text-primary" />
+                                Reglas de Alerta ({alertRules.length})
+                            </h2>
+                            <button
+                                onClick={() => setSelectedRule({
+                                    metric_id: null,
+                                    metric_pattern: '',
+                                    rule_type: 'threshold',
+                                    operator: '>',
+                                    threshold_value: '',
+                                    alert_category: 'warning',
+                                    description: '',
+                                    priority: 1
+                                })}
+                                className="flex items-center gap-1 text-xs bg-primary text-primary-foreground px-3 py-1.5 rounded-lg hover:opacity-90 transition-opacity"
+                            >
+                                <Plus className="w-4 h-4" /> Nueva Regla
+                            </button>
+                        </div>
+                        <div className="max-h-[700px] overflow-y-auto border-t">
+                            {(() => {
+                                const linked = alertRules.filter(r => r.metric_id);
+                                const unlinked = alertRules.filter(r => !r.metric_id);
+
+                                const grouped = linked.reduce((acc: any, rule) => {
+                                    if (!acc[rule.metric_id]) acc[rule.metric_id] = {
+                                        id: rule.metric_id,
+                                        name: rule.metric_technical_name,
+                                        display: rule.metric_display_name,
+                                        rules: []
+                                    };
+                                    acc[rule.metric_id].rules.push(rule);
+                                    return acc;
+                                }, {});
+
+                                return (
+                                    <div className="divide-y divide-slate-100">
+                                        {Object.values(grouped).map((group: any) => (
+                                            <div key={group.id} className="p-4 hover:bg-muted/5 transition-colors">
+                                                <div className="flex justify-between items-start mb-3">
+                                                    <div>
+                                                        <h3 className="font-black text-slate-800 flex items-center gap-2 text-sm uppercase">
+                                                            <Activity className="w-4 h-4 text-primary" />
+                                                            {group.display}
+                                                        </h3>
+                                                        <p className="text-[10px] font-mono text-slate-400">{group.name}</p>
+                                                    </div>
+                                                    <button
+                                                        onClick={async () => {
+                                                            const details = await fetchData('metric_details', `&metric_id=${group.id}`);
+                                                            if (details) setPurgeData(details);
+                                                        }}
+                                                        className="text-[9px] font-black text-red-500 hover:bg-red-500 hover:text-white px-2 py-1 rounded border border-red-100 transition-all uppercase flex items-center gap-1 shadow-sm"
+                                                    >
+                                                        <XOctagon className="w-3 h-3" /> Purgar Métrica
+                                                    </button>
+                                                </div>
+
+                                                <div className="space-y-1.5 ml-6">
+                                                    {group.rules.map((rule: any) => (
+                                                        <div key={rule.id} className={`flex items-center justify-between p-2 rounded-lg border text-xs shadow-sm transition-all ${selectedRule?.id === rule.id ? 'bg-primary/5 border-primary/30 ring-1 ring-primary/10' : 'bg-white hover:border-slate-300'}`}>
+                                                            <div className="flex items-center gap-4 flex-1 min-w-0">
+                                                                <div className="flex items-center gap-2 min-w-[120px]">
+                                                                    <span className="bg-slate-100 px-1.5 py-0.5 rounded text-[10px] font-black border uppercase tracking-tighter">
+                                                                        {rule.operator}
+                                                                    </span>
+                                                                    <span className="font-mono text-xs text-primary font-black">
+                                                                        {rule.threshold_value}
+                                                                    </span>
+                                                                </div>
+
+                                                                <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase border tracking-widest ${rule.alert_category === 'danger' ? 'bg-red-50 text-red-600 border-red-100' : 'bg-amber-50 text-amber-600 border-amber-100'
+                                                                    }`}>
+                                                                    {rule.alert_category}
+                                                                </span>
+
+                                                                <span className="text-[10px] text-slate-400 italic truncate ml-2">
+                                                                    "{rule.description}"
+                                                                </span>
+                                                            </div>
+
+                                                            <div className="flex items-center gap-1 ml-4 border-l pl-2 border-slate-100">
+                                                                <button onClick={() => setSelectedRule(rule)} className="p-1.5 hover:bg-slate-50 rounded text-primary transition-all" title="Editar"><Settings className="w-4 h-4" /></button>
+                                                                <button
+                                                                    onClick={async () => {
+                                                                        if (confirm(`¿Eliminar solo esta regla?`)) {
+                                                                            if (await deleteItem('alert_rules', rule.id)) {
+                                                                                const r = await fetchData('alert_rules');
+                                                                                setAlertRules(r || []);
+                                                                            }
+                                                                        }
+                                                                    }}
+                                                                    className="p-1.5 hover:bg-orange-50 rounded text-orange-400 hover:text-orange-600 transition-all"
+                                                                >
+                                                                    <Trash2 className="w-4 h-4" />
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        ))}
+
+                                        {unlinked.length > 0 && (
+                                            <div className="bg-slate-50 border-t-8 border-slate-100 shadow-inner">
+                                                <div className="p-4 bg-slate-100/50 flex items-center justify-between">
+                                                    <div className="flex items-center gap-2">
+                                                        <Trash2 className="w-4 h-4 text-slate-400" />
+                                                        <h3 className="font-black text-slate-500 uppercase text-[10px] tracking-widest">Depósito de Reglas de Patrón / Basura</h3>
+                                                    </div>
+                                                    <span className="text-[10px] bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full font-bold">{unlinked.length}</span>
+                                                </div>
+                                                <div className="px-6 py-4 space-y-2">
+                                                    {unlinked.map((rule: any) => (
+                                                        <div key={rule.id} className="flex items-center justify-between p-3 bg-white border-2 border-dashed border-slate-200 rounded-xl hover:border-slate-400 transition-all shadow-sm">
+                                                            <div className="flex-1 min-w-0">
+                                                                <div className="font-mono text-[10px] font-bold text-slate-500 truncate mb-1 bg-slate-50 px-2 py-1 rounded inline-block">{rule.metric_pattern}</div>
+                                                                <div className="flex items-center gap-3">
+                                                                    <span className="text-[10px] bg-muted px-2 py-0.5 rounded font-black border uppercase">{rule.operator} {rule.threshold_value}</span>
+                                                                    <span className={`text-[9px] px-2 py-0.5 rounded font-black uppercase border shadow-sm ${rule.alert_category === 'danger' ? 'bg-red-500 text-white border-red-600' : 'bg-amber-400 text-white border-amber-500'
+                                                                        }`}>{rule.alert_category}</span>
+                                                                    <span className="text-[10px] text-slate-400 italic font-medium ml-2">"{rule.description}"</span>
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex gap-1 ml-4 border-l pl-3 border-slate-100">
+                                                                <button onClick={() => setSelectedRule(rule)} className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-primary transition-all"><Settings className="w-4 h-4" /></button>
+                                                                <button
+                                                                    onClick={async () => {
+                                                                        const params = rule.metric_id ? `&metric_id=${rule.metric_id}` : `&pattern=${encodeURIComponent(rule.metric_pattern)}`;
+                                                                        const details = await fetchData('metric_details', params);
+                                                                        if (details) setPurgeData({ ...details, rule_id: rule.id });
+                                                                    }}
+                                                                    className="p-2 hover:bg-red-50 rounded text-red-300 hover:text-red-500 transition-all"
+                                                                >
+                                                                    <XOctagon className="w-4 h-4" />
+                                                                </button>
+                                                                <button
+                                                                    onClick={async () => {
+                                                                        if (confirm('¿Eliminar regla?')) {
+                                                                            if (await deleteItem('alert_rules', rule.id)) {
+                                                                                const r = await fetchData('alert_rules');
+                                                                                setAlertRules(r || []);
+                                                                            }
+                                                                        }
+                                                                    }}
+                                                                    className="p-2 hover:bg-orange-50 rounded text-orange-300 hover:text-orange-500 transition-all"
+                                                                >
+                                                                    <Trash2 className="w-4 h-4" />
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })()}
+                        </div>
+                    </div>
+
+                    <div className="col-span-4 bg-card rounded-xl border p-6 h-fit sticky top-6 shadow-sm">
+                        <div className="flex items-center gap-2 mb-6 border-b pb-4">
+                            <Settings className="w-5 h-5 text-primary" />
+                            <h2 className="font-bold">{selectedRule?.id ? 'Configurar Regla' : 'Nueva Regla de Alerta'}</h2>
+                        </div>
+
+                        {selectedRule ? (
+                            <form className="space-y-5" onSubmit={async (e) => {
+                                e.preventDefault();
+                                if (await sendData('alert_rules', 'POST', selectedRule)) {
+                                    const r = await fetchData('alert_rules');
+                                    setAlertRules(r || []);
+                                    setSelectedRule(null);
+                                }
+                            }}>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-bold text-muted-foreground uppercase flex items-center gap-1">
+                                        Métrica Asociada
+                                        <div className="h-px bg-border flex-1 ml-1 opacity-50"></div>
+                                    </label>
+                                    <select
+                                        className="w-full p-2.5 border rounded-lg bg-muted/30 focus:ring-1 ring-primary outline-none transition-all text-sm font-medium"
+                                        value={selectedRule.metric_id || ''}
+                                        onChange={e => setSelectedRule({
+                                            ...selectedRule,
+                                            metric_id: e.target.value ? parseInt(e.target.value) : null,
+                                            metric_pattern: e.target.value ? '' : selectedRule.metric_pattern
+                                        })}
+                                    >
+                                        <option value="">-- Usar Patrón Manual (Regex/Like) --</option>
+                                        {metrics.map(m => (
+                                            <option key={m.id} value={m.id}>{m.display_name} ({m.name})</option>
+                                        ))}
+                                    </select>
+                                    {!selectedRule.metric_id && (
+                                        <input
+                                            type="text"
+                                            placeholder="Patrón (ej: system.cpu.%)"
+                                            className="w-full p-2.5 border rounded-lg bg-orange-50/30 border-orange-200 text-sm font-mono focus:ring-1 ring-orange-500 outline-none"
+                                            value={selectedRule.metric_pattern}
+                                            onChange={e => setSelectedRule({ ...selectedRule, metric_pattern: e.target.value })}
+                                        />
+                                    )}
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-bold text-muted-foreground uppercase">Evaluación</label>
+                                        <select
+                                            className="w-full p-2.5 border rounded-lg bg-muted/30 text-sm font-bold"
+                                            value={selectedRule.operator}
+                                            onChange={e => setSelectedRule({ ...selectedRule, operator: e.target.value })}
+                                        >
+                                            <optgroup label="Numérico">
+                                                <option value=">">Mayor que {'>'}</option>
+                                                <option value=">=">Mayor o igual {'>='}</option>
+                                                <option value="<">Menor que {'<'}</option>
+                                                <option value="<=">Menor o igual {'<='}</option>
+                                                <option value="BETWEEN">Entre (X,Y)</option>
+                                            </optgroup>
+                                            <optgroup label="Texto / Especial">
+                                                <option value="CONTAINS">Contiene texto</option>
+                                                <option value="NOT_CONTAINS">NO contiene</option>
+                                                <option value="REGEX">Expresión Regular</option>
+                                            </optgroup>
+                                            <optgroup label="Tiempo / Fecha">
+                                                <option value="AGE_GREATER_THAN">Antigüedad {'>'} a...</option>
+                                                <option value="DURATION_GREATER_THAN">Duración {'>'} a...</option>
+                                            </optgroup>
+                                        </select>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-bold text-muted-foreground uppercase">Valor Umbral</label>
+                                        <input
+                                            type="text"
+                                            placeholder={selectedRule.operator === 'BETWEEN' ? "ej: 10,20" : "5.5, Error..."}
+                                            className="w-full p-2.5 border rounded-lg bg-muted/30 text-sm font-bold focus:ring-1 ring-primary outline-none"
+                                            value={selectedRule.threshold_value}
+                                            onChange={e => setSelectedRule({ ...selectedRule, threshold_value: e.target.value })}
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-bold text-muted-foreground uppercase">Gravedad / Categoría</label>
+                                    <div className="grid grid-cols-3 gap-2">
+                                        {['warning', 'danger', 'critical'].map(cat => (
+                                            <button
+                                                key={cat}
+                                                type="button"
+                                                onClick={() => setSelectedRule({ ...selectedRule, alert_category: cat })}
+                                                className={`py-2 rounded-lg text-[10px] font-black uppercase border transition-all ${selectedRule.alert_category === cat
+                                                    ? (cat === 'warning' ? 'bg-amber-100 border-amber-400 text-amber-700 ring-2 ring-amber-400/20' :
+                                                        cat === 'danger' ? 'bg-orange-100 border-orange-400 text-orange-700 ring-2 ring-orange-400/20' :
+                                                            'bg-red-100 border-red-400 text-red-700 ring-2 ring-red-400/20')
+                                                    : 'bg-muted/30 border-transparent text-muted-foreground opacity-50 grayscale hover:grayscale-0'
+                                                    }`}
+                                            >
+                                                {cat}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-bold text-muted-foreground uppercase">Mensaje de la Alerta (Descripción)</label>
+                                    <textarea
+                                        className="w-full p-3 border rounded-lg bg-muted/30 h-28 text-sm focus:ring-1 ring-primary outline-none"
+                                        placeholder="Ej: Se ha detectado una sobrecarga crítica en la CPU..."
+                                        value={selectedRule.description}
+                                        onChange={e => setSelectedRule({ ...selectedRule, description: e.target.value })}
+                                    />
+                                    <p className="text-[10px] text-muted-foreground italic">Este texto aparecerá en el FS de Alerta cuando se cumpla la condición.</p>
+                                </div>
+
+                                <div className="pt-2 flex gap-2">
+                                    <button type="submit" className="flex-1 bg-primary text-primary-foreground py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg hover:shadow-primary/20 active:scale-[0.98] transition-all">
+                                        <Save className="w-5 h-5" /> Guardar Regla
+                                    </button>
+                                    <button type="button" onClick={() => setSelectedRule(null)} className="px-4 border rounded-xl hover:bg-muted font-bold text-xs uppercase tracking-wider">Cancelar</button>
+                                </div>
+                            </form>
+                        ) : (
+                            <div className="text-center py-20 border-2 border-dashed rounded-2xl bg-muted/10 opacity-60">
+                                <AlertCircle className="w-16 h-16 text-muted-foreground/30 mx-auto mb-4" />
+                                <p className="text-sm text-muted-foreground px-10">Selecciona una regla para editar sus parámetros o define una condición nueva.</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
+
+            {/* Tab: Permissions */}
+            {activeTab === 'permissions' && (
+                <div className="bg-card rounded-xl border p-6">
+                    <div className="flex justify-between items-center mb-6">
+                        <div>
+                            <h2 className="text-lg font-semibold flex items-center gap-2"><ShieldCheck className="w-5 h-5 text-primary" /> Matriz de Permisos</h2>
+                            <p className="text-sm text-muted-foreground">Define qué módulos puede ver cada rol de usuario.</p>
+                        </div>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                            <thead className="text-muted-foreground border-b text-left bg-muted/20">
+                                <tr>
+                                    <th className="py-3 px-4 font-medium uppercase text-xs tracking-wider">Módulo / Sección</th>
+                                    {permissions.map(p => (
+                                        <th key={p.id} className="py-3 px-4 font-medium uppercase text-xs tracking-wider text-center border-l">
+                                            {p.name}
+                                        </th>
+                                    ))}
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y">
+                                {modules.map(m => (
+                                    <tr key={m.id} className="hover:bg-muted/40 transition-colors">
+                                        <td className="py-3 px-4 flex items-center gap-3">
+                                            <div className="p-1.5 bg-primary/5 rounded text-primary">
+                                                {/* We don't have Icon component here unless we map again or store icon name */}
+                                                <span className="font-mono text-xs">{m.icon}</span>
+                                            </div>
+                                            <div>
+                                                <div className="font-medium text-foreground">{m.name}</div>
+                                                <div className="text-xs text-muted-foreground">{m.description}</div>
+                                            </div>
+                                        </td>
+                                        {permissions.map(p => {
+                                            const isChecked = p.enabled_modules?.includes(m.id);
+                                            return (
+                                                <td key={`${p.id}-${m.id}`} className="py-3 px-4 text-center border-l bg-muted/5">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={isChecked}
+                                                        onChange={async (e) => {
+                                                            const checked = e.target.checked;
+                                                            if (await sendData('permissions', 'POST', {
+                                                                permission_id: p.id,
+                                                                module_id: m.id,
+                                                                can_view: checked
+                                                            })) {
+                                                                // Update local state optimizing for speed
+                                                                const newPerms = [...permissions];
+                                                                const permIdx = newPerms.findIndex(x => x.id === p.id);
+                                                                if (permIdx >= 0) {
+                                                                    if (checked) {
+                                                                        newPerms[permIdx].enabled_modules.push(m.id);
+                                                                    } else {
+                                                                        newPerms[permIdx].enabled_modules = newPerms[permIdx].enabled_modules.filter((id: number) => id !== m.id);
+                                                                    }
+                                                                    setPermissions(newPerms);
+                                                                }
+                                                            }
+                                                        }}
+                                                        className="w-4 h-4 text-primary rounded border-gray-300 focus:ring-primary cursor-pointer accent-primary"
+                                                    />
+                                                </td>
+                                            );
+                                        })}
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             )}
@@ -1441,6 +1881,12 @@ const SuperAdmin = () => {
                     </div>
                 </div>
             )}
+
+            {/* Tab: Users */}
+            {activeTab === 'users' && <UsersManagementTab />}
+
+            {/* Tab: Iconography */}
+            {activeTab === 'iconography' && <MiningIconGallery />}
 
             {/* Tab: Rooteo */}
             {activeTab === 'rooteo' && <RooteoTab />}

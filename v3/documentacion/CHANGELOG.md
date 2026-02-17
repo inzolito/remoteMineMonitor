@@ -1,5 +1,14 @@
 # Historial de Cambios - Monitoreo V3
 
+- **2026-02-04**: **Refactorización del Sistema de Alertas y Soporte para Secundarios**:
+    - **Evaluación en Tiempo de Lectura**: Implementación de re-evaluación dinámica en `api/metrics.php` para que los colores del dashboard reflejen cambios en las reglas al instante.
+    - **Soporte para Servidores Secundarios**: Corrección de bug que impedía el disparo de alertas en nodos secundarios mediante la resolución y paso explícito de IDs de métrica al evaluador.
+    - **Exclusión Selectiva**: Configuración de reglas para ignorar alertas de CPU en servidores secundarios, enfocando el monitoreo solo en RAM y Disco según requerimiento.
+    - **Mejoras en el Alert Manager (Frontend)**:
+        - Implementación de estado optimista para evitar la re-aparición de alertas recién marcadas en revisión (race condition fix).
+        - Notificaciones inteligentes: Pantalla completa en vistas de monitoreo y toasts no intrusivos en el resto del panel.
+        - Silenciado rápido desde notificaciones persistentes.
+
 - **2026-02-02**: Limpieza profunda de métricas legadas (`ramPercent`, `porcentajeCpu`, `reiniciosJAMS`).
 - **2026-02-02**: Normalización de mapeos en `api/metrics.php` hacia nomenclatura oficial V3.
 - **2026-02-02**: Eliminación de métricas duplicadas de servicios (`system.services.*`) en `server_app_metrics`.

@@ -104,13 +104,15 @@ const AlertManager: React.FC<{ initialDataLoaded?: boolean }> = ({ initialDataLo
                 });
 
                 // Cleanup ignored set: Remove IDs that are no longer in the backend response
-                // This means the backend has finally caught up and stopped sending them
+                // [MODIFIED] Logic disabled to prevent "Ghosting" alerts (re-opening if API flickers)
+                /* 
                 const backendIds = new Set(data.map(a => a.id));
                 for (const id of ignoredAlertsRef.current) {
                     if (!backendIds.has(id)) {
                         ignoredAlertsRef.current.delete(id);
                     }
                 }
+                */
 
                 setAlerts(filteredData);
                 if (filteredData.length > 0) {

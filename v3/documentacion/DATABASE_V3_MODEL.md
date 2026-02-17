@@ -75,6 +75,14 @@ erDiagram
 
 ---
 
+## 5. Control de Acceso y Usuarios (RBAC)
+
+El sistema implementa un control de acceso basado en roles para proteger los módulos del frontend y los endpoints del API.
+
+Para más detalle, consulte: [SISTEMA_PERMISOS.md](SISTEMA_PERMISOS.md)
+
+---
+
 ## 5. Notas para Agentes
 
 - **Independencia**: El sistema es 100% independiente de la base de datos `checksupport`. Toda la lógica reside en `monitoring_system`.

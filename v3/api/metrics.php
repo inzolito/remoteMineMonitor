@@ -298,14 +298,28 @@ if ($method === 'POST') {
         echo json_encode($res);
     } elseif (isset($_GET['site_id'])) {
         $site_id = intval($_GET['site_id']);
-        $site_servers = $mysqli->query("SELECT s.*, ss.is_primary FROM servers s JOIN site_servers ss ON s.id = ss.server_id WHERE ss.site_id = $site_id AND s.is_deleted = 0");
+        $site_servers = $mysqli->query("SELECT s.*, ss.is_primary FROM servers s JOIN site_servers ss ON s.id = ss.server_id WHERE ss.site_id = $site_id AND s.is_deleted = 0 AND s.server_type_id IN (5, 6)");
         
         // [READ-TIME EVALUATOR]
         // Instantiate here to re-evaluate rules against current data on every read.
         $rtEvaluator = new MetricsEvaluator($mysqli);
 
+        // [PRE-FETCH METRIC IDs]
+        // Resolve IDs once to ensure ID-based rules match against the evaluator
+        // Done BEFORE the loop to avoid any interference with the main query result set
+        $metricIds = [];
+        $keysToResolve = ["'system.cpu.load'", "'system.ram.percent'", "'system.disk.percent'", "'app.repc'", "'backup.daily.status'", "'backup.hourly.status'", "'app.jams.service'", "'app.fms.active_scripts'", "'app.summarizer.log'"];
+        $mIdsRes = $mysqli->query("SELECT id, name FROM metrics WHERE name IN (" . implode(',', $keysToResolve) . ")");
+        if ($mIdsRes) {
+            while($mr = $mIdsRes->fetch_assoc()) {
+                $metricIds[$mr['name']] = $mr['id'];
+            }
+        }
+
         while ($server = $site_servers->fetch_assoc()) {
             $server_id = $server['id'];
+
+            // ... (rest of the loop content is unchanged until evaluation) ...
 
             // 1. Fetch App Metrics FIRST (Current State)
             $app = [];
@@ -338,6 +352,7 @@ if ($method === 'POST') {
             $injectMetric($mysqli, $server_id, $app, 'app.fms.replica', true);
             $injectMetric($mysqli, $server_id, $app, 'app.summarizer.service', true);
             $injectMetric($mysqli, $server_id, $app, 'app.summarizer.crontab', true);
+            $injectMetric($mysqli, $server_id, $app, 'app.summarizer.log', true);
             $injectMetric($mysqli, $server_id, $app, 'system.ntp.status', true);
             $injectMetric($mysqli, $server_id, $app, 'backup.daily.log', true);
             $injectMetric($mysqli, $server_id, $app, 'backup.hourly.log', true);
@@ -405,9 +420,56 @@ if ($method === 'POST') {
             // [READ-TIME EVALUATION]
             // Re-run the evaluator against the fetched values to ensure status matches active DB rules exactly.
             // This overrides any stale status stored in the DB from previous write-time evaluations.
-            $sys['cpu_status'] = $rtEvaluator->evaluate('system.cpu.load', $sys['cpu_usage'], $server_id);
-            $sys['ram_status'] = $rtEvaluator->evaluate('system.ram.percent', $sys['ram_percent'], $server_id);
-            $sys['disk_status'] = $rtEvaluator->evaluate('system.disk.percent', $sys['disk_percent'], $server_id);
+            
+            // NOW PASSING METRIC ID to ensure rules linked by ID are found.
+            // CONDITION: User requested ONLY RAM and Disk for secondary server.
+            // If primary, pass all IDs. If secondary, pass NULL for CPU to skip ID-based CPU rules (pattern rules might still match if any).
+            $cpuIdArg = ($server['is_primary'] == 1) ? ($metricIds['system.cpu.load'] ?? null) : null;
+            
+            $sys['cpu_status'] = $rtEvaluator->evaluate('system.cpu.load', $sys['cpu_usage'], $server_id, $cpuIdArg);
+            $sys['ram_status'] = $rtEvaluator->evaluate('system.ram.percent', $sys['ram_percent'], $server_id, $metricIds['system.ram.percent'] ?? null);
+            $sys['disk_status'] = $rtEvaluator->evaluate('system.disk.percent', $sys['disk_percent'], $server_id, $metricIds['system.disk.percent'] ?? null);
+
+            // [NEW] Dynamic evaluation for app.repc
+            $repcVal = $app['app.repc']['metric_value'] ?? null;
+            if ($repcVal !== null) {
+                $repcStatus = $rtEvaluator->evaluate('app.repc', $repcVal, $server_id, $metricIds['app.repc'] ?? null);
+                $app['app.repc']['status'] = $repcStatus;
+            }
+
+            // [NEW] Dynamic evaluation for Backups
+            $dailyVal = $app['backup.daily.status']['metric_value'] ?? null;
+            if ($dailyVal !== null) {
+                $dailyStatus = $rtEvaluator->evaluate('backup.daily.status', $dailyVal, $server_id, $metricIds['backup.daily.status'] ?? null);
+                $app['backup.daily.status']['status'] = $dailyStatus;
+            }
+
+            $hourlyVal = $app['backup.hourly.status']['metric_value'] ?? null;
+            if ($hourlyVal !== null) {
+                $hourlyStatus = $rtEvaluator->evaluate('backup.hourly.status', $hourlyVal, $server_id, $metricIds['backup.hourly.status'] ?? null);
+                $app['backup.hourly.status']['status'] = $hourlyStatus;
+            }
+
+            // [NEW] Dynamic evaluation for JAMS Service
+            $jamsVal = $app['app.jams.service']['metric_value'] ?? null;
+            if ($jamsVal !== null) {
+                $jamsStatus = $rtEvaluator->evaluate('app.jams.service', $jamsVal, $server_id, $metricIds['app.jams.service'] ?? null);
+                $app['app.jams.service']['status'] = $jamsStatus;
+            }
+
+            // [NEW] Dynamic evaluation for Active Scripts
+            $scriptsVal = $app['app.fms.active_scripts']['metric_value'] ?? null;
+            if ($scriptsVal !== null) {
+                $scriptsStatus = $rtEvaluator->evaluate('app.fms.active_scripts', $scriptsVal, $server_id, $metricIds['app.fms.active_scripts'] ?? null);
+                $app['app.fms.active_scripts']['status'] = $scriptsStatus;
+            }
+
+            // [NEW] Dynamic evaluation for Summarizer Log
+            $logVal = $app['app.summarizer.log']['metric_value'] ?? null;
+            if ($logVal !== null) {
+                $logStatus = $rtEvaluator->evaluate('app.summarizer.log', $logVal, $server_id, $metricIds['app.summarizer.log'] ?? null);
+                $app['app.summarizer.log']['status'] = $logStatus;
+            }
 
             // Ensure compatibility with frontend gauge expectations (inject back into $app)
             if (!isset($app['system.cpu.load'])) {

@@ -86,7 +86,7 @@ switch ($method) {
             $statusFilter = isset($_GET['status']) ? intval($_GET['status']) : null;
             
             $cols = "
-                id, name, alias, status, COALESCE(conglomerate, '') as conglomerate, logo_url, 
+                id, name, alias, status, is_visible, COALESCE(conglomerate, '') as conglomerate, logo_url, 
                 contract_number, contract_validity, contract_manager, 
                 dispatch_contact, dispatch_phone, onsite_engineers, 
                 (SELECT GROUP_CONCAT(name SEPARATOR ', ') FROM site_contacts WHERE site_id = sites.id AND role = 'contract_admin') as contract_admin_users,
@@ -168,8 +168,18 @@ switch ($method) {
             ";
 
             if ($statusFilter !== null) {
+                // If specific status requested (e.g. for python monitoring checks), respect it
                 $query = "SELECT $cols FROM sites WHERE status = $statusFilter ORDER BY name ASC";
             } else {
+                // Default API list: return ALL sites (let frontend sort by is_visible) OR return only visible?
+                // Plan said: "Change default filter... to is_visible = 1"
+                // But typically Admin panels want to see ALL to toggle them.
+                // Let's return ALL and let frontend filter, or add an is_visible parameter?
+                // ClientsPage needs ONLY visible.
+                // Let's add ?visible=1 param support, or just return all and filtering in frontend.
+                // ClientsPage.tsx currently fetches all and filters `site.status == 1`.
+                // So returning all is fine, we just need `is_visible` field in the response.
+                // WE ARE ADDING `is_visible` field to $cols above.
                 $query = "SELECT $cols FROM sites ORDER BY name ASC";
             }
             
@@ -195,13 +205,13 @@ switch ($method) {
         $types = "";
 
         // Dynamic update builder
-        $allowed_fields = ['name', 'alias', 'status', 'conglomerate', 'logo_url', 'contract_number', 'contract_validity', 'contract_manager', 'dispatch_contact', 'dispatch_phone', 'onsite_engineers'];
+        $allowed_fields = ['name', 'alias', 'status', 'is_visible', 'conglomerate', 'logo_url', 'contract_number', 'contract_validity', 'contract_manager', 'dispatch_contact', 'dispatch_phone', 'onsite_engineers'];
         
         foreach ($allowed_fields as $field) {
             if (isset($input[$field])) {
                 $fields[] = "$field = ?";
                 $params[] = $input[$field];
-                $types .= ($field === 'status') ? "i" : "s";
+                $types .= ($field === 'status' || $field === 'is_visible') ? "i" : "s";
             }
         }
 
@@ -234,12 +244,14 @@ switch ($method) {
              exit();
         }
         
-        $stmt = $mysqli->prepare("INSERT INTO sites (name, alias, status, conglomerate, logo_url, contract_number, contract_validity, contract_manager, dispatch_contact, dispatch_phone, onsite_engineers) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        $stmt = $mysqli->prepare("INSERT INTO sites (name, alias, status, is_visible, conglomerate, logo_url, contract_number, contract_validity, contract_manager, dispatch_contact, dispatch_phone, onsite_engineers) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
         $status = $input['status'] ?? 0;
-        $stmt->bind_param("ssissssssss", 
+        $is_visible = $input['is_visible'] ?? 1;
+        $stmt->bind_param("ssiissssssss", 
             $input['name'], 
             $input['alias'], 
-            $status, 
+            $status,
+            $is_visible, 
             $input['conglomerate'], 
             $input['logo_url'],
             $input['contract_number'],

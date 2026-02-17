@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getSiteById } from '../services/sitesService';
 import { getServersBySite, createServer, updateServer, type Server as ServerType } from '../services/serversService';
 import { getContacts, type SiteContact } from '../services/contactsService';
-import { Loader2, Server, Plus, Edit2, Phone, Users, Mail } from 'lucide-react';
+import { Loader2, Server, Plus, Edit2, Phone, Users, Mail, Eye, EyeOff, Copy, Terminal, Cpu, Key, Database, Clock } from 'lucide-react';
 import ServerModal from '../components/ServerModal';
 import EditSiteModal from '../components/EditSiteModal';
 
@@ -17,6 +17,7 @@ const SiteDetails = () => {
     const [isEditSiteModalOpen, setIsEditSiteModalOpen] = useState(false);
     const [editModalTab, setEditModalTab] = useState<'general' | 'contacts'>('general');
     const [editingServer, setEditingServer] = useState<ServerType | null>(null);
+    const [revealedServerId, setRevealedServerId] = useState<number | null>(null);
 
     // Query for Site Details
     const { data: site, isLoading: siteLoading } = useQuery({
@@ -193,14 +194,19 @@ const SiteDetails = () => {
                             {/* Contract Admin Display */}
                             <div className="mt-4">
                                 <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1">Admin Contrato</h3>
-                                {groupedContacts['contract_admin']?.map(c => (
-                                    <div key={c.id} className="text-sm">
-                                        <div className="font-medium">{c.name}</div>
-                                        {c.phone && <div className="text-muted-foreground text-xs flex items-center gap-1 justify-center md:justify-start"><Phone className="w-3 h-3" /> {c.phone}</div>}
+                                {groupedContacts && groupedContacts['contract_admin'] && groupedContacts['contract_admin'].length > 0 ? (
+                                    groupedContacts['contract_admin'].map(c => (
+                                        <div key={c.id} className="text-sm">
+                                            <div className="font-medium">{c.name}</div>
+                                            {c.phone && <div className="text-muted-foreground text-xs flex items-center gap-1 justify-center md:justify-start"><Phone className="w-3 h-3" /> {c.phone}</div>}
+                                        </div>
+                                    ))
+                                ) : (
+                                    <div className="text-sm text-muted-foreground italic">
+                                        No definido
+                                        {/* Debug: {contacts ? ` (loaded ${contacts.length})` : ' (loading)'} */}
                                     </div>
-                                )) || (
-                                        <span className="text-sm text-muted-foreground italic">No definido</span>
-                                    )}
+                                )}
                             </div>
                         </div>
                     </div>
@@ -259,60 +265,180 @@ const SiteDetails = () => {
                 </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-6">
                 {/* Server Cards */}
                 {servers?.map((server) => (
-                    <div key={server.id} className="bg-card rounded-lg border border-border shadow-sm overflow-hidden flex flex-col group hover:shadow-md transition-shadow">
-                        {/* Colored Header */}
-                        <div className={`${getServerColor(server.name)} px-4 py-2 flex justify-between items-center`}>
-                            <div className="flex items-center gap-2 text-white font-bold truncate">
-                                <Server className="w-4 h-4 opacity-80" />
-                                {getSmartHeader(server)}
-                            </div>
-                            <button onClick={() => handleEditClick(server)} className="text-white/70 hover:text-white transition-colors">
-                                <Edit2 className="w-3 h-3" />
-                            </button>
-                        </div>
-
-                        {/* Card Body - Data Grid */}
-                        <div className="p-4 text-sm space-y-3">
-                            <div className="grid grid-cols-3 gap-2">
-                                <span className="text-muted-foreground font-medium">Servidor</span>
-                                <span className="col-span-2 text-foreground truncate" title={server.name}>{server.name}</span>
-                            </div>
-
-                            <div className="grid grid-cols-3 gap-2 items-center">
-                                <span className="text-muted-foreground font-medium">Estado</span>
-                                <div className="col-span-2">
-                                    {server.status === 1 ? (
-                                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 border border-green-200 dark:border-green-800">
-                                            <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
-                                            Online
-                                        </span>
-                                    ) : (
-                                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 border border-red-200 dark:border-red-800">
-                                            <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
-                                            Offline
-                                        </span>
-                                    )}
+                    <div key={server.id} className="bg-card rounded-xl border border-border shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden flex flex-col group">
+                        {/* Header - Minimalist with Color Accent */}
+                        <div className="relative pt-1">
+                            <div className={`absolute top-0 left-0 right-0 h-1 ${getServerColor(server.name)}`}></div>
+                            <div className="px-4 py-3 flex justify-between items-start">
+                                <div className="flex flex-col gap-0.5 overflow-hidden">
+                                    <div className="flex items-center gap-2">
+                                        <div className={`w-2 h-2 rounded-full ${server.status === 1 ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`}></div>
+                                        <h3 className="font-bold text-foreground text-sm truncate" title={getSmartHeader(server)}>
+                                            {getSmartHeader(server)}
+                                        </h3>
+                                    </div>
+                                    <span className="text-xs text-muted-foreground font-mono pl-4">{server.ip_address}</span>
                                 </div>
-                            </div>
-
-                            <div className="grid grid-cols-3 gap-2">
-                                <span className="text-muted-foreground font-medium">IP</span>
-                                <span className="col-span-2 text-foreground font-mono text-xs pt-0.5">{server.ip_address}</span>
-                            </div>
-
-                            <div className="grid grid-cols-3 gap-2">
-                                <span className="text-muted-foreground font-medium">Sistema</span>
-                                <span className="col-span-2 text-foreground">{server.os}</span>
-                            </div>
-
-                            <div className="grid grid-cols-3 gap-2">
-                                <span className="text-muted-foreground font-medium">Usuario</span>
-                                <span className="col-span-2 text-foreground">{server.ssh_user}</span>
+                                <button
+                                    onClick={() => handleEditClick(server)}
+                                    className="text-muted-foreground hover:text-primary transition-colors p-1 rounded-md hover:bg-muted"
+                                >
+                                    <Edit2 className="w-3.5 h-3.5" />
+                                </button>
                             </div>
                         </div>
+
+                        {/* Card Body - Clean List */}
+                        <div className="px-4 pb-4 pt-0 space-y-4 flex-1 flex flex-col">
+
+                            {/* --- FULL SERVER DETAILS (Requested by User) --- */}
+                            <div className="space-y-3">
+                                {/* General Specs */}
+                                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
+                                    <div className="flex flex-col">
+                                        <span className="text-[9px] uppercase font-bold text-muted-foreground tracking-wider">Sistema</span>
+                                        <div className="flex items-center gap-1.5 text-foreground">
+                                            <Cpu className="w-3 h-3 text-primary/70" />
+                                            <span className="truncate" title={server.os}>{server.os || '-'}</span>
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <span className="text-[9px] uppercase font-bold text-muted-foreground tracking-wider">Tipo</span>
+                                        <div className="flex items-center gap-1.5 text-foreground">
+                                            <Server className="w-3 h-3 text-primary/70" />
+                                            <span className="truncate" title={server.server_type}>{server.server_type || '-'}</span>
+                                        </div>
+                                    </div>
+                                    <div className="col-span-2 flex flex-col pt-1">
+                                        <span className="text-[9px] uppercase font-bold text-muted-foreground tracking-wider">Conexión</span>
+                                        <div className="flex items-center gap-1.5 text-foreground font-mono">
+                                            <Terminal className="w-3 h-3 text-primary/70" />
+                                            <span className="truncate">{server.protocol || 'SSH'}:{server.port || '22'}</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Description & Notes (Moved to Footer) */}
+
+                                {/* Database Details (If applicable) */}
+                                {(server.db_engine || server.db_name || server.db_user) && (
+                                    <div className="space-y-2 pt-1">
+                                        <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider block border-b border-border/40 pb-1">Base de Datos</span>
+                                        <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
+                                            {server.db_engine && (
+                                                <div className="flex flex-col">
+                                                    <span className="text-[9px] font-bold text-muted-foreground">Motor</span>
+                                                    <div className="flex items-center gap-1.5 text-foreground">
+                                                        <Database className="w-3 h-3 text-blue-500/70" />
+                                                        <span>{server.db_engine}</span>
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {server.db_name && (
+                                                <div className="flex flex-col">
+                                                    <span className="text-[9px] font-bold text-muted-foreground">Nombre DB</span>
+                                                    <span className="text-foreground truncate" title={server.db_name}>{server.db_name}</span>
+                                                </div>
+                                            )}
+                                            {server.db_user && (
+                                                <div className="col-span-2 flex items-center gap-2 pt-1">
+                                                    <span className="text-[9px] font-bold text-muted-foreground">User:</span>
+                                                    <span className="font-mono bg-muted/30 px-1 rounded">{server.db_user}</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {server.last_seen && (
+                                    <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground justify-end pt-1">
+                                        <Clock className="w-3 h-3 opacity-70" />
+                                        <span>Visto: {server.last_seen}</span>
+                                    </div>
+                                )}
+                            </div>
+
+
+                            {/* --- ACCESS / CREDENTIALS --- */}
+                            {(server.ssh_user || server.ssh_password) && (
+                                <div className="mt-auto pt-3 border-t border-border/50">
+                                    <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider block mb-2">Acceso</span>
+
+                                    <div className="grid grid-cols-[60px_1fr] gap-y-2 gap-x-2 items-center text-xs">
+                                        {server.ssh_user && (
+                                            <>
+                                                {/* Username Row */}
+                                                <div className="text-muted-foreground flex items-center gap-1.5">
+                                                    <Users className="w-3.5 h-3.5" />
+                                                    User
+                                                </div>
+                                                <div className="font-mono text-foreground bg-muted/30 px-2 py-1 rounded select-all truncate">
+                                                    {server.ssh_user}
+                                                </div>
+                                            </>
+                                        )}
+
+                                        {/* Password Row */}
+                                        {server.ssh_password && (
+                                            <>
+                                                <div className="text-muted-foreground flex items-center gap-1.5">
+                                                    <Key className="w-3.5 h-3.5" />
+                                                    Pass
+                                                </div>
+                                                <div className="flex items-center gap-1 min-w-0">
+                                                    <div className="font-mono text-foreground bg-muted/30 px-2 py-1 rounded flex-1 text-left cursor-pointer hover:bg-muted/50 transition-colors truncate"
+                                                        onClick={() => setRevealedServerId(revealedServerId === server.id ? null : server.id)}
+                                                        title={revealedServerId === server.id ? "Ocultar" : "Mostrar"}
+                                                    >
+                                                        {revealedServerId === server.id ? server.ssh_password : '••••••••'}
+                                                    </div>
+
+                                                    <button
+                                                        className="p-1 hover:text-primary transition-colors text-muted-foreground flex-shrink-0"
+                                                        onClick={() => setRevealedServerId(revealedServerId === server.id ? null : server.id)}
+                                                        title={revealedServerId === server.id ? "Ocultar" : "Mostrar"}
+                                                    >
+                                                        {revealedServerId === server.id ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                                                    </button>
+
+                                                    <button
+                                                        className="p-1 hover:text-primary transition-colors text-muted-foreground flex-shrink-0"
+                                                        onClick={() => {
+                                                            navigator.clipboard.writeText(server.ssh_password || '');
+                                                            // toast or alert? simplistic for now
+                                                        }}
+                                                        title="Copiar"
+                                                    >
+                                                        <Copy className="w-3.5 h-3.5" />
+                                                    </button>
+                                                </div>
+                                            </>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* --- FOOTER: Description & Notes --- */}
+                        {(server.description || server.notes) && (
+                            <div className="px-4 py-3 bg-muted/30 border-t border-border text-xs space-y-2">
+                                {server.description && (
+                                    <div>
+                                        <span className="text-[9px] uppercase font-bold text-muted-foreground tracking-wider block mb-0.5">Descripción</span>
+                                        <div className="text-foreground leading-snug">{server.description}</div>
+                                    </div>
+                                )}
+                                {server.notes && (
+                                    <div>
+                                        <span className="text-[9px] uppercase font-bold text-amber-500/80 tracking-wider block mb-0.5">Notas</span>
+                                        <div className="text-muted-foreground italic leading-snug">{server.notes}</div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
                 ))}
             </div>

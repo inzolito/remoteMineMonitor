@@ -77,7 +77,10 @@ const SitesList = () => {
         );
     }
 
-    if (!sites || sites.length === 0) {
+    // Filter sites by visibility
+    const visibleSites = sites?.filter(site => (site.is_visible !== undefined && site.is_visible !== null ? Number(site.is_visible) : Number(site.status)) === 1) || [];
+
+    if (!visibleSites || visibleSites.length === 0) {
         return (
             <div className="text-center py-20 text-gray-500">
                 <Server className="w-12 h-12 mx-auto mb-4 opacity-20" />
@@ -88,7 +91,7 @@ const SitesList = () => {
 
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {sites.map((site) => (
+            {visibleSites.map((site) => (
                 <SiteCard key={site.id} site={site} />
             ))}
         </div>
