@@ -4,7 +4,7 @@ import { Navigate } from 'react-router-dom';
 import {
     ShieldCheck, Server, Activity, Terminal,
     FileText, Plus, Trash2, Save, RefreshCw, Search,
-    AlertCircle, ChevronRight, Settings, Eye, XOctagon, Network,
+    AlertCircle, ChevronRight, Settings, XOctagon, Network,
     Users, Palette, LayoutGrid
 } from 'lucide-react';
 import UsersManagementTab from './admin/UsersManagementTab';
@@ -17,8 +17,8 @@ const SuperAdmin = () => {
     const { user } = useAuth();
     const [activeCategory, setActiveCategory] = useState('infrastructure');
     const [activeTab, setActiveTab] = useState('servers');
-    const [loading, setLoading] = useState(false);
-    const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+    const [, setLoading] = useState(false);
+    const [, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
     const categories = [
         { id: 'infrastructure', label: 'Infraestructura', icon: LayoutGrid, description: 'Servidores, Métricas y Monitoreo' },

@@ -448,6 +448,7 @@ const SiteDetails = () => {
                 onClose={() => setIsModalOpen(false)}
                 onSave={handleSaveServer}
                 initialData={editingServer}
+                siteAlias={site?.alias}
             />
 
             {site && (
