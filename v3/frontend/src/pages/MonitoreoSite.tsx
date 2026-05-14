@@ -7,7 +7,7 @@ import {
     Loader2, Activity,
     Database, Terminal, ShieldCheck, Clock, X,
     FolderOpen, FileText, ChevronDown, ChevronRight,
-    AlertTriangle, Layers, Copy, Trash2
+    AlertTriangle, Layers, Copy, Trash2, WifiOff
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -137,8 +137,6 @@ const HighlightedContent = ({ content }: { content: string }) => {
             {lines.map((line, lineIdx) => {
                 if (!line.trim()) return <div key={lineIdx} className="h-4"></div>;
 
-                const fragments = line.split(/\b(error|warning|danger|panic|critical|failed|success|active|online|offline|JAMSCluster|JAMSRouter)\b/gi);
-
                 // Detect duration pattern (MM:SS or HH:MM:SS) in column 3 (common for active scripts)
                 const parts = line.split(/\s+/).filter(Boolean);
                 let durationPart = "";
@@ -166,7 +164,7 @@ const HighlightedContent = ({ content }: { content: string }) => {
                     const after = line.substring(startIndex + durationPart.length);
 
                     return (
-                        <div key={lineIdx} className="hover:bg-white/5 rounded px-1 transition-all text-slate-200 group flex flex-wrap items-center font-mono text-xs">
+                        <div key={lineIdx} className="hover:bg-white/5 rounded px-1 transition-all text-slate-200 group flex flex-wrap items-center font-mono text-[11px] whitespace-pre-wrap">
                             <span className="opacity-80 group-hover:opacity-100">{before}</span>
                             <span className={clsx(
                                 "font-bold px-1.5 py-0.5 rounded shadow-sm mx-0.5 transition-all text-[10px]",
@@ -182,15 +180,15 @@ const HighlightedContent = ({ content }: { content: string }) => {
 
                 if (line.trim().startsWith('>')) {
                     return (
-                        <div key={lineIdx} className="hover:bg-white/5 rounded px-1 transition-all text-emerald-400 font-bold group flex flex-wrap items-center font-mono text-xs mt-4 mb-1">
+                        <div key={lineIdx} className="hover:bg-white/5 rounded px-1 transition-all text-emerald-400 font-bold group flex flex-wrap items-center font-mono text-[11px] mt-4 mb-1 whitespace-pre-wrap">
                             {line}
                         </div>
                     );
                 }
 
                 return (
-                    <div key={lineIdx} className="hover:bg-white/5 rounded px-1 transition-all text-slate-200 group flex flex-wrap items-center font-mono text-xs">
-                        {fragments.map((part, i) => {
+                    <div key={lineIdx} className="hover:bg-white/5 rounded px-1 transition-all text-slate-200 group flex flex-wrap items-center font-mono text-[11px] whitespace-pre-wrap leading-relaxed">
+                        {line.split(/(\d{4}-\d{2}-\d{2}|\d{2}:\d{2}:\d{2}|\/opt\/Jigsaw\/[\w\/\.-]+\.log|success|online)/gi).map((part, i) => {
                             const lower = part.toLowerCase();
                             if (/error|danger|panic|critical|failed/i.test(lower)) {
                                 return <span key={i} className="bg-red-500/10 text-red-400 font-bold px-1 rounded border border-red-500/20">{part}</span>;
@@ -198,13 +196,10 @@ const HighlightedContent = ({ content }: { content: string }) => {
                             if (/warning/i.test(lower)) {
                                 return <span key={i} className="bg-yellow-500/10 text-yellow-400 font-bold px-1 rounded border border-yellow-500/20">{part}</span>;
                             }
-                            if (/success|active|online/i.test(lower)) {
-                                return <span key={i} className="bg-emerald-500/10 text-emerald-400 font-bold px-1 rounded border border-emerald-500/20">{part}</span>;
+                            if (/\d{4}-\d{2}-\d{2}|\d{2}:\d{2}:\d{2}|\/opt\/Jigsaw\/[\w\/\.-]+\.log|success|online/i.test(lower)) {
+                                return <span key={i} style={{ color: 'rgb(16 185 129)' }} className="font-bold">{part}</span>;
                             }
-                            if (/JAMSCluster|JAMSRouter/i.test(lower)) {
-                                return <span key={i} className="bg-yellow-500/10 text-yellow-300 font-bold px-1 rounded border border-yellow-500/20">{part}</span>;
-                            }
-                            return <span key={i}>{part}</span>;
+                            return <span key={i} className="opacity-80 group-hover:opacity-100">{part}</span>;
                         })}
                     </div>
                 );
@@ -260,7 +255,7 @@ const FileTree = ({ rawData }: { rawData: string | undefined }) => {
                     onClick={() => node.type === 'dir' && setIsOpen(!isOpen)}
                     className={cn(
                         "flex items-center gap-2 py-1 px-2 rounded-md transition-colors cursor-pointer text-xs",
-                        node.type === 'dir' ? "text-emerald-700 hover:bg-emerald-50" : "text-slate-600 hover:bg-slate-50"
+                        node.type === 'dir' ? "text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30" : "text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50"
                     )}
                     style={{ paddingLeft: `${depth * 16 + 8}px` }}
                 >
@@ -273,9 +268,9 @@ const FileTree = ({ rawData }: { rawData: string | undefined }) => {
                     ) : (
                         <>
                             <div className="w-[14px]"></div>
-                            <FileText size={14} className="text-slate-400" />
+                            <FileText size={14} className="text-slate-400 dark:text-slate-500" />
                             <span className="flex-1 truncate">{node.name}</span>
-                            <span className="text-[10px] font-black text-slate-400 tabular-nums bg-slate-100 px-1.5 rounded-full">({node.size})</span>
+                            <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 tabular-nums bg-slate-100 dark:bg-slate-800 px-1.5 rounded-full">({node.size})</span>
                         </>
                     )}
                 </div>
@@ -308,17 +303,17 @@ const DBHealthCard = ({ label, value, sublabel, color, icon: Icon, onClick }: an
             onClick={onClick}
             className={cn(
                 "rounded-xl border p-2.5 flex flex-col justify-between shadow-sm min-h-[64px] transition-all",
-                isAlert ? `${color.bg} border-transparent` : "bg-white border-slate-100",
-                onClick ? "cursor-pointer hover:border-blue-200 hover:shadow-md active:scale-95" : ""
+                isAlert ? `${color.bg} border-transparent` : "bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700/50",
+                onClick ? "cursor-pointer hover:border-blue-200 dark:hover:border-blue-800 hover:shadow-md active:scale-95" : ""
             )}
         >
             <div className="flex justify-between items-start mb-1">
-                <span className={cn("text-[8px] font-black uppercase tracking-widest", isAlert ? "text-white/70" : "text-slate-400")}>{label}</span>
-                <div className={cn("p-1 rounded-md", isAlert ? "bg-white/20 text-white" : `${color.bg} ${color.text}`)}><Icon size={12} /></div>
+                <span className={cn("text-[8px] font-black uppercase tracking-widest", isAlert ? "text-white/70" : "text-slate-400 dark:text-slate-500")}>{label}</span>
+                <div className={cn("p-1 rounded-md", isAlert ? "bg-white/20 text-white" : `${color.bg} dark:bg-opacity-20 ${color.text}`)}><Icon size={12} /></div>
             </div>
             <div className="flex items-baseline gap-1.5 min-w-0">
-                <span className={cn("text-sm font-black truncate", isAlert ? "text-white" : color.text)}>{value}</span>
-                {sublabel && <span className={cn("text-[8px] font-bold truncate tracking-tighter", isAlert ? "text-white/80" : "text-slate-400")}>{sublabel}</span>}
+                <span className={cn("text-sm font-black truncate", isAlert ? "text-white" : `${color.text} dark:text-slate-100`)}>{value}</span>
+                {sublabel && <span className={cn("text-[8px] font-bold truncate tracking-tighter", isAlert ? "text-white/80" : "text-slate-400 dark:text-slate-500")}>{sublabel}</span>}
             </div>
         </div>
     );
@@ -373,17 +368,31 @@ const TerminalModal = ({ isOpen, onClose, title, content, serverId, metricKey, m
 
     // Resolve "live" content if possible
     let liveContent = content;
+    let isSummarizer = metricKey === 'app.summarizer.log';
+    let execContent = "";
+    let logContent = "";
+
     if (metricsData && serverId && metricKey) {
         const srv = metricsData.servers.find((s: any) => s.info.id === serverId);
         if (srv && srv.app && srv.app[metricKey]) {
-            liveContent = srv.app[metricKey].metric_value;
+            if (isSummarizer) {
+                const rawExec = srv.app['app.summarizer.ejecution']?.metric_value || '';
+                const lines = rawExec.split('\n').filter((l: string) => l.trim().length > 0);
+                const count = Math.ceil(lines.length / 2);
+                const formattedExec = lines.map((line: string) => line.trimEnd()).join('\n');
+                
+                execContent = `SUMMARIZER ACTIVE PROCESSES: ${count}\n\n${formattedExec}`;
+                logContent = srv.app['app.summarizer.log']?.metric_value || 'Cargando Log...';
+            } else {
+                liveContent = srv.app[metricKey].metric_value;
 
-            // Special case for JAMS Service on Active server: Append app.jams.restarts_log
-            if (metricKey === 'app.jams.service' && srv.info.is_primary == 1) {
-                const restartData = srv.app['app.jams.restarts_log']?.metric_value ||
-                    srv.app['app.jams.restart']?.metric_value;
-                if (restartData) {
-                    liveContent = liveContent.trim() + "\n\n" + "> reinicios del jams\n" + restartData;
+                // Special case for JAMS Service on Active server: Append app.jams.restarts_log
+                if (metricKey === 'app.jams.service' && srv.info.is_primary == 1) {
+                    const restartData = srv.app['app.jams.restarts_log']?.metric_value ||
+                        srv.app['app.jams.restart']?.metric_value;
+                    if (restartData) {
+                        liveContent = liveContent.trim() + "\n\n" + "> reinicios del jams\n" + restartData;
+                    }
                 }
             }
         }
@@ -407,7 +416,16 @@ const TerminalModal = ({ isOpen, onClose, title, content, serverId, metricKey, m
                     </button>
                 </div>
                 <div className="flex-1 p-6 overflow-auto custom-scrollbar bg-[#0f172a]">
-                    <HighlightedContent content={liveContent} />
+                    {isSummarizer ? (
+                        <>
+                            <HighlightedContent content={execContent} />
+                            <div className="text-slate-300 font-mono text-[11px] whitespace-pre-wrap leading-relaxed mt-6 border-t border-slate-800/50 pt-6">
+                                {logContent}
+                            </div>
+                        </>
+                    ) : (
+                        <HighlightedContent content={liveContent} />
+                    )}
 
                     {/* Utility Footer for Idle Queries (KILL Commands) */}
                     {metricKey === 'db.idle_queries' && liveContent && liveContent.length > 5 && (
@@ -492,17 +510,17 @@ const CircularUsage = ({ percentage, label, sublabel, color, onClick, buttonLabe
                         className="transition-all duration-1000 ease-out"
                     />
                 </svg>
-                <span className="absolute text-base font-black text-slate-800" style={{ color }}>{Math.round(percentage)}%</span>
+                <span className="absolute text-base font-black text-slate-800 dark:text-slate-100" style={{ color }}>{Math.round(percentage)}%</span>
             </div>
             <div className="text-center flex flex-col items-center">
-                <div className="font-bold text-[11px] text-slate-500 uppercase tracking-tight leading-none mb-1">
+                <div className="font-bold text-[11px] text-slate-500 dark:text-slate-400 uppercase tracking-tight leading-none mb-1">
                     {label === 'Disco' ? 'Disco Duro' : label}
                 </div>
-                <div className="text-[10px] font-black text-slate-700 leading-none mb-2">{sublabel}</div>
+                <div className="text-[10px] font-black text-slate-700 dark:text-slate-300 leading-none mb-2">{sublabel}</div>
                 {onClick && (
                     <button
                         onClick={onClick}
-                        className="px-3 py-1 bg-white text-[#0ea5e9] text-[10px] font-bold rounded border border-[#e0f2fe] hover:bg-[#f0f9ff] transition-colors shadow-sm uppercase tracking-tighter"
+                        className="px-3 py-1 bg-white dark:bg-slate-800 text-[#0ea5e9] text-[10px] font-bold rounded border border-[#e0f2fe] dark:border-slate-700 hover:bg-[#f0f9ff] dark:hover:bg-slate-700 transition-colors shadow-sm uppercase tracking-tighter"
                     >
                         {buttonLabel === 'Particiones' ? 'Ver Particiones' : (buttonLabel === 'Crontab' ? 'Ver Crontab' : buttonLabel)}
                     </button>
@@ -546,6 +564,11 @@ const MonitoreoSite = () => {
 
     const primaryServer = metricsData?.servers.find((s: any) => s.info.is_primary === 1) || metricsData?.servers?.[0];
     const secondaryServer = metricsData?.servers.find((s: any) => s.info.id !== primaryServer?.info?.id);
+
+    // Status logic for global effects
+    const isPrimaryOffline = primaryServer?.app?.['system.freshness']?.status === 'danger';
+    const isSecondaryOffline = secondaryServer?.app?.['system.freshness']?.status === 'danger';
+    const isFullSiteOffline = isPrimaryOffline && isSecondaryOffline;
 
     // Sync refs for the timer closure
     useEffect(() => {
@@ -609,27 +632,49 @@ const MonitoreoSite = () => {
         return () => clearInterval(interval);
     }, []); // Run only once
 
-    if (isLoading || !site || !metricsData) return <div className="flex justify-center items-center h-screen"><Loader2 className="animate-spin w-8 h-8" /></div>;
+    const formatMetricValue = (val: any, defaultUnit = 'G') => {
+        if (val === undefined || val === null || val === '') return '0' + defaultUnit;
+        const str = String(val).trim();
+        // If it already has a unit at the end (e.g. 1.1T, 476M, 94Gi), return as is
+        if (/[a-zA-Z]$/.test(str)) return str;
+        return str + defaultUnit;
+    };
 
+    const primaryFail = primaryServer?.app?.['app.jams.status']?.status === 'danger';
+    const secondaryFail = secondaryServer?.app?.['app.jams.status']?.status === 'warning' || secondaryServer?.app?.['app.jams.status']?.status === 'danger';
+    const hasFailover = primaryFail || secondaryFail;
 
     // --- Static Header & Summary Row (Emergency Request) ---
     return (
-        <div className="min-h-screen bg-[#f8fafc] p-4 text-slate-800 font-sans">
+        <div
+            className="min-h-screen p-4 text-slate-800 font-sans transition-all duration-1000"
+            style={{ backgroundColor: hasFailover ? '#fff5f5' : '#f8fafc' }}
+        >
+            {hasFailover && (
+                <style>{`
+                    @keyframes pulse-emergency {
+                        0%   { opacity: 1; }
+                        50%  { opacity: 0.6; }
+                        100% { opacity: 1; }
+                    }
+                    .emergency-banner-pulse { animation: pulse-emergency 1.5s ease-in-out infinite; }
+                `}</style>
+            )}
             {/* Top Banner Warning (Yellow) */}
-            <div className="bg-[#fcd34d] text-slate-900 text-xs font-bold text-center py-1 rounded-t-md mb-4 shadow-sm">
+            <div className={cn("bg-[#fcd34d] text-slate-900 text-xs font-bold text-center py-1 rounded-t-md mb-4 shadow-sm transition-all duration-700", isFullSiteOffline && "grayscale opacity-50")}>
                 Entorno de desarrollo del sistema de monitoreo Hexagon Mining.
             </div>
 
             {/* --- SECCIÓN ALERTAS DE SISTEMA (Inesperado) - Moved to bottom if needed, but keeping structure --- */}
 
-            <div className="mb-6 flex justify-between items-center px-1">
+            <div className={cn("mb-6 flex justify-between items-center px-1 transition-all duration-700", isFullSiteOffline && "grayscale opacity-70")}>
                 <div className="flex items-center gap-3">
-                    <div className="p-2 bg-white rounded shadow-sm text-slate-600 border border-slate-200">
+                    <div className="p-2 bg-white dark:bg-slate-800 rounded shadow-sm text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
                         <Activity className="w-6 h-6" />
                     </div>
                     <div>
-                        <h1 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-                            Monitoreo FMS {site.alias} <span className="text-slate-400 font-normal text-sm">(Centinela) v3.3-DEBUG</span>
+                        <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                            MONITOREO FMS - {site.name} <span className="text-slate-400 dark:text-slate-500 font-normal text-sm">({site.alias}) v3.3-DEBUG</span>
                         </h1>
                     </div>
                 </div>
@@ -640,45 +685,72 @@ const MonitoreoSite = () => {
             </div>
 
             {/* Summary Cards Row */}
-            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
+            <div className={cn("grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6 transition-all duration-1000", isFullSiteOffline && "grayscale opacity-60")}>
                 {/* JAMS: app.jams.version */}
-                <div className="bg-white p-3 rounded shadow-sm border border-slate-200 border-l-4 border-l-[#06b6d4] flex items-center gap-3">
-                    <div className="p-2 bg-[#ecfeff] rounded text-[#06b6d4]"><Terminal size={20} /></div>
+                <div className="p-3 rounded shadow-sm border border-slate-200 dark:border-slate-800 border-l-4 border-l-[#06b6d4] bg-white dark:bg-slate-900 flex items-center gap-3 transition-all">
+                    <div className="p-2 rounded bg-[#ecfeff] dark:bg-[#06b6d4]/10 text-[#06b6d4]">
+                        <Terminal size={20} />
+                    </div>
                     <div>
-                        <div className="text-[10px] font-bold text-slate-500 uppercase">JAMS</div>
-                        <div className="font-bold text-sm truncate w-24">
+                        <div className="text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">JAMS</div>
+                        <div className="font-bold text-sm truncate w-24 text-slate-800 dark:text-slate-200">
                             {primaryServer?.app?.['app.jams.version']?.metric_value || '-'}
                         </div>
                     </div>
                 </div>
 
-                {/* Summarizer: Check app.summarizer.crontab -> Show "Service & Crontab" if exists. Click -> app.summarizer.log */}
+                {/* Summarizer: Check app.summarizer.status aggregated metric */}
                 <div
-                    onClick={() => openTerminal('Summarizer Log', primaryServer?.app?.['app.summarizer.log']?.metric_value || 'No Log Data', primaryServer?.info?.id, 'app.summarizer.log')}
+                    onClick={() => {
+                        const execVal = primaryServer?.app?.['app.summarizer.ejecution']?.metric_value || '0';
+                        const logVal = primaryServer?.app?.['app.summarizer.log']?.metric_value || 'No Log Data';
+                        const combined = `SUMMARIZER EXECUTIONS: ${execVal}\n------------------------------------------------------------\n\n${logVal}`;
+                        openTerminal('Summarizer', combined, primaryServer?.info?.id, 'app.summarizer.log');
+                    }}
                     className={cn(
-                        "bg-white p-3 rounded shadow-sm border border-slate-200 border-l-4 flex items-center gap-3 cursor-pointer hover:shadow-md transition-all",
-                        primaryServer?.app?.['app.summarizer.status']?.status === 'danger' || primaryServer?.app?.['app.summarizer.log']?.status === 'danger' ? "border-l-red-500" :
-                            (primaryServer?.app?.['app.summarizer.log']?.status === 'warning' ? "border-l-amber-500" : "border-l-emerald-500")
+                        "p-3 rounded shadow-sm border border-slate-200 dark:border-slate-800 border-l-4 flex items-center gap-3 cursor-pointer hover:shadow-md transition-all",
+                        primaryServer?.app?.['app.summarizer.status']?.metric_value === 'stopped' || primaryServer?.app?.['app.summarizer.log']?.status === 'danger' || primaryServer?.app?.['app.summarizer.ejecution']?.status === 'danger'
+                            ? "bg-red-600 border-red-700 text-white shadow-lg shadow-red-500/20" 
+                            : (primaryServer?.app?.['app.summarizer.status']?.metric_value === 'both_active' || primaryServer?.app?.['app.summarizer.log']?.status === 'warning' || primaryServer?.app?.['app.summarizer.ejecution']?.status === 'warning' ? "bg-white dark:bg-slate-900 border-l-amber-500" : "bg-white dark:bg-slate-900 border-l-emerald-500")
                     )}>
                     <div className={cn(
                         "p-2 rounded",
-                        primaryServer?.app?.['app.summarizer.status']?.status === 'danger' || primaryServer?.app?.['app.summarizer.log']?.status === 'danger' ? "bg-red-50 text-red-500" :
-                            (primaryServer?.app?.['app.summarizer.log']?.status === 'warning' ? "bg-amber-50 text-amber-500" : "bg-emerald-50 text-emerald-500")
+                        primaryServer?.app?.['app.summarizer.status']?.metric_value === 'stopped' || primaryServer?.app?.['app.summarizer.log']?.status === 'danger' || primaryServer?.app?.['app.summarizer.ejecution']?.status === 'danger'
+                            ? "bg-white/20 text-white" 
+                            : (primaryServer?.app?.['app.summarizer.status']?.metric_value === 'both_active' || primaryServer?.app?.['app.summarizer.log']?.status === 'warning' || primaryServer?.app?.['app.summarizer.ejecution']?.status === 'warning' ? "bg-amber-50 dark:bg-amber-500/10 text-amber-500" : "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-500")
                     )}><Activity size={20} /></div>
                     <div>
-                        <div className="text-[10px] font-bold text-slate-500 uppercase">SUMMARIZER</div>
+                        <div className={cn("text-[10px] font-bold uppercase", primaryServer?.app?.['app.summarizer.status']?.metric_value === 'stopped' || primaryServer?.app?.['app.summarizer.log']?.status === 'danger' || primaryServer?.app?.['app.summarizer.ejecution']?.status === 'danger' ? "text-white/80" : "text-slate-500 dark:text-slate-400")}>SUMMARIZER</div>
                         <div className={cn(
-                            "font-bold text-sm",
-                            primaryServer?.app?.['app.summarizer.status']?.status === 'danger' || primaryServer?.app?.['app.summarizer.log']?.status === 'danger' ? "text-red-600" :
-                                (primaryServer?.app?.['app.summarizer.log']?.status === 'warning' ? "text-amber-600" : "text-emerald-500")
+                            "font-bold text-[10px]",
+                            primaryServer?.app?.['app.summarizer.status']?.metric_value === 'stopped' || primaryServer?.app?.['app.summarizer.log']?.status === 'danger' || primaryServer?.app?.['app.summarizer.ejecution']?.status === 'danger' ? "text-white" :
+                                (primaryServer?.app?.['app.summarizer.status']?.metric_value === 'both_active' || primaryServer?.app?.['app.summarizer.ejecution']?.status === 'warning' ? "text-amber-600" : "text-emerald-500")
                         )}>
                             {(() => {
+                                // Priority: ejecution alerts override service status display
+                                const ejecVal = primaryServer?.app?.['app.summarizer.ejecution']?.metric_value || '';
+                                const ejecStatus = primaryServer?.app?.['app.summarizer.ejecution']?.status;
+                                
+                                if (ejecStatus === 'danger') {
+                                    const lines = ejecVal.split('\n').filter((l: string) => l.trim().length > 0);
+                                    const count = Math.ceil(lines.length / 2);
+                                    return `${count} PROCESOS SIMULTANEOS`;
+                                }
+                                if (ejecStatus === 'warning') return 'PROCESS STOPPED';
+
+                                const aggr = primaryServer?.app?.['app.summarizer.status']?.metric_value;
+                                if (aggr === 'both_active') return 'SERVICE & CRON';
+                                if (aggr === 'service_active') return 'SERVICE ACTIVE';
+                                if (aggr === 'cron_active') return 'CRON ACTIVE';
+                                if (aggr === 'stopped') return 'STOPPED';
+                                
+                                // Fallback logic
                                 const hasService = !!primaryServer?.app?.['app.summarizer.service']?.metric_value && !primaryServer?.app?.['app.summarizer.service']?.metric_value.includes('stopped');
-                                const hasCrontab = !!primaryServer?.app?.['app.summarizer.crontab']?.metric_value && !primaryServer?.app?.['app.summarizer.crontab']?.metric_value.includes('stopped');
-                                if (hasService && hasCrontab) return 'Servicio & Crontab';
-                                if (hasService) return 'Servicio';
-                                if (hasCrontab) return 'Crontab';
-                                return 'Detenido';
+                                const hasCrontab = !!primaryServer?.app?.['app.summarizer.crontab']?.metric_value && !primaryServer?.app?.['app.summarizer.crontab']?.metric_value.includes('stopped') && !primaryServer?.app?.['app.summarizer.crontab']?.metric_value.trim().startsWith('#');
+                                if (hasService && hasCrontab) return 'SERVICE & CRON';
+                                if (hasService) return 'SERVICE ACTIVE';
+                                if (hasCrontab) return 'CRON ACTIVE';
+                                return 'STOPPED';
                             })()}
                         </div>
                     </div>
@@ -688,16 +760,18 @@ const MonitoreoSite = () => {
                 <div
                     onClick={() => openTerminal('Equipos Conectados', primaryServer?.app?.['app.repc']?.metric_value || 'No Data', primaryServer?.info?.id, 'app.repc')}
                     className={cn(
-                        "bg-white p-3 rounded shadow-sm border border-slate-200 border-l-4 flex items-center gap-3 cursor-pointer hover:shadow-md transition-all",
-                        primaryServer?.app?.['app.repc']?.status === 'danger' ? "border-l-red-500" : (primaryServer?.app?.['app.repc']?.status === 'warning' ? "border-l-amber-500" : "border-l-blue-500")
+                        "p-3 rounded shadow-sm border border-slate-200 dark:border-slate-800 border-l-4 flex items-center gap-3 cursor-pointer hover:shadow-md transition-all",
+                        primaryServer?.app?.['app.repc']?.status === 'danger' 
+                            ? "bg-red-600 border-red-700 text-white shadow-lg shadow-red-500/20" 
+                            : (primaryServer?.app?.['app.repc']?.status === 'warning' ? "bg-white dark:bg-slate-900 border-l-amber-500" : "bg-white dark:bg-slate-900 border-l-blue-500")
                     )}>
                     <div className={cn(
                         "p-2 rounded",
-                        primaryServer?.app?.['app.repc']?.status === 'danger' ? "bg-red-50 text-red-500" : (primaryServer?.app?.['app.repc']?.status === 'warning' ? "bg-amber-50 text-amber-500" : "bg-blue-50 text-blue-500")
+                        primaryServer?.app?.['app.repc']?.status === 'danger' ? "bg-white/20 text-white" : (primaryServer?.app?.['app.repc']?.status === 'warning' ? "bg-amber-50 dark:bg-amber-500/10 text-amber-500" : "bg-blue-50 dark:bg-blue-500/10 text-blue-500")
                     )}><Database size={20} /></div>
                     <div>
-                        <div className="text-[10px] font-bold text-slate-500 uppercase">Equipos Conectados</div>
-                        <div className={cn("font-bold text-sm", primaryServer?.app?.['app.repc']?.status === 'danger' ? "text-red-500" : (primaryServer?.app?.['app.repc']?.status === 'warning' ? "text-amber-500" : ""))}>
+                        <div className={cn("text-[10px] font-bold uppercase", primaryServer?.app?.['app.repc']?.status === 'danger' ? "text-white/80" : "text-slate-500 dark:text-slate-400")}>Equipos Conectados</div>
+                        <div className={cn("font-bold text-sm", primaryServer?.app?.['app.repc']?.status === 'danger' ? "text-white" : (primaryServer?.app?.['app.repc']?.status === 'warning' ? "text-amber-500" : ""))}>
                             {(() => {
                                 const val = primaryServer?.app?.['app.repc']?.metric_value;
                                 if (!val) return '0';
@@ -711,20 +785,22 @@ const MonitoreoSite = () => {
                 <div
                     onClick={() => openTerminal('Estación Base Ping', primaryServer?.app?.['app.station.ping']?.metric_value || 'No Data', primaryServer?.info?.id, 'app.station.ping')}
                     className={cn(
-                        "bg-white p-3 rounded shadow-sm border border-slate-200 border-l-4 flex items-center gap-3 cursor-pointer hover:shadow-md transition-all",
-                        primaryServer?.app?.['app.station.ping']?.status === 'danger' ? "border-l-red-500" : "border-l-violet-500"
+                        "p-3 rounded shadow-sm border border-slate-200 dark:border-slate-800 border-l-4 flex items-center gap-3 cursor-pointer hover:shadow-md transition-all",
+                        primaryServer?.app?.['app.station.ping']?.status === 'danger' 
+                            ? "bg-red-600 border-red-700 text-white shadow-lg shadow-red-500/20" 
+                            : "bg-white dark:bg-slate-900 border-l-violet-500"
                     )}>
                     <div className={cn(
                         "p-2 rounded",
-                        primaryServer?.app?.['app.station.ping']?.status === 'danger' ? "bg-red-50 text-red-500" : "bg-violet-50 text-violet-500"
+                        primaryServer?.app?.['app.station.ping']?.status === 'danger' ? "bg-white/20 text-white" : "bg-violet-50 dark:bg-violet-500/10 text-violet-500"
                     )}><ShieldCheck size={20} /></div>
                     <div>
-                        <div className="text-[10px] font-bold text-slate-500 uppercase">Estación Base</div>
-                        <div className="font-bold text-sm text-slate-700">
+                        <div className={cn("text-[10px] font-bold uppercase", primaryServer?.app?.['app.station.ping']?.status === 'danger' ? "text-white/80" : "text-slate-500 dark:text-slate-400")}>Estación Base</div>
+                        <div className={cn("font-bold text-sm", primaryServer?.app?.['app.station.ping']?.status === 'danger' ? "text-white" : "text-slate-700 dark:text-slate-200")}>
                             {(() => {
                                 const val = primaryServer?.app?.['app.station.ping']?.metric_value || '';
                                 const isOk = val.includes('bytes from') || val.includes('0% packet loss') || primaryServer?.app?.['app.station.ping']?.status === 'ok';
-                                return isOk ? <span className="text-emerald-600 truncate block w-24">{primaryServer?.app?.['app.station.name']?.metric_value || 'Online'}</span> : <span className="text-red-500">Offline</span>;
+                                return isOk ? <span className={cn(primaryServer?.app?.['app.station.ping']?.status === 'danger' ? "text-white" : "text-emerald-600", "truncate block w-24")}>{primaryServer?.app?.['app.station.name']?.metric_value || 'Online'}</span> : <span className="text-red-500">Offline</span>;
                             })()}
                         </div>
                     </div>
@@ -737,31 +813,33 @@ const MonitoreoSite = () => {
                 <div
                     onClick={() => openTerminal('Daily Backup Log', secondaryServer?.app?.['backup.daily.log']?.metric_value || 'No Log Data', secondaryServer?.info?.id, 'backup.daily.log')}
                     className={cn(
-                        "bg-white p-3 rounded shadow-sm border border-slate-200 border-l-4 flex items-center gap-3 cursor-pointer hover:shadow-md transition-all",
-                        secondaryServer?.app?.['backup.daily.status']?.status === 'danger' ? "border-l-red-500" :
-                            (secondaryServer?.app?.['backup.daily.status']?.status === 'warning' ? "border-l-amber-500" : "border-l-sky-500")
+                        "p-3 rounded shadow-sm border border-slate-200 dark:border-slate-800 border-l-4 flex items-center gap-3 cursor-pointer hover:shadow-md transition-all",
+                        secondaryServer?.app?.['backup.daily.status']?.status === 'danger' 
+                            ? "bg-red-600 border-red-700 text-white shadow-lg shadow-red-500/20" 
+                            : (secondaryServer?.app?.['backup.daily.status']?.status === 'warning' ? "bg-white dark:bg-slate-900 border-l-amber-500" : "bg-white dark:bg-slate-900 border-l-sky-500")
                     )}>
                     <div className={cn(
                         "p-2 rounded",
-                        secondaryServer?.app?.['backup.daily.status']?.status === 'danger' ? "bg-red-50 text-red-500" :
-                            (secondaryServer?.app?.['backup.daily.status']?.status === 'warning' ? "bg-amber-50 text-amber-500" : "bg-sky-50 text-sky-500")
+                        secondaryServer?.app?.['backup.daily.status']?.status === 'danger' ? "bg-white/20 text-white" :
+                            (secondaryServer?.app?.['backup.daily.status']?.status === 'warning' ? "bg-amber-50 dark:bg-amber-500/10 text-amber-500" : "bg-sky-50 dark:bg-sky-500/10 text-sky-500")
                     )}><Clock size={20} /></div>
                     <div>
-                        <div className="text-[10px] font-bold text-slate-500 uppercase">DAILY</div>
+                        <div className={cn("text-[10px] font-bold uppercase", secondaryServer?.app?.['backup.daily.status']?.status === 'danger' ? "text-white/80" : "text-slate-500 dark:text-slate-400")}>DAILY</div>
                         {(() => {
                             const { name, time } = parseBackupStatus(secondaryServer?.app?.['backup.daily.status']?.metric_value);
+                            const isDanger = secondaryServer?.app?.['backup.daily.status']?.status === 'danger';
                             return (
                                 <div className="leading-tight">
                                     <div className="font-bold text-[10px] truncate w-24" title={name}>{name}</div>
                                     {time ? (
                                         <div className={cn(
                                             "text-[9px] font-mono",
-                                            secondaryServer?.app?.['backup.daily.status']?.status === 'danger' ? "text-red-600 font-black" :
+                                            isDanger ? "text-white font-black" :
                                                 (secondaryServer?.app?.['backup.daily.status']?.status === 'warning' ? "text-amber-600 font-bold" : "text-slate-400")
                                         )}>
                                             creado hace : <TimeAgo timestamp={time} />
                                         </div>
-                                    ) : <div className="text-[9px] text-slate-400">-</div>}
+                                    ) : <div className={cn("text-[9px]", isDanger ? "text-white/60" : "text-slate-400")}>-</div>}
                                 </div>
                             );
                         })()}
@@ -771,31 +849,33 @@ const MonitoreoSite = () => {
                 <div
                     onClick={() => openTerminal('Hourly Backup Log', secondaryServer?.app?.['backup.hourly.log']?.metric_value || 'No Log Data', secondaryServer?.info?.id, 'backup.hourly.log')}
                     className={cn(
-                        "bg-white p-3 rounded shadow-sm border border-slate-200 border-l-4 flex items-center gap-3 cursor-pointer hover:shadow-md transition-all",
-                        secondaryServer?.app?.['backup.hourly.status']?.status === 'danger' ? "border-l-red-500" :
-                            (secondaryServer?.app?.['backup.hourly.status']?.status === 'warning' ? "border-l-amber-500" : "border-l-sky-500")
+                        "p-3 rounded shadow-sm border border-slate-200 dark:border-slate-800 border-l-4 flex items-center gap-3 cursor-pointer hover:shadow-md transition-all",
+                        secondaryServer?.app?.['backup.hourly.status']?.status === 'danger' 
+                            ? "bg-red-600 border-red-700 text-white shadow-lg shadow-red-500/20" 
+                            : (secondaryServer?.app?.['backup.hourly.status']?.status === 'warning' ? "bg-white dark:bg-slate-900 border-l-amber-500" : "bg-white dark:bg-slate-900 border-l-sky-500")
                     )}>
                     <div className={cn(
                         "p-2 rounded",
-                        secondaryServer?.app?.['backup.hourly.status']?.status === 'danger' ? "bg-red-50 text-red-500" :
-                            (secondaryServer?.app?.['backup.hourly.status']?.status === 'warning' ? "bg-amber-50 text-amber-500" : "bg-sky-50 text-sky-500")
+                        secondaryServer?.app?.['backup.hourly.status']?.status === 'danger' ? "bg-white/20 text-white" :
+                            (secondaryServer?.app?.['backup.hourly.status']?.status === 'warning' ? "bg-amber-50 dark:bg-amber-500/10 text-amber-500" : "bg-sky-50 dark:bg-sky-500/10 text-sky-500")
                     )}><Clock size={20} /></div>
                     <div>
-                        <div className="text-[10px] font-bold text-slate-500 uppercase">HOURLY</div>
+                        <div className={cn("text-[10px] font-bold uppercase", secondaryServer?.app?.['backup.hourly.status']?.status === 'danger' ? "text-white/80" : "text-slate-500 dark:text-slate-400")}>HOURLY</div>
                         {(() => {
                             const { name, time } = parseBackupStatus(secondaryServer?.app?.['backup.hourly.status']?.metric_value);
+                            const isDanger = secondaryServer?.app?.['backup.hourly.status']?.status === 'danger';
                             return (
                                 <div className="leading-tight">
                                     <div className="font-bold text-[10px] truncate w-24" title={name}>{name}</div>
                                     {time ? (
                                         <div className={cn(
                                             "text-[9px] font-mono",
-                                            secondaryServer?.app?.['backup.hourly.status']?.status === 'danger' ? "text-red-600 font-black" :
+                                            isDanger ? "text-white font-black" :
                                                 (secondaryServer?.app?.['backup.hourly.status']?.status === 'warning' ? "text-amber-600 font-bold" : "text-slate-400")
                                         )}>
                                             creado hace : <TimeAgo timestamp={time} />
                                         </div>
-                                    ) : <div className="text-[9px] text-slate-400">-</div>}
+                                    ) : <div className={cn("text-[9px]", isDanger ? "text-white/60" : "text-slate-400")}>-</div>}
                                 </div>
                             );
                         })()}
@@ -803,32 +883,72 @@ const MonitoreoSite = () => {
                 </div>
             </div>
 
+            {/* Failover Detection Banner */}
+            {(() => {
+                const primaryFail = primaryServer?.app?.['app.jams.status']?.status === 'danger';
+                const secondaryFail = secondaryServer?.app?.['app.jams.status']?.status === 'warning' || secondaryServer?.app?.['app.jams.status']?.status === 'danger';
+                if (primaryFail || secondaryFail) {
+                    return (
+                        <div
+                            className="text-white rounded-lg px-4 py-2 flex items-center justify-center gap-3 shadow-md animate-in slide-in-from-top-2 duration-500 emergency-banner-pulse"
+                            style={{ backgroundColor: '#dc2626' }}
+                        >
+                            <Activity className="w-5 h-5" />
+                            <span className="font-black text-sm tracking-widest uppercase">⚠ FAILOVER DETECTADO ⚠</span>
+                            <Activity className="w-5 h-5" />
+                        </div>
+                    );
+                }
+                return null;
+            })()}
+
             {/* Simplified Content Row: Servers Only -> NOW 3 COLUMNS */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 h-fit">
                 {/* Primary Server */}
-                <div className="bg-white rounded-xl shadow-lg overflow-hidden border border-slate-200 flex flex-col ring-2 ring-[#0ea5e9]/5">
-                    <div className="bg-[#0284c7] text-white px-5 py-1.5 flex justify-between items-center shadow-sm relative z-10 transition-all">
-                        <span className="text-[11px] font-bold tracking-tight uppercase opacity-90">Servidor Primario</span>
-                        <span className="text-[9px] bg-[#0ea5e9] px-2 py-0.5 rounded-md font-bold shadow-sm uppercase">Active</span>
-                    </div>
+                <div
+                    className="bg-white rounded-xl shadow-lg overflow-hidden flex flex-col relative"
+                    style={hasFailover ? { border: '2px solid #dc2626', boxShadow: '0 0 0 3px rgba(220,38,38,0.1)' } : { border: '1px solid #e2e8f0' }}
+                >
+                    {/* Smart Disconnect Overlay - Rendered separately to keep color */}
+                    {isPrimaryOffline && (
+                        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-white/40 dark:bg-slate-950/40 backdrop-blur-[1.5px] transition-all duration-500 rounded-xl">
+                            <div className="bg-white/90 dark:bg-slate-900/90 p-5 rounded-full shadow-2xl border-4 border-red-500/20 mb-3 hover:scale-110 transition-transform">
+                                <WifiOff className="w-16 h-16 text-red-500 animate-pulse" />
+                            </div>
+                            <div className="bg-red-600/90 backdrop-blur-sm text-white px-6 py-2 rounded-full text-xs font-black shadow-lg uppercase tracking-widest flex items-center gap-2">
+                                <span className="w-2 h-2 rounded-full bg-red-300 animate-ping"></span>
+                                Servidor Sin Conexión
+                            </div>
+                        </div>
+                    )}
 
-                    <div className={cn("p-3 flex-1 flex flex-col gap-3", primaryServer?.info?.status === 0 && "opacity-50 grayscale")}>
+                    <div className={cn("flex flex-col flex-1 transition-all duration-1000", isFullSiteOffline && "grayscale opacity-40")}>
+                        <div
+                            className="text-white px-5 py-1.5 flex justify-between items-center shadow-sm relative z-10 transition-all"
+                            style={{ backgroundColor: hasFailover ? '#000' : '#0284c7' }}
+                        >
+                            <span className="text-[11px] font-bold tracking-tight uppercase opacity-90">Servidor Primario</span>
+                            <span
+                                className="text-[9px] px-2 py-0.5 rounded-md font-bold shadow-sm uppercase"
+                                style={hasFailover ? { backgroundColor: '#fff', color: '#000', border: '1px solid #333' } : { backgroundColor: '#0ea5e9' }}
+                            >Active</span>
+                        </div>
+
+                    <div className="p-3 flex-1 flex flex-col gap-3">
                         {/* Main Content Area: Side-by-Side Gauges and Large Chart */}
                         <div className="flex flex-col xl:flex-row gap-4 items-stretch">
                             {/* Gauges Column - Increased width for harmony */}
                             <div className="flex flex-row gap-4 items-start justify-center xl:justify-start px-0 flex-none w-[220px]">
                                 {/* DISK SECTION */}
                                 {(() => {
-                                    const used = parseFloat(String(primaryServer?.system?.disk_used ?? '0'));
-                                    const tot = parseFloat(String(primaryServer?.system?.disk_total ?? '1'));
                                     const pct = primaryServer?.system?.disk_percent ?? 0;
                                     const status = primaryServer?.system?.disk_status;
-                                    const color = status === 'danger' ? '#ef4444' : (status === 'warning' ? '#f59e0b' : '#10b981');
+                                    const color = hasFailover ? '#000' : (status === 'danger' ? '#ef4444' : (status === 'warning' ? '#f59e0b' : '#10b981'));
                                     return (
                                         <CircularUsage
                                             percentage={pct}
                                             label="Disco"
-                                            sublabel={`${Math.round(used)}G / ${Math.round(tot)}G`}
+                                            sublabel={`${formatMetricValue(primaryServer?.system?.disk_used, 'G')} / ${formatMetricValue(primaryServer?.system?.disk_total, 'G')}`}
                                             color={color}
                                             buttonLabel="Particiones"
                                             onClick={() => openTerminal('Particiones / Disco', primaryServer?.app?.['particionesDiscoDuro']?.metric_value || 'No Data', primaryServer?.info?.id, 'particionesDiscoDuro')}
@@ -837,16 +957,14 @@ const MonitoreoSite = () => {
                                 })()}
 
                                 {(() => {
-                                    const used = parseFloat(String(primaryServer?.system?.ram_used ?? '0'));
-                                    const tot = parseFloat(String(primaryServer?.system?.ram_total ?? '1'));
                                     const pct = primaryServer?.system?.ram_percent ?? 0;
                                     const status = primaryServer?.system?.ram_status;
-                                    const color = status === 'danger' ? '#ef4444' : (status === 'warning' ? '#f59e0b' : '#10b981');
+                                    const color = hasFailover ? '#000' : (status === 'danger' ? '#ef4444' : (status === 'warning' ? '#f59e0b' : '#10b981'));
                                     return (
                                         <CircularUsage
                                             percentage={pct}
                                             label="RAM"
-                                            sublabel={`${Math.round(used)}G / ${Math.round(tot)}G`}
+                                            sublabel={`${formatMetricValue(primaryServer?.system?.ram_used, 'M')} / ${formatMetricValue(primaryServer?.system?.ram_total, 'G')}`}
                                             color={color}
                                             buttonLabel="Crontab"
                                             onClick={() => openTerminal('Crontab', primaryServer?.app?.['crontab']?.metric_value || 'No Data', primaryServer?.info?.id, 'crontab')}
@@ -856,26 +974,27 @@ const MonitoreoSite = () => {
                             </div>
 
                             {/* CPU History Graph Area */}
-                            <div className="flex-1 min-h-[180px] relative border border-slate-100 rounded-xl bg-slate-50/50 overflow-hidden">
+                            <div className="flex-1 min-h-[180px] relative border border-slate-100 dark:border-slate-800 rounded-xl bg-slate-50/50 dark:bg-slate-800/30 overflow-hidden">
                                 <div className="absolute top-3 right-4 z-10 flex items-center gap-2">
                                     <div className={cn(
                                         "text-[10px] font-black px-2 py-1 rounded-full border shadow-sm transition-colors",
-                                        primaryServer?.system?.cpu_status === 'danger' ? "text-red-600 bg-red-50 border-red-200" :
-                                            (primaryServer?.system?.cpu_status === 'warning' ? "text-amber-600 bg-amber-50 border-amber-200" : "text-emerald-700 bg-emerald-50 border-emerald-200")
+                                        primaryServer?.system?.cpu_status === 'danger' ? "text-red-600 bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-900/30" :
+                                            (primaryServer?.system?.cpu_status === 'warning' ? "text-amber-600 bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-900/30" : "text-emerald-700 bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-900/30")
                                     )}>
                                         Load: {primaryServer?.system?.cpu_usage || '0.0'}
                                     </div>
                                     <div className={cn(
                                         "w-4 h-4 transition-colors",
                                         primaryServer?.system?.cpu_status === 'danger' ? "text-red-400" :
-                                            (primaryServer?.system?.cpu_status === 'warning' ? "text-amber-400" : "text-emerald-400")
+                                        hasFailover ? "text-black" : (primaryServer?.system?.cpu_status === 'danger' ? "text-red-400" :
+                                            (primaryServer?.system?.cpu_status === 'warning' ? "text-amber-400" : "text-emerald-400"))
                                     )}>
                                         <Activity size={14} />
                                     </div>
                                 </div>
                                 {(() => {
                                     const cpuStatus = primaryServer?.system?.cpu_status || 'ok';
-                                    const cpuColor = cpuStatus === 'danger' ? '#ef4444' : (cpuStatus === 'warning' ? '#f59e0b' : '#10b981');
+                                    const cpuColor = hasFailover ? '#000' : (cpuStatus === 'danger' ? '#ef4444' : (cpuStatus === 'warning' ? '#f59e0b' : '#10b981'));
                                     return (
                                         <ResponsiveContainer width="100%" height="100%">
                                             <AreaChart data={livePrimaryHistory} margin={{ top: 20, right: 10, left: -20, bottom: 5 }}>
@@ -885,7 +1004,7 @@ const MonitoreoSite = () => {
                                                         <stop offset="95%" stopColor={cpuColor} stopOpacity={0} />
                                                     </linearGradient>
                                                 </defs>
-                                                <CartesianGrid strokeDasharray="3 3" vertical={true} stroke="#e2e8f0" />
+                                                <CartesianGrid strokeDasharray="3 3" vertical={true} stroke="#e2e8f0" strokeOpacity={0.1} />
                                                 <XAxis dataKey="created_at" hide />
                                                 <YAxis stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} />
                                                 <Area type="monotone" dataKey="cpu_usage" stroke={cpuColor} strokeWidth={2.5} fill="url(#colorCpuP)" isAnimationActive={false} />
@@ -897,54 +1016,73 @@ const MonitoreoSite = () => {
                         </div>
 
                         {/* Footer Details: Restored 4-Column Grid */}
-                        <div className="border-t border-slate-100 pt-3 grid grid-cols-4 gap-2">
+                        <div className="border-t border-slate-100 dark:border-slate-800 pt-3 grid grid-cols-4 gap-2">
                             <div>
-                                <div className="text-[9px] font-bold text-slate-400 uppercase tracking-tight mb-0.5">Server</div>
-                                <div className="text-[11px] font-bold text-slate-700 truncate" title={primaryServer?.app?.['system.name']?.metric_value || primaryServer?.app?.['system.hostname']?.metric_value || primaryServer?.app?.['hostname']?.metric_value || primaryServer?.info?.name}>
+                                <div className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-tight mb-0.5">Server</div>
+                                <div className="text-[11px] font-bold text-slate-700 dark:text-slate-200 truncate" title={primaryServer?.app?.['system.name']?.metric_value || primaryServer?.app?.['system.hostname']?.metric_value || primaryServer?.app?.['hostname']?.metric_value || primaryServer?.info?.name}>
                                     {primaryServer?.app?.['system.name']?.metric_value || primaryServer?.app?.['system.hostname']?.metric_value || primaryServer?.app?.['hostname']?.metric_value || primaryServer?.info?.name}
                                 </div>
                             </div>
                             <div>
-                                <div className="text-[9px] font-bold text-slate-400 uppercase tracking-tight mb-0.5">IP</div>
-                                <div className="text-[11px] font-bold text-slate-600 tracking-tight">{primaryServer?.info?.ip_address}</div>
+                                <div className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-tight mb-0.5">IP</div>
+                                <div className="text-[11px] font-bold text-slate-600 dark:text-slate-300 tracking-tight">{primaryServer?.info?.ip_address}</div>
                             </div>
                             <div>
-                                <div className="text-[9px] font-bold text-slate-400 uppercase tracking-tight mb-0.5">Status</div>
-                                <div className="text-[11px] font-black text-emerald-600 uppercase tracking-tighter">
+                                <div className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-tight mb-0.5">Status</div>
+                                <div className="text-[11px] font-black text-emerald-600 dark:text-emerald-500 uppercase tracking-tighter">
                                     {primaryServer?.app?.['app.jams.status']?.metric_value || 'ACTIVE'}
                                 </div>
                             </div>
                             <div>
-                                <div className="text-[9px] font-bold text-slate-400 uppercase tracking-tight mb-0.5">Cluster</div>
-                                <div className="text-[11px] font-bold text-slate-700 truncate">{primaryServer?.app?.['app.fms.cluster']?.metric_value || 'None'}</div>
+                                <div className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-tight mb-0.5">Cluster</div>
+                                <div className="text-[11px] font-bold text-slate-700 dark:text-slate-200 truncate">{primaryServer?.app?.['app.fms.cluster']?.metric_value || 'None'}</div>
                             </div>
                         </div>
                     </div>
                 </div>
+            </div>
 
                 {/* Secondary Server */}
-                <div className="bg-white rounded-xl shadow-lg overflow-hidden border border-slate-200 flex flex-col">
-                    <div className="bg-[#0284c7] text-white px-5 py-1.5 flex justify-between items-center shadow-sm relative z-10 transition-all">
-                        <span className="text-[11px] font-bold tracking-tight uppercase opacity-90">Servidor Secundario</span>
-                        <span className="text-[9px] bg-slate-400/50 px-2 py-0.5 rounded-md font-bold shadow-sm uppercase">Backup</span>
-                    </div>
+                <div
+                    className="bg-white rounded-xl shadow-lg overflow-hidden flex flex-col relative"
+                    style={hasFailover ? { border: '2px solid #dc2626', boxShadow: '0 0 0 3px rgba(220,38,38,0.1)' } : { border: '1px solid #e2e8f0' }}
+                >
+                    {/* Smart Disconnect Overlay - Rendered separately to keep color */}
+                    {isSecondaryOffline && (
+                        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-white/40 dark:bg-slate-950/40 backdrop-blur-[1.5px] transition-all duration-500 rounded-xl">
+                            <div className="bg-white/90 dark:bg-slate-900/90 p-5 rounded-full shadow-2xl border-4 border-red-500/20 mb-3 hover:scale-110 transition-transform">
+                                <WifiOff className="w-16 h-16 text-red-500 animate-pulse" />
+                            </div>
+                            <div className="bg-red-600/90 backdrop-blur-sm text-white px-6 py-2 rounded-full text-xs font-black shadow-lg uppercase tracking-widest flex items-center gap-2">
+                                <span className="w-2 h-2 rounded-full bg-red-300 animate-ping"></span>
+                                Servidor Sin Conexión
+                            </div>
+                        </div>
+                    )}
 
-                    <div className={cn("p-3 flex-1 flex flex-col gap-3", (!secondaryServer || secondaryServer?.info?.status === 0) && "opacity-50 grayscale")}>
+                    <div className={cn("flex flex-col flex-1 transition-all duration-1000", isFullSiteOffline && "grayscale opacity-40")}>
+                        <div
+                            className="text-white px-5 py-1.5 flex justify-between items-center shadow-sm relative z-10 transition-all"
+                            style={{ backgroundColor: hasFailover ? '#000' : '#0284c7' }}
+                        >
+                            <span className="text-[11px] font-bold tracking-tight uppercase opacity-90">Servidor Secundario</span>
+                            <span className="text-[9px] bg-slate-400/50 px-2 py-0.5 rounded-md font-bold shadow-sm uppercase">Backup</span>
+                        </div>
+
+                    <div className={cn("p-3 flex-1 flex flex-col gap-3", !secondaryServer && "opacity-50 grayscale")}>
                         {secondaryServer ? (
                             <>
                                 <div className="flex flex-col xl:flex-row gap-4 items-stretch">
                                     <div className="flex flex-row gap-4 items-start justify-center xl:justify-start px-0 flex-none w-[220px]">
                                         {(() => {
-                                            const used = parseFloat(String(secondaryServer?.system?.disk_used ?? '0'));
-                                            const tot = parseFloat(String(secondaryServer?.system?.disk_total ?? '1'));
                                             const pct = secondaryServer?.system?.disk_percent ?? 0;
                                             const status = secondaryServer?.system?.disk_status;
-                                            const color = status === 'danger' ? '#ef4444' : (status === 'warning' ? '#f59e0b' : '#10b981');
+                                            const color = hasFailover ? '#000' : (status === 'danger' ? '#ef4444' : (status === 'warning' ? '#f59e0b' : '#10b981'));
                                             return (
                                                 <CircularUsage
                                                     percentage={pct}
                                                     label="Disco"
-                                                    sublabel={`${Math.round(used)}G / ${Math.round(tot)}G`}
+                                                    sublabel={`${formatMetricValue(secondaryServer?.system?.disk_used, 'G')} / ${formatMetricValue(secondaryServer?.system?.disk_total, 'G')}`}
                                                     color={color}
                                                     buttonLabel="Particiones"
                                                     onClick={() => openTerminal('Particiones / Disco', secondaryServer?.app?.['particionesDiscoDuro']?.metric_value || 'No Data', secondaryServer?.info?.id, 'particionesDiscoDuro')}
@@ -953,16 +1091,14 @@ const MonitoreoSite = () => {
                                         })()}
 
                                         {(() => {
-                                            const used = parseFloat(String(secondaryServer?.system?.ram_used ?? '0'));
-                                            const tot = parseFloat(String(secondaryServer?.system?.ram_total ?? '1'));
                                             const pct = secondaryServer?.system?.ram_percent ?? 0;
                                             const status = secondaryServer?.system?.ram_status;
-                                            const color = status === 'danger' ? '#ef4444' : (status === 'warning' ? '#f59e0b' : '#10b981');
+                                            const color = hasFailover ? '#000' : (status === 'danger' ? '#ef4444' : (status === 'warning' ? '#f59e0b' : '#10b981'));
                                             return (
                                                 <CircularUsage
                                                     percentage={pct}
                                                     label="RAM"
-                                                    sublabel={`${Math.round(used)}G / ${Math.round(tot)}G`}
+                                                    sublabel={`${formatMetricValue(secondaryServer?.system?.ram_used, 'M')} / ${formatMetricValue(secondaryServer?.system?.ram_total, 'G')}`}
                                                     color={color}
                                                     buttonLabel="Crontab"
                                                     onClick={() => openTerminal('Crontab', secondaryServer?.app?.['crontab']?.metric_value || 'No Data', secondaryServer?.info?.id, 'crontab')}
@@ -971,12 +1107,12 @@ const MonitoreoSite = () => {
                                         })()}
                                     </div>
 
-                                    <div className="flex-1 min-h-[180px] relative border border-slate-100 rounded-xl bg-slate-50/50 overflow-hidden">
+                                    <div className="flex-1 min-h-[180px] relative border border-slate-100 dark:border-slate-800 rounded-xl bg-slate-50/50 dark:bg-slate-800/30 overflow-hidden">
                                         <div className="absolute top-3 right-4 z-10 flex items-center gap-2">
                                             <div className={cn(
                                                 "text-[10px] font-black px-2 py-1 rounded-full border shadow-sm transition-colors",
-                                                secondaryServer?.system?.cpu_status === 'danger' ? "text-red-600 bg-red-50 border-red-200" :
-                                                    (secondaryServer?.system?.cpu_status === 'warning' ? "text-amber-600 bg-amber-50 border-amber-200" : "text-emerald-700 bg-emerald-50 border-emerald-200")
+                                                secondaryServer?.system?.cpu_status === 'danger' ? "text-red-600 bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-900/30" :
+                                                    (secondaryServer?.system?.cpu_status === 'warning' ? "text-amber-600 bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-900/30" : "text-emerald-700 bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-900/30")
                                             )}>
                                                 Load: {secondaryServer?.system?.cpu_usage || '0.0'}
                                             </div>
@@ -990,7 +1126,7 @@ const MonitoreoSite = () => {
                                         </div>
                                         {(() => {
                                             const cpuStatus = secondaryServer?.system?.cpu_status || 'ok';
-                                            const cpuColor = cpuStatus === 'danger' ? '#ef4444' : (cpuStatus === 'warning' ? '#f59e0b' : '#10b981');
+                                            const cpuColor = hasFailover ? '#000' : (cpuStatus === 'danger' ? '#ef4444' : (cpuStatus === 'warning' ? '#f59e0b' : '#10b981'));
                                             return (
                                                 <ResponsiveContainer width="100%" height="100%">
                                                     <AreaChart data={liveSecondaryHistory} margin={{ top: 20, right: 10, left: -20, bottom: 5 }}>
@@ -1000,7 +1136,7 @@ const MonitoreoSite = () => {
                                                                 <stop offset="95%" stopColor={cpuColor} stopOpacity={0} />
                                                             </linearGradient>
                                                         </defs>
-                                                        <CartesianGrid strokeDasharray="3 3" vertical={true} stroke="#e2e8f0" />
+                                                        <CartesianGrid strokeDasharray="3 3" vertical={true} stroke="#e2e8f0" strokeOpacity={0.1} />
                                                         <XAxis dataKey="created_at" hide />
                                                         <YAxis stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} />
                                                         <Area type="monotone" dataKey="cpu_usage" stroke={cpuColor} strokeWidth={2.5} fill="url(#colorCpuS)" isAnimationActive={false} />
@@ -1011,26 +1147,26 @@ const MonitoreoSite = () => {
                                     </div>
                                 </div>
 
-                                <div className="border-t border-slate-100 pt-3 grid grid-cols-4 gap-2">
+                                <div className="border-t border-slate-100 dark:border-slate-800 pt-3 grid grid-cols-4 gap-2">
                                     <div>
-                                        <div className="text-[9px] font-bold text-slate-400 uppercase tracking-tight mb-0.5">Server</div>
-                                        <div className="text-[11px] font-bold text-slate-700 truncate" title={secondaryServer?.app?.['system.name']?.metric_value || secondaryServer?.app?.['system.hostname']?.metric_value || secondaryServer?.app?.['hostname']?.metric_value || secondaryServer?.info?.name}>
+                                        <div className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-tight mb-0.5">Server</div>
+                                        <div className="text-[11px] font-bold text-slate-700 dark:text-slate-200 truncate" title={secondaryServer?.app?.['system.name']?.metric_value || secondaryServer?.app?.['system.hostname']?.metric_value || secondaryServer?.app?.['hostname']?.metric_value || secondaryServer?.info?.name}>
                                             {secondaryServer?.app?.['system.name']?.metric_value || secondaryServer?.app?.['system.hostname']?.metric_value || secondaryServer?.app?.['hostname']?.metric_value || secondaryServer?.info?.name}
                                         </div>
                                     </div>
                                     <div>
-                                        <div className="text-[9px] font-bold text-slate-400 uppercase tracking-tight mb-0.5">IP</div>
-                                        <div className="text-[11px] font-bold text-slate-600 tracking-tight">{secondaryServer?.info?.ip_address}</div>
+                                        <div className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-tight mb-0.5">IP</div>
+                                        <div className="text-[11px] font-bold text-slate-600 dark:text-slate-300 tracking-tight">{secondaryServer?.info?.ip_address}</div>
                                     </div>
                                     <div>
-                                        <div className="text-[9px] font-bold text-slate-400 uppercase tracking-tight mb-0.5">Status</div>
-                                        <div className="text-[11px] font-bold text-slate-500 uppercase tracking-tighter">
+                                        <div className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-tight mb-0.5">Status</div>
+                                        <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-tighter">
                                             {secondaryServer?.app?.['app.jams.status']?.metric_value || 'BACKUP'}
                                         </div>
                                     </div>
                                     <div>
-                                        <div className="text-[9px] font-bold text-slate-400 uppercase tracking-tight mb-0.5">Cluster</div>
-                                        <div className="text-[11px] font-bold text-slate-700 truncate">{secondaryServer?.app?.['app.fms.cluster']?.metric_value || 'None'}</div>
+                                        <div className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-tight mb-0.5">Cluster</div>
+                                        <div className="text-[11px] font-bold text-slate-700 dark:text-slate-200 truncate">{secondaryServer?.app?.['app.fms.cluster']?.metric_value || 'None'}</div>
                                     </div>
                                 </div>
                             </>
@@ -1042,10 +1178,11 @@ const MonitoreoSite = () => {
                         )}
                     </div>
                 </div>
+            </div>
 
                 {/* Servicios y Scripts Section */}
-                <div className="bg-white rounded-xl shadow-lg border border-slate-200 flex flex-col">
-                    <div className="bg-[#0284c7] text-white px-5 py-1.5 flex justify-between items-center shadow-sm relative z-10 transition-all">
+                <div className={cn("bg-white dark:bg-slate-900 rounded-xl shadow-lg border border-slate-200 dark:border-slate-800 flex flex-col transition-all duration-1000", isFullSiteOffline && "grayscale opacity-40")}>
+                    <div className="bg-[#0284c7] dark:bg-[#0c2d48] text-white px-5 py-1.5 flex justify-between items-center shadow-sm relative z-10 transition-all">
                         <span className="text-[11px] font-bold tracking-tight uppercase opacity-90">Servicios y Scripts</span>
                     </div>
 
@@ -1054,15 +1191,15 @@ const MonitoreoSite = () => {
                         <div className="grid grid-cols-2 gap-3">
                             <div
                                 onClick={() => openTerminal('JAMS Service Status', primaryServer?.app?.['app.jams.service']?.metric_value || 'No Data', primaryServer?.info?.id, 'app.jams.service')}
-                                className="cursor-pointer group bg-[#f0fdf4] border border-[#dcfce7] rounded-xl p-3 transition-all hover:bg-emerald-50 hover:shadow-md flex flex-col justify-between h-[110px]"
+                                className="cursor-pointer group bg-[#f0fdf4] dark:bg-emerald-950/20 border border-[#dcfce7] dark:border-emerald-900/30 rounded-xl p-3 transition-all hover:bg-emerald-50 dark:hover:bg-emerald-900/30 hover:shadow-md flex flex-col justify-between h-[110px]"
                             >
                                 <div>
-                                    <div className="text-[#15803d] font-black text-[10px] uppercase truncate mb-0.5">
+                                    <div className="text-[#15803d] dark:text-emerald-400 font-black text-[10px] uppercase truncate mb-0.5">
                                         JAMS {primaryServer?.app?.['system.name']?.metric_value || primaryServer?.app?.['system.hostname']?.metric_value || primaryServer?.app?.['hostname']?.metric_value || primaryServer?.info?.name}
                                     </div>
-                                    <div className="text-emerald-600 text-[9px] font-bold uppercase tracking-wider">Active</div>
+                                    <div className="text-emerald-600 dark:text-emerald-500 text-[9px] font-bold uppercase tracking-wider">Active</div>
                                 </div>
-                                <div className="text-[#166534] text-[9px] font-black opacity-80 uppercase tracking-tighter pt-1.5 border-t border-emerald-100 flex justify-between items-center">
+                                <div className="text-[#166534] dark:text-emerald-600/80 text-[9px] font-black opacity-80 uppercase tracking-tighter pt-1.5 border-t border-emerald-100 dark:border-emerald-900/30 flex justify-between items-center">
                                     <span>Reinicios (24h):</span>
                                     <span className="text-emerald-700 bg-emerald-200/50 px-1.5 rounded-full font-bold">
                                         {(() => {
@@ -1077,13 +1214,13 @@ const MonitoreoSite = () => {
 
                             <div
                                 onClick={() => openTerminal('JAMS Service Status', secondaryServer?.app?.['app.jams.service']?.metric_value || 'No Data', secondaryServer?.info?.id, 'app.jams.service')}
-                                className="cursor-pointer group bg-[#f0fdf4] border border-[#dcfce7] rounded-xl p-3 transition-all hover:bg-emerald-50 hover:shadow-md flex flex-col h-[110px]"
+                                className="cursor-pointer group bg-[#f0fdf4] dark:bg-emerald-950/10 border border-[#dcfce7] dark:border-emerald-900/20 rounded-xl p-3 transition-all hover:bg-emerald-50 dark:hover:bg-emerald-900/20 hover:shadow-md flex flex-col h-[110px]"
                             >
                                 <div>
-                                    <div className="text-[#15803d] font-black text-[10px] uppercase truncate mb-0.5">
+                                    <div className="text-[#15803d] dark:text-emerald-500/60 font-black text-[10px] uppercase truncate mb-0.5">
                                         JAMS {secondaryServer?.app?.['system.name']?.metric_value || secondaryServer?.app?.['system.hostname']?.metric_value || secondaryServer?.app?.['hostname']?.metric_value || secondaryServer?.info?.name}
                                     </div>
-                                    <div className="text-slate-400 text-[9px] font-bold uppercase tracking-wider">Backup</div>
+                                    <div className="text-slate-400 dark:text-slate-500 text-[9px] font-bold uppercase tracking-wider">Backup</div>
                                 </div>
                             </div>
                         </div>
@@ -1092,11 +1229,11 @@ const MonitoreoSite = () => {
                         <div className="grid grid-cols-4 gap-2">
                             <div
                                 onClick={() => openTerminal('Scripts Activos', primaryServer?.app?.['app.fms.active_scripts']?.metric_value || 'No hay scripts activos', primaryServer?.info?.id, 'app.fms.active_scripts')}
-                                className="bg-[#f0fdf4] border border-[#dcfce7] rounded-xl p-1.5 flex flex-col items-center justify-center text-center relative overflow-hidden group hover:bg-emerald-50 transition-colors h-[60px] cursor-pointer"
+                                className="bg-[#f0fdf4] dark:bg-emerald-950/20 border border-[#dcfce7] dark:border-emerald-900/30 rounded-xl p-1.5 flex flex-col items-center justify-center text-center relative overflow-hidden group hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors h-[60px] cursor-pointer"
                             >
                                 <div className="absolute -bottom-1 -right-1 opacity-5 text-emerald-900 group-hover:scale-110 transition-transform"><Activity size={30} /></div>
-                                <div className="text-[7px] font-black text-[#166534]/40 uppercase tracking-widest leading-none z-10">SCRIPTS</div>
-                                <div className="text-xl font-black text-[#166534] z-10">
+                                <div className="text-[7px] font-black text-[#166534]/40 dark:text-emerald-400/30 uppercase tracking-widest leading-none z-10">SCRIPTS</div>
+                                <div className="text-xl font-black text-[#166534] dark:text-emerald-400 z-10">
                                     {(() => {
                                         const val = primaryServer?.app?.['app.fms.active_scripts']?.metric_value;
                                         if (!val) return '0';
@@ -1108,13 +1245,13 @@ const MonitoreoSite = () => {
 
                             <div
                                 onClick={() => openTerminal('Replica Log', primaryServer?.app?.['app.fms.replica']?.metric_value || 'No hay replicas activas', primaryServer?.info?.id, 'app.fms.replica')}
-                                className="bg-[#f0fdf4] border border-[#dcfce7] rounded-xl p-1.5 flex flex-col items-center justify-center text-center relative overflow-hidden group hover:bg-emerald-50 transition-colors h-[60px] cursor-pointer"
+                                className="bg-[#f0fdf4] dark:bg-emerald-950/20 border border-[#dcfce7] dark:border-emerald-900/30 rounded-xl p-1.5 flex flex-col items-center justify-center text-center relative overflow-hidden group hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors h-[60px] cursor-pointer"
                             >
                                 <div className="absolute -bottom-1 -right-1 opacity-10 text-emerald-900 group-hover:scale-110 transition-transform"><Database size={30} /></div>
-                                <div className="text-[7px] font-black text-[#166534]/40 uppercase tracking-widest leading-none z-10">REPLICAS</div>
+                                <div className="text-[7px] font-black text-[#166534]/40 dark:text-emerald-400/30 uppercase tracking-widest leading-none z-10">REPLICAS</div>
                                 <div className={clsx(
                                     "text-xl font-black z-10",
-                                    primaryServer?.app?.['app.fms.replica']?.status === 'danger' ? 'text-red-600 animate-pulse' : 'text-[#166534]'
+                                    primaryServer?.app?.['app.fms.replica']?.status === 'danger' ? 'text-red-600 animate-pulse' : 'text-[#166534] dark:text-emerald-400'
                                 )}>
                                     {(() => {
                                         const val = primaryServer?.app?.['app.fms.replica']?.metric_value;
@@ -1126,10 +1263,10 @@ const MonitoreoSite = () => {
 
                             <div
                                 onClick={() => openTerminal('Reconciliador Log', primaryServer?.app?.['app.jams.reconcilie']?.metric_value || 'No Log Data', primaryServer?.info?.id, 'app.jams.reconcilie')}
-                                className="bg-[#f0fdf4] border border-[#dcfce7] rounded-xl p-1.5 flex flex-col items-center justify-center text-center relative overflow-hidden group hover:bg-emerald-50 transition-colors h-[60px] cursor-pointer"
+                                className="bg-[#f0fdf4] dark:bg-emerald-950/20 border border-[#dcfce7] dark:border-emerald-900/30 rounded-xl p-1.5 flex flex-col items-center justify-center text-center relative overflow-hidden group hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors h-[60px] cursor-pointer"
                             >
                                 <div className="absolute -bottom-1 -right-1 opacity-10 text-emerald-900 group-hover:scale-110 transition-transform"><ShieldCheck size={30} /></div>
-                                <div className="text-[7px] font-black text-[#166534]/40 uppercase tracking-widest leading-none z-10">RECON</div>
+                                <div className="text-[7px] font-black text-[#166534]/40 dark:text-emerald-400/30 uppercase tracking-widest leading-none z-10">RECON</div>
                                 <span className={clsx(
                                     "text-[8px] font-black uppercase tracking-tighter z-10",
                                     primaryServer?.app?.['app.jams.reconcilie']?.status === 'danger' ? 'text-red-600' :
@@ -1142,10 +1279,10 @@ const MonitoreoSite = () => {
                                 </span>
                             </div>
 
-                            <div className="bg-[#f0fdf4] border border-[#dcfce7] rounded-xl p-1.5 flex flex-col items-center justify-center text-center relative overflow-hidden group hover:bg-emerald-50 transition-colors h-[60px]">
+                            <div className="bg-[#f0fdf4] dark:bg-emerald-950/20 border border-[#dcfce7] dark:border-emerald-900/30 rounded-xl p-1.5 flex flex-col items-center justify-center text-center relative overflow-hidden group hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors h-[60px]">
                                 <div className="absolute -bottom-1 -right-1 opacity-10 text-emerald-900 group-hover:scale-110 transition-transform"><Clock size={30} /></div>
-                                <div className="text-[7px] font-black text-[#166534]/40 uppercase tracking-widest leading-none z-10">NTP</div>
-                                <span className="text-[8px] font-black text-emerald-600 uppercase tracking-tighter z-10">
+                                <div className="text-[7px] font-black text-[#166534]/40 dark:text-emerald-400/30 uppercase tracking-widest leading-none z-10">NTP</div>
+                                <span className="text-[8px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-tighter z-10">
                                     {(() => {
                                         const val = primaryServer?.app?.['system.ntp.status']?.metric_value || '';
                                         return val.toLowerCase().includes('ntpd') || val.trim().length > 20 ? 'Active' : (val || 'Active');
@@ -1158,23 +1295,23 @@ const MonitoreoSite = () => {
             </div>
 
             {/* NEW SECTION: Files & DB Overview */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-6 items-stretch">
+            <div className={cn("grid grid-cols-1 lg:grid-cols-2 gap-4 mt-6 items-stretch transition-all duration-1000", isFullSiteOffline && "grayscale opacity-40")}>
                 {/* 1. Large Files Explorer */}
-                <div className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden flex flex-col h-full">
-                    <div className="bg-[#0284c7] text-white px-5 py-2.5 flex justify-between items-center shadow-sm relative z-10 shrink-0">
+                <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col h-full">
+                    <div className="bg-[#0284c7] dark:bg-[#0c2d48] text-white px-5 py-2.5 flex justify-between items-center shadow-sm relative z-10 shrink-0">
                         <div className="flex items-center gap-2">
                             <FolderOpen size={18} className="text-white/80" />
                             <h2 className="text-sm font-black tracking-tight uppercase leading-none">Archivos y Log Pesados (Sobre 1 GB)</h2>
                         </div>
                     </div>
-                    <div className="flex-1 bg-slate-50/30 overflow-auto custom-scrollbar">
+                    <div className="flex-1 bg-slate-50/30 dark:bg-slate-950/20 overflow-auto custom-scrollbar">
                         <FileTree rawData={primaryServer?.app?.['system.files.largest']?.metric_value} />
                     </div>
                 </div>
 
                 {/* 2. Database Intelligence */}
-                <div className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden flex flex-col h-full min-h-[500px]">
-                    <div className="bg-[#0284c7] text-white px-5 py-2.5 flex justify-between items-center shadow-sm">
+                <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col h-full min-h-[500px]">
+                    <div className="bg-[#0284c7] dark:bg-[#0c2d48] text-white px-5 py-2.5 flex justify-between items-center shadow-sm">
                         <div className="flex items-center gap-2">
                             <Database size={18} className="text-white/80" />
                             <h2 className="text-sm font-black tracking-tight uppercase leading-none">DataBase</h2>
@@ -1185,36 +1322,36 @@ const MonitoreoSite = () => {
                         {/* A. Active/Backup Status Boxes */}
                         <div className="grid grid-cols-2 gap-3">
                             {/* Active Card */}
-                            <div className="bg-white border-2 border-slate-100 rounded-xl p-3 flex gap-4 items-center shadow-sm">
-                                <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl ring-4 ring-blue-50/50 shadow-inner">
+                            <div className="bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700/50 rounded-xl p-3 flex gap-4 items-center shadow-sm">
+                                <div className="p-3 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-2xl ring-4 ring-blue-50/50 dark:ring-blue-900/10 shadow-inner">
                                     <Database size={24} />
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-1.5 mb-0.5">
                                         <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">Activo</span>
+                                        <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-tighter">Activo</span>
                                     </div>
-                                    <div className="text-xl font-black text-slate-800 leading-none mb-0.5">
+                                    <div className="text-xl font-black text-slate-800 dark:text-slate-100 leading-none mb-0.5">
                                         {primaryServer?.app?.['db.size']?.metric_value || '0 MB'}
                                     </div>
                                 </div>
                             </div>
 
                             {/* Backup Card */}
-                            <div className="bg-white border-2 border-slate-100 rounded-xl p-3 flex gap-4 items-center shadow-sm">
-                                <div className="p-3 bg-violet-50 text-violet-600 rounded-2xl ring-4 ring-violet-50/50 shadow-inner">
+                            <div className="bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700/50 rounded-xl p-3 flex gap-4 items-center shadow-sm">
+                                <div className="p-3 bg-violet-50 dark:bg-violet-900/20 text-violet-600 dark:text-violet-400 rounded-2xl ring-4 ring-violet-50/50 dark:ring-violet-900/10 shadow-inner">
                                     <Database size={24} />
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-1.5 mb-0.5">
                                         <div className="w-1.5 h-1.5 rounded-full bg-violet-400" />
-                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">Backup</span>
+                                        <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-tighter">Backup</span>
                                     </div>
-                                    <div className="text-xl font-black text-slate-800 leading-none mb-1">
+                                    <div className="text-xl font-black text-slate-800 dark:text-slate-100 leading-none mb-1">
                                         {secondaryServer?.app?.['db.size']?.metric_value || '0 MB'}
                                     </div>
                                     {secondaryServer?.app?.['db.schema.date']?.metric_value && (
-                                        <div className="text-[9px] font-black text-slate-400 tracking-tighter">
+                                        <div className="text-[9px] font-black text-slate-400 dark:text-slate-500 tracking-tighter">
                                             backup_at (S): <span className="text-violet-500">{secondaryServer?.app?.['db.schema.date']?.metric_value}</span>
                                         </div>
                                     )}
@@ -1225,7 +1362,7 @@ const MonitoreoSite = () => {
                         {/* B. Max ID Progress Row */}
                         {(() => {
                             const raw = primaryServer?.app?.['db.max_id_table']?.metric_value;
-                            if (!raw) return <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 text-center text-xs italic text-slate-400">Sin datos de ID</div>;
+                            if (!raw) return <div className="bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-center text-xs italic text-slate-400 dark:text-slate-500">Sin datos de ID</div>;
                             const [table, pk] = raw.split('|');
                             const maxValue = 2147483647;
                             const gap = maxValue - parseInt(pk);
@@ -1239,12 +1376,12 @@ const MonitoreoSite = () => {
                                     "border rounded-2xl p-4 transition-all duration-500 relative overflow-hidden",
                                     isDanger ? "bg-red-600 border-red-700 text-white shadow-[0_0_30px_rgba(220,38,38,0.6)]" :
                                         isWarning ? "bg-amber-400 border-amber-500 text-amber-950" :
-                                            "bg-slate-50 border-slate-100 text-slate-700"
+                                            "bg-slate-50 dark:bg-slate-800 border-slate-100 dark:border-slate-700 text-slate-700 dark:text-slate-200"
                                 )}>
                                     {isDanger && <div className="absolute inset-0 bg-red-500 animate-pulse opacity-20 pointer-events-none" />}
                                     <table className="w-full relative z-10">
                                         <thead>
-                                            <tr className={cn("text-[10px] uppercase font-black tracking-widest text-left", isDanger ? "text-white/70" : "text-slate-400")}>
+                                            <tr className={cn("text-[10px] uppercase font-black tracking-widest text-left", isDanger ? "text-white/70" : "text-slate-400 dark:text-slate-500")}>
                                                 <th className="pb-3 px-1">Tabla</th>
                                                 <th className="pb-3 px-1">PK</th>
                                                 <th className="pb-3 px-1">Max. Val</th>
@@ -1255,14 +1392,14 @@ const MonitoreoSite = () => {
                                             <tr className="text-sm font-black">
                                                 <td className="py-1 px-1">{table}</td>
                                                 <td className="py-1 px-1 tabular-nums ">{Number(pk).toLocaleString()}</td>
-                                                <td className={cn("py-1 px-1 tabular-nums", isDanger ? "text-white/60" : "text-slate-400")}>2.147.483.647</td>
+                                                <td className={cn("py-1 px-1 tabular-nums", isDanger ? "text-white/60" : "text-slate-400 dark:text-slate-500")}>2.147.483.647</td>
                                                 <td className={cn("py-1 px-1 tabular-nums text-right font-black", isDanger ? "text-white" : isWarning ? "text-amber-900" : "text-emerald-600")}>
                                                     {gap.toLocaleString()}
                                                 </td>
                                             </tr>
                                             <tr>
                                                 <td colSpan={4} className="pt-2 px-1">
-                                                    <div className={cn("h-2.5 bg-black/10 rounded-full overflow-hidden border", isDanger ? "border-white/30" : "border-slate-200")}>
+                                                    <div className={cn("h-2.5 bg-black/10 dark:bg-white/5 rounded-full overflow-hidden border", isDanger ? "border-white/30" : "border-slate-200 dark:border-slate-700")}>
                                                         <div
                                                             className={cn("h-full transition-all duration-1000 shadow-sm", isDanger ? "bg-white shadow-[0_0_15px_white]" : isWarning ? "bg-amber-700" : "bg-emerald-500")}
                                                             style={{ width: `${progress}%` }}
@@ -1376,12 +1513,12 @@ const MonitoreoSite = () => {
                         {/* D. Comparison Tables (Shifts & Top Tables) */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {/* Shift Tables Comparison - CLEAN REWRITE/STRICT */}
-                            <div className="bg-slate-50/50 rounded-xl p-3 border border-slate-100 flex flex-col min-h-[100px] mb-6">
-                                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 pl-1 border-l-2 border-indigo-500 leading-none">Resumen Comparación Shift Tables</h4>
+                            <div className="bg-slate-50/50 dark:bg-slate-800/50 rounded-xl p-3 border border-slate-100 dark:border-slate-700/50 flex flex-col min-h-[100px] mb-6">
+                                <h4 className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 pl-1 border-l-2 border-indigo-500 leading-none">Resumen Comparación Shift Tables</h4>
                                 <div className="flex-1 overflow-auto custom-scrollbar pr-2">
                                     <table className="w-full text-left">
                                         <thead>
-                                            <tr className="text-[9px] text-slate-400 font-bold uppercase border-b border-slate-200">
+                                            <tr className="text-[9px] text-slate-400 dark:text-slate-500 font-bold uppercase border-b border-slate-200 dark:border-slate-700">
                                                 <th className="pb-1.5 px-0.5">Tabla</th>
                                                 <th className="pb-1.5 px-0.5">P</th>
                                                 <th className="pb-1.5 px-0.5">S</th>
@@ -1429,10 +1566,10 @@ const MonitoreoSite = () => {
                                                     const diff = pVal - sVal; // Raw difference
 
                                                     return (
-                                                        <tr key={k} className="border-b border-slate-100/50 hover:bg-white/50">
-                                                            <td className="py-1 px-0.5 font-bold text-slate-700">{k}</td>
-                                                            <td className="py-1 px-0.5 text-slate-500">{pVal.toLocaleString()}</td>
-                                                            <td className="py-1 px-0.5 text-slate-500">{sVal.toLocaleString()}</td>
+                                                        <tr key={k} className="border-b border-slate-100/50 dark:border-slate-700/30 hover:bg-white/50 dark:hover:bg-slate-700/30">
+                                                            <td className="py-1 px-0.5 font-bold text-slate-700 dark:text-slate-200">{k}</td>
+                                                            <td className="py-1 px-0.5 text-slate-500 dark:text-slate-400">{pVal.toLocaleString()}</td>
+                                                            <td className="py-1 px-0.5 text-slate-500 dark:text-slate-400">{sVal.toLocaleString()}</td>
                                                             <td className={cn("py-1 px-0.5 text-right font-bold", Math.abs(diff) > 0 ? "text-amber-600" : "text-emerald-500")}>
                                                                 {Math.abs(diff).toLocaleString()}
                                                             </td>
@@ -1446,12 +1583,12 @@ const MonitoreoSite = () => {
                             </div>
 
                             {/* Top 10 Heaviest Tables (Simulated or Placeholder) */}
-                            <div className="bg-slate-50/50 rounded-xl p-3 border border-slate-100 flex flex-col min-h-[220px]">
-                                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 pl-1 border-l-2 border-violet-500 leading-none">Top 10 Tablas mas Pesadas</h4>
+                            <div className="bg-slate-50/50 dark:bg-slate-800/50 rounded-xl p-3 border border-slate-100 dark:border-slate-700/50 flex flex-col min-h-[220px]">
+                                <h4 className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 pl-1 border-l-2 border-violet-500 leading-none">Top 10 Tablas mas Pesadas</h4>
                                 <div className="flex-1 overflow-auto custom-scrollbar pr-2">
                                     <table className="w-full text-left">
                                         <thead>
-                                            <tr className="text-[9px] text-slate-400 font-bold uppercase border-b border-slate-200">
+                                            <tr className="text-[9px] text-slate-400 dark:text-slate-500 font-bold uppercase border-b border-slate-200 dark:border-slate-700">
                                                 <th className="pb-1.5 px-0.5">Tabla</th>
                                                 <th className="pb-1.5 px-0.5 text-right">Registros</th>
                                             </tr>
@@ -1475,9 +1612,9 @@ const MonitoreoSite = () => {
                                                     }
 
                                                     return (
-                                                        <tr key={table} className="border-b border-slate-100/50 group hover:bg-white/40">
-                                                            <td className="py-1.5 px-0.5 font-bold text-slate-600 truncate max-w-[120px]" title={table}>{table}</td>
-                                                            <td className="py-1.5 px-0.5 text-right font-black text-slate-700">{parseInt(count).toLocaleString()}</td>
+                                                        <tr key={table} className="border-b border-slate-100/50 dark:border-slate-700/30 group hover:bg-white/40 dark:hover:bg-slate-700/30">
+                                                            <td className="py-1.5 px-0.5 font-bold text-slate-600 dark:text-slate-300 truncate max-w-[120px]" title={table}>{table}</td>
+                                                            <td className="py-1.5 px-0.5 text-right font-black text-slate-700 dark:text-slate-200">{parseInt(count).toLocaleString()}</td>
                                                         </tr>
                                                     );
                                                 });

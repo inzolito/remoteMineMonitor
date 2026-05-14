@@ -1,14 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Loader2, X, Globe, ShieldCheck, Cpu } from 'lucide-react';
+import { Loader2, X, Database, Server as ServerIcon, Globe, Box, ShieldCheck, Cpu } from 'lucide-react';
 import type { Server } from '../services/serversService';
 import { deleteServer } from '../services/serversService';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import {
-    IisIcon, MeIcon, JviewIcon, FmsIcon, CasIcon,
-    OasIcon, SlIcon, MpdataIcon, SqlIcon, PgIcon, NtpAntennaIcon, TunelIcon,
-    PivoteIcon
-} from './icons/MiningIcons';
 
 function cn(...inputs: ClassValue[]) {
     return twMerge(clsx(inputs));
@@ -19,28 +14,20 @@ interface ServerModalProps {
     onClose: () => void;
     onSave: (server: Partial<Server>) => Promise<void>;
     initialData?: Server | null;
-    siteAlias?: string;
 }
 
 // Preset configurations
 const SERVER_PRESETS = [
-    { id: 'fms', label: 'FMS', type: 'Servidor FMS', os: 'Linux', port: '22', protocol: 'SSH', icon: FmsIcon, color: 'text-orange-500 bg-orange-500/10 border-orange-200' },
-    { id: 'ntp', label: 'NTP', type: 'Servidor NTP', os: 'Linux', port: '123', protocol: 'UDP', icon: NtpAntennaIcon, color: 'text-slate-500 bg-slate-500/10 border-slate-200' },
+    { id: 'fms', label: 'Servidor FMS', type: 'Servidor FMS', os: 'Linux', port: '22', protocol: 'SSH', icon: ServerIcon, color: 'text-orange-500 bg-orange-500/10 border-orange-200' },
     { id: 'base', label: 'Estacion Base', type: 'Estacion Base', os: 'Linux', port: '22', protocol: 'SSH', icon: Globe, color: 'text-blue-500 bg-blue-500/10 border-blue-200' },
-    { id: 'tunel', label: 'Tunel', type: 'Tunel', os: 'Linux', port: '8080', protocol: 'HTTP', icon: TunelIcon, color: 'text-purple-500 bg-purple-500/10 border-purple-200' },
-    { id: 'pivote', label: 'Pivote', type: 'Pivote', os: 'Linux', port: '22', protocol: 'SSH', icon: PivoteIcon, color: 'text-indigo-500 bg-indigo-500/10 border-indigo-200' },
-    { id: 'cas', label: 'CAS', type: 'Servidor CAS', os: 'Windows', port: '3389', protocol: 'RDP', icon: CasIcon, color: 'text-emerald-500 bg-emerald-500/10 border-emerald-200' },
-    { id: 'sql', label: 'SQL Server', type: 'Servidor SQL Server', os: 'Windows', port: '1433', protocol: 'TDS', icon: SqlIcon, color: 'text-red-500 bg-red-500/10 border-red-200' },
-    { id: 'pg', label: 'Postgres', type: 'Servidor PostgreSQL', os: 'Linux', port: '5432', protocol: 'TCP', icon: PgIcon, color: 'text-sky-500 bg-sky-500/10 border-sky-200' },
-    { id: 'jview', label: 'Jview', type: 'Servidor Jview', os: 'Linux', port: '80', protocol: 'HTTP', icon: JviewIcon, color: 'text-cyan-500 bg-cyan-500/10 border-cyan-200' },
-    { id: 'iis', label: 'IIS', type: 'Servidor IIS', os: 'Windows', port: '80', protocol: 'HTTP', icon: IisIcon, color: 'text-blue-500 bg-blue-500/10 border-blue-200' },
-    { id: 'me', label: 'Mine Enterprise', type: 'Servidor Mine Enterprise', os: 'Windows', port: '80', protocol: 'HTTP', icon: MeIcon, color: 'text-green-500 bg-green-500/10 border-green-200' },
-    { id: 'oas', label: 'OAS', type: 'Servidor OAS', os: 'Windows', port: '80', protocol: 'HTTP', icon: OasIcon, color: 'text-yellow-500 bg-yellow-500/10 border-yellow-200' },
-    { id: 'sl', label: 'Sharperlight', type: 'Servidor Sharperlight', os: 'Windows', port: '80', protocol: 'HTTP', icon: SlIcon, color: 'text-pink-500 bg-pink-500/10 border-pink-200' },
-    { id: 'mpdata', label: 'MPData', type: 'Servidor MPData', os: 'Windows', port: '80', protocol: 'HTTP', icon: MpdataIcon, color: 'text-violet-500 bg-violet-500/10 border-violet-200' },
+    { id: 'tunel', label: 'Tunel', type: 'Tunel', os: 'Linux', port: '8080', protocol: 'HTTP', icon: Box, color: 'text-purple-500 bg-purple-500/10 border-purple-200' },
+    { id: 'pivote', label: 'Pivote', type: 'Pivote', os: 'Linux', port: '22', protocol: 'SSH', icon: ShieldCheck, color: 'text-indigo-500 bg-indigo-500/10 border-indigo-200' },
+    { id: 'cas', label: 'Servidor CAS', type: 'Servidor CAS', os: 'Windows', port: '3389', protocol: 'RDP', icon: Database, color: 'text-emerald-500 bg-emerald-500/10 border-emerald-200' },
+    { id: 'sql', label: 'SQL Server', type: 'Servidor SQL Server', os: 'Windows', port: '1433', protocol: 'TDS', icon: Database, color: 'text-red-500 bg-red-500/10 border-red-200' },
+    { id: 'jview', label: 'Servidor Jview', type: 'Servidor Jview', os: 'Linux', port: '80', protocol: 'HTTP', icon: Globe, color: 'text-cyan-500 bg-cyan-500/10 border-cyan-200' },
 ];
 
-const ServerModal = ({ isOpen, onClose, onSave, initialData, siteAlias }: ServerModalProps) => {
+const ServerModal = ({ isOpen, onClose, onSave, initialData }: ServerModalProps) => {
     // Core Fields
     const [name, setName] = useState('');
     const [ip, setIp] = useState('');
@@ -104,19 +91,10 @@ const ServerModal = ({ isOpen, onClose, onSave, initialData, siteAlias }: Server
         setPort(preset.port);
         setProtocol(preset.protocol);
 
-        // Nomenclatura sugerida: Producto Alias (ej. NTP amcen)
-        const suffix = siteAlias ? ` ${siteAlias}` : '';
-        const suggestedName = `${preset.label}${suffix}`;
-
-        // Define if it's auto-generated from *any* preset combined with suffix or just label
-        const isAutoGenerated = name === '' ||
-            SERVER_PRESETS.some(p => name === p.label) ||
-            SERVER_PRESETS.some(p => name === `${p.label}${suffix}`) ||
-            SERVER_PRESETS.some(p => name === `Servidor ${p.label}`); // Legacy fallback check
-
-        // If empty or previously auto-generated by a preset, replace
+        // Update name if it's empty OR if it looks like an auto-generated name from another preset
+        const isAutoGenerated = name === '' || SERVER_PRESETS.some(p => name === `Servidor ${p.label}`);
         if (isAutoGenerated) {
-            setName(suggestedName);
+            setName(`Servidor ${preset.label}`);
         }
     };
 
@@ -182,7 +160,7 @@ const ServerModal = ({ isOpen, onClose, onSave, initialData, siteAlias }: Server
                         </div>
                         <div>
                             <h2 className="text-xl font-bold text-foreground">
-                                {initialData ? 'Editar Servidor' : (siteAlias ? `Agregar nuevo server en ${siteAlias}` : 'Agregar Nuevo Sistema')}
+                                {initialData ? 'Editar Servidor' : 'Agregar Nuevo Sistema'}
                             </h2>
                             <p className="text-sm text-muted-foreground">
                                 {initialData ? 'Modifica los detalles del servidor.' : 'Selecciona un preset o ingresa los datos manualmente.'}
@@ -230,11 +208,10 @@ const ServerModal = ({ isOpen, onClose, onSave, initialData, siteAlias }: Server
                                     type="text"
                                     value={name}
                                     onChange={(e) => setName(e.target.value)}
-                                    placeholder="Jview amcen"
+                                    placeholder="Ej: FMS Principal"
                                     className="w-full px-4 py-2 bg-muted/30 border border-input rounded-xl focus:ring-2 focus:ring-primary outline-none text-foreground transition-all"
                                     required
                                 />
-                                <span className="text-[10px] text-muted-foreground mt-1 block font-medium">Nomenclatura: [producto] [alias]</span>
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-foreground mb-1.5">Dirección IP</label>

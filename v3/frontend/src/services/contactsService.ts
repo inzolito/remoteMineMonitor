@@ -1,15 +1,4 @@
-import axios from 'axios';
-import { getCurrentUser } from './authService';
-
-const API_URL = '/monitoreoLaboratorio/v3/api';
-
-const getAuthHeaders = () => {
-    const user = getCurrentUser();
-    if (user && user.token) {
-        return { Authorization: `Bearer ${user.token}` };
-    }
-    return {};
-};
+import { api } from './authService';
 
 export interface SiteContact {
     id: number;
@@ -21,21 +10,15 @@ export interface SiteContact {
 }
 
 export const getContacts = async (siteId: number): Promise<SiteContact[]> => {
-    const response = await axios.get(`${API_URL}/site_contacts.php?site_id=${siteId}`, {
-        headers: getAuthHeaders(),
-    });
+    const response = await api.get(`/site_contacts.php?site_id=${siteId}`);
     return response.data;
 };
 
 export const createContact = async (contact: Omit<SiteContact, 'id'>): Promise<SiteContact> => {
-    const response = await axios.post(`${API_URL}/site_contacts.php`, contact, {
-        headers: getAuthHeaders(),
-    });
+    const response = await api.post('/site_contacts.php', contact);
     return { ...contact, id: response.data.id };
 };
 
 export const deleteContact = async (id: number): Promise<void> => {
-    await axios.delete(`${API_URL}/site_contacts.php?id=${id}`, {
-        headers: getAuthHeaders(),
-    });
+    await api.delete(`/site_contacts.php?id=${id}`);
 };

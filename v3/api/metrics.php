@@ -35,6 +35,7 @@ $evaluator = new MetricsEvaluator($mysqli);
  * Strictly moves virtual metric logic here to keep Evaluator PURE.
  */
 function processMetric($mysqli, $evaluator, $server_id, $site_id, $key, $val) {
+    file_put_contents(__DIR__ . '/metric_keys.log', date('Y-m-d H:i:s') . " SID:$server_id KEY:$key\n", FILE_APPEND);
     if (is_array($val) || is_object($val)) $val = json_encode($val);
     
     // Normalize metric names (mapping legacy or inconsistent keys to V3 standard)
@@ -47,7 +48,8 @@ function processMetric($mysqli, $evaluator, $server_id, $site_id, $key, $val) {
         'jams_restart' => 'app.jams.restarts_log',
         'ramPercent' => 'system.ram.percent',
         'porcentajeCpu' => 'system.cpu.load',
-        'reiniciosJAMS' => 'app.jams.restarts_log'
+        'reiniciosJAMS' => 'app.jams.restarts_log',
+        'summarizerService' => 'app.summarizer.service'
     ];
     if (isset($mapping[$key])) $key = $mapping[$key];
 
@@ -125,16 +127,44 @@ function processMetric($mysqli, $evaluator, $server_id, $site_id, $key, $val) {
         $otherKey = ($key === 'app.summarizer.service') ? 'app.summarizer.crontab' : 'app.summarizer.service';
         $otherVal = $mysqli->query("SELECT metric_value FROM server_app_metrics WHERE server_id = $server_id AND metric_key = '$otherKey' LIMIT 1")->fetch_assoc()['metric_value'] ?? 'stopped';
         
-        $aggrStatus = 'ok';
-        // If BOTH are stopped/empty/error, trigger aggregate danger
-        $isStopped = function($v) { return empty($v) || stripos($v, 'stopped') !== false || stripos($v, 'failed') !== false || stripos($v, 'error') !== false; };
+        $isStopped = function($v) { 
+            return empty($v) || 
+                   stripos($v, 'stopped') !== false || 
+                   stripos($v, 'failed') !== false || 
+                   stripos($v, 'error') !== false || 
+                   (is_string($v) && strlen(trim($v)) > 0 && trim($v)[0] === '#'); 
+        };
         
-        if ($isStopped($val) && $isStopped($otherVal)) {
+        $currentInactive = $isStopped($val);
+        $otherInactive = $isStopped($otherVal);
+        
+        $aggrStatus = 'ok';
+        if ($currentInactive && $otherInactive) {
             $aggrStatus = 'stopped';
+        } else {
+            // Determine combined state for the frontend
+            $svcVal = ($key === 'app.summarizer.service') ? $val : $otherVal;
+            $cronVal = ($key === 'app.summarizer.crontab') ? $val : $otherVal;
+            
+            $svcActive = !$isStopped($svcVal);
+            $cronActive = !$isStopped($cronVal);
+            
+            if ($svcActive && $cronActive) {
+                $aggrStatus = 'both_active';
+            } elseif ($svcActive) {
+                $aggrStatus = 'service_active';
+            } else {
+                $aggrStatus = 'cron_active';
+            }
         }
         
         // This triggers the 'app.summarizer.status' rule in DB
+        // We also persist this aggregated status so frontend can read it easily
         $evaluator->evaluate('app.summarizer.status', $aggrStatus, $server_id);
+        
+        $stmt_aggr = $mysqli->prepare("INSERT INTO server_app_metrics (server_id, metric_key, metric_value, status, last_updated) VALUES (?, 'app.summarizer.status', ?, 'ok', NOW()) ON DUPLICATE KEY UPDATE metric_value = VALUES(metric_value), last_updated = NOW()");
+        $stmt_aggr->bind_param("is", $server_id, $aggrStatus);
+        $stmt_aggr->execute();
     }
 
     // 8. Backup Latency
@@ -291,6 +321,9 @@ if ($method === 'POST') {
     echo json_encode(["message" => "Metrics updated"]);
 
 } elseif ($method === 'GET') {
+    require_once __DIR__ . '/auth_helper.php';
+    require_auth($mysqli);
+
     if (isset($_GET['server_id'])) {
         $server_id = intval($_GET['server_id']);
         $res = [];
@@ -308,7 +341,7 @@ if ($method === 'POST') {
         // Resolve IDs once to ensure ID-based rules match against the evaluator
         // Done BEFORE the loop to avoid any interference with the main query result set
         $metricIds = [];
-        $keysToResolve = ["'system.cpu.load'", "'system.ram.percent'", "'system.disk.percent'", "'app.repc'", "'backup.daily.status'", "'backup.hourly.status'", "'app.jams.service'", "'app.fms.active_scripts'", "'app.summarizer.log'"];
+        $keysToResolve = ["'system.cpu.load'", "'system.ram.percent'", "'system.disk.percent'", "'app.repc'", "'backup.daily.status'", "'backup.hourly.status'", "'app.jams.service'", "'app.fms.active_scripts'", "'app.summarizer.log'", "'app.summarizer.ejecution'"];
         $mIdsRes = $mysqli->query("SELECT id, name FROM metrics WHERE name IN (" . implode(',', $keysToResolve) . ")");
         if ($mIdsRes) {
             while($mr = $mIdsRes->fetch_assoc()) {
@@ -353,6 +386,7 @@ if ($method === 'POST') {
             $injectMetric($mysqli, $server_id, $app, 'app.summarizer.service', true);
             $injectMetric($mysqli, $server_id, $app, 'app.summarizer.crontab', true);
             $injectMetric($mysqli, $server_id, $app, 'app.summarizer.log', true);
+            $injectMetric($mysqli, $server_id, $app, 'app.summarizer.ejecution', true);
             $injectMetric($mysqli, $server_id, $app, 'system.ntp.status', true);
             $injectMetric($mysqli, $server_id, $app, 'backup.daily.log', true);
             $injectMetric($mysqli, $server_id, $app, 'backup.hourly.log', true);
@@ -451,10 +485,29 @@ if ($method === 'POST') {
             }
 
             // [NEW] Dynamic evaluation for JAMS Service
-            $jamsVal = $app['app.jams.service']['metric_value'] ?? null;
-            if ($jamsVal !== null) {
-                $jamsStatus = $rtEvaluator->evaluate('app.jams.service', $jamsVal, $server_id, $metricIds['app.jams.service'] ?? null);
-                $app['app.jams.service']['status'] = $jamsStatus;
+            $jamsSvcVal = $app['app.jams.service']['metric_value'] ?? null;
+            if ($jamsSvcVal !== null) {
+                $jamsSvcStatus = $rtEvaluator->evaluate('app.jams.service', $jamsSvcVal, $server_id, $metricIds['app.jams.service'] ?? null);
+                $app['app.jams.service']['status'] = $jamsSvcStatus;
+            }
+
+            // [NEW] Dynamic evaluation for JAMS Status (Failover Detection)
+            $jamsStatusVal = $app['app.jams.status']['metric_value'] ?? null;
+            if ($jamsStatusVal !== null) {
+                // Default db rule evaluation
+                $jamsRoleStatus = $rtEvaluator->evaluate('app.jams.status', $jamsStatusVal, $server_id, $metricIds['app.jams.status'] ?? null);
+                
+                // Cross-validation with is_primary
+                $isPrimary = $server['is_primary'] == 1;
+                $isActive = stripos($jamsStatusVal, 'activ') !== false;
+
+                if ($isPrimary && !$isActive) {
+                    $jamsRoleStatus = 'danger'; // Primary should be active!
+                } elseif (!$isPrimary && $isActive) {
+                    $jamsRoleStatus = 'warning'; // Secondary should NOT be active!
+                }
+
+                $app['app.jams.status']['status'] = $jamsRoleStatus;
             }
 
             // [NEW] Dynamic evaluation for Active Scripts
@@ -469,6 +522,28 @@ if ($method === 'POST') {
             if ($logVal !== null) {
                 $logStatus = $rtEvaluator->evaluate('app.summarizer.log', $logVal, $server_id, $metricIds['app.summarizer.log'] ?? null);
                 $app['app.summarizer.log']['status'] = $logStatus;
+            }
+
+            // [NEW] Dynamic evaluation for Summarizer Ejecution (process count)
+            $ejecVal = $app['app.summarizer.ejecution']['metric_value'] ?? null;
+            if ($ejecVal !== null) {
+                $ejecStatus = $rtEvaluator->evaluate('app.summarizer.ejecution', $ejecVal, $server_id, $metricIds['app.summarizer.ejecution'] ?? null);
+                $app['app.summarizer.ejecution']['status'] = $ejecStatus;
+            }
+
+            // [NEW] Dynamic evaluation for Offline Servers (Freshness)
+            // Robust check: Use the most recent entry from history as the TRUE last connection time
+            $realUpdatedRes = $mysqli->query("SELECT created_at FROM server_metric_values WHERE server_id = $server_id ORDER BY created_at DESC LIMIT 1");
+            $realUpdatedAt = ($realUpdatedRes && $row = $realUpdatedRes->fetch_assoc()) ? $row['created_at'] : ($server['updated_at'] ?? null);
+
+            if ($realUpdatedAt) {
+                $formatted_updated_at = str_replace([' ', ':'], ['_', '-'], $realUpdatedAt);
+                $freshnessStatus = $rtEvaluator->evaluate('system.freshness', $formatted_updated_at, $server_id, null);
+                $app['system.freshness'] = [
+                    'metric_key' => 'system.freshness',
+                    'metric_value' => $realUpdatedAt,
+                    'status' => $freshnessStatus
+                ];
             }
 
             // Ensure compatibility with frontend gauge expectations (inject back into $app)

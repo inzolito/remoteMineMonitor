@@ -389,28 +389,46 @@ const SiteDetails = () => {
                                                     Pass
                                                 </div>
                                                 <div className="flex items-center gap-1 min-w-0">
-                                                    <div className="font-mono text-foreground bg-muted/30 px-2 py-1 rounded flex-1 text-left cursor-pointer hover:bg-muted/50 transition-colors truncate"
-                                                        onClick={() => setRevealedServerId(revealedServerId === server.id ? null : server.id)}
-                                                        title={revealedServerId === server.id ? "Ocultar" : "Mostrar"}
-                                                    >
-                                                        {revealedServerId === server.id ? server.ssh_password : '••••••••'}
-                                                    </div>
+                                                    <input
+                                                        type={revealedServerId === server.id ? "text" : "password"}
+                                                        value={server.ssh_password || ''}
+                                                        readOnly
+                                                        className="font-mono text-foreground bg-muted/30 px-2 py-1 rounded flex-1 min-w-0 outline-none cursor-text"
+                                                    />
 
                                                     <button
-                                                        className="p-1 hover:text-primary transition-colors text-muted-foreground flex-shrink-0"
+                                                        className="p-1 hover:text-primary transition-colors text-muted-foreground flex-shrink-0 bg-transparent border-0"
                                                         onClick={() => setRevealedServerId(revealedServerId === server.id ? null : server.id)}
                                                         title={revealedServerId === server.id ? "Ocultar" : "Mostrar"}
+                                                        type="button"
                                                     >
                                                         {revealedServerId === server.id ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                                                     </button>
 
                                                     <button
-                                                        className="p-1 hover:text-primary transition-colors text-muted-foreground flex-shrink-0"
+                                                        className="p-1 hover:text-primary transition-colors text-muted-foreground flex-shrink-0 bg-transparent border-0"
                                                         onClick={() => {
-                                                            navigator.clipboard.writeText(server.ssh_password || '');
-                                                            // toast or alert? simplistic for now
+                                                            const text = server.ssh_password || '';
+                                                            if (navigator.clipboard && window.isSecureContext) {
+                                                                navigator.clipboard.writeText(text);
+                                                            } else {
+                                                                const textArea = document.createElement("textarea");
+                                                                textArea.value = text;
+                                                                textArea.style.position = "absolute";
+                                                                textArea.style.left = "-999999px";
+                                                                document.body.prepend(textArea);
+                                                                textArea.select();
+                                                                try {
+                                                                    document.execCommand('copy');
+                                                                } catch (error) {
+                                                                    console.error("Fallback copy failed", error);
+                                                                } finally {
+                                                                    textArea.remove();
+                                                                }
+                                                            }
                                                         }}
                                                         title="Copiar"
+                                                        type="button"
                                                     >
                                                         <Copy className="w-3.5 h-3.5" />
                                                     </button>
@@ -448,7 +466,6 @@ const SiteDetails = () => {
                 onClose={() => setIsModalOpen(false)}
                 onSave={handleSaveServer}
                 initialData={editingServer}
-                siteAlias={site?.alias}
             />
 
             {site && (

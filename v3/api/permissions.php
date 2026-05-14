@@ -26,24 +26,9 @@ $database = new DB();
 $mysqli = $database->getConnection();
 
 // --- AUTHENTICATION ---
-$authHeader = $_SERVER['HTTP_AUTHORIZATION'] ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '';
-$jwt = null;
-if (preg_match('/Bearer\s(\S+)/', $authHeader, $matches)) {
-    $jwt = $matches[1];
-}
-
-try {
-    if ($jwt) {
-        $decoded = JWT::decode($jwt, new Key($secret_key, 'HS256'));
-    } else {
-        throw new Exception("No token");
-    }
-} catch (Exception $e) {
-    // Access Denied
-    http_response_code(401);
-    echo json_encode(["message" => "Access denied: " . $e->getMessage()]);
-    exit();
-}
+require_once __DIR__ . '/auth_helper.php';
+$auth = require_auth($mysqli);
+$decoded = $auth['decoded'];
 
 $method = $_SERVER['REQUEST_METHOD'];
 

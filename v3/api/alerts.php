@@ -20,49 +20,12 @@ try {
     $database = new DB();
     $mysqli = $database->getConnection();
 
-    // Helper to validate token
-    function validateToken($postedData = null) {
-        $secret_key = "MONITOREO_LAB_V3_SECRET_KEY_CHANGE_ME_IN_PROD";
-        $authHeader = null;
-        
-        // Add leeway for time drift
-        JWT::$leeway = 7200; 
-
-        // 1. Try Headers
-        if (isset($_SERVER['HTTP_AUTHORIZATION'])) {
-            $authHeader = $_SERVER['HTTP_AUTHORIZATION'];
-        } elseif (isset($_SERVER['REDIRECT_HTTP_AUTHORIZATION'])) {
-            $authHeader = $_SERVER['REDIRECT_HTTP_AUTHORIZATION'];
-        } elseif (isset($_SERVER['HTTP_X_AUTHORIZATION'])) {
-            $authHeader = $_SERVER['HTTP_X_AUTHORIZATION'];
-        } elseif (function_exists('getallheaders')) {
-            $headers = getallheaders();
-            foreach (['Authorization', 'authorization', 'X-Authorization', 'x-authorization'] as $h) {
-                if (isset($headers[$h])) {
-                    $authHeader = $headers[$h];
-                    break;
-                }
-            }
-        }
-
-        // 2. Try POST body (High reliability for restricted hosts)
-        if (!$authHeader && $postedData && isset($postedData['token'])) {
-            $authHeader = "Bearer " . $postedData['token'];
-        }
-
-        if ($authHeader && preg_match('/Bearer\s(\S+)/', $authHeader, $matches)) {
-            try {
-                return JWT::decode($matches[1], new Key($secret_key, 'HS256'));
-            } catch (Exception $e) {
-                return false;
-            }
-        }
-        return false; 
-    }
+    require_once __DIR__ . '/auth_helper.php';
+    $auth = require_auth($mysqli);
+    $decoded = $auth['decoded'];
 
     $method = $_SERVER['REQUEST_METHOD'];
     $data = ($method === 'POST') ? json_decode(file_get_contents("php://input"), true) : null;
-    $decoded = validateToken($data);
 
     if ($method === 'GET') {
         $status_filter = $_GET['status'] ?? 'active_or_acknowledged';

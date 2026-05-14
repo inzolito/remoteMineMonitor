@@ -16,60 +16,20 @@ use Firebase\JWT\Key;
 
 $secret_key = "MONITOREO_LAB_V3_SECRET_KEY_CHANGE_ME_IN_PROD";
 
-// JWT Authentication
-$authHeader = $_SERVER['HTTP_AUTHORIZATION'] ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '';
-if (function_exists('getallheaders')) {
-    $headers = getallheaders();
-    $authHeader = $headers['Authorization'] ?? $headers['authorization'] ?? $authHeader;
-}
-
-if (!$authHeader || !preg_match('/Bearer\s+(.*)$/i', $authHeader, $matches)) {
-    http_response_code(401);
-    echo json_encode(['error' => 'Unauthorized']);
-    exit;
-}
-
-$jwt = $matches[1];
-
-try {
-    $decoded = JWT::decode($jwt, new Key($secret_key, 'HS256'));
-} catch (\Firebase\JWT\ExpiredException $e) {
-    // Special handling for 'maik' user to allow expired tokens (matching admin.php logic)
-    $tks = explode('.', $jwt);
-    if (count($tks) === 3) {
-        $payload = json_decode(base64_decode(strTr($tks[1], '-_', '+/')));
-        if (isset($payload->data->username) && $payload->data->username === 'maik') {
-            $decoded = $payload;
-        } else {
-            http_response_code(401);
-            echo json_encode(['error' => 'Token expired']);
-            exit;
-        }
-    } else {
-        http_response_code(401);
-        echo json_encode(['error' => 'Invalid token']);
-        exit;
-    }
-} catch (Exception $e) {
-    http_response_code(401);
-    echo json_encode(['error' => 'Invalid token']);
-    exit;
-}
-
-$username = $decoded->data->username ?? '';
-
-// Only SuperAdmin can access raw metrics
-if ($username !== 'maik') {
-    http_response_code(403);
-    echo json_encode(['error' => 'Forbidden - SuperAdmin only']);
-    exit;
-}
-
 // Database connection
 $mysqli = new mysqli('localhost', 'jigsaw', 'Jigsaw1', 'monitoring_system');
 if ($mysqli->connect_error) {
     http_response_code(500);
     echo json_encode(['error' => 'Database connection failed']);
+    exit;
+}
+
+// JWT Authentication
+require_once __DIR__ . '/auth_helper.php';
+$auth = require_auth($mysqli);
+if ($auth['username'] !== 'maik') {
+    http_response_code(403);
+    echo json_encode(['error' => 'Forbidden - SuperAdmin only']);
     exit;
 }
 

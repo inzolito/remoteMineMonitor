@@ -34,7 +34,7 @@ const AlertManager: React.FC<{ initialDataLoaded?: boolean }> = ({ initialDataLo
     const [alerts, setAlerts] = useState<Alert[]>([]);
     const [currentAlert, setCurrentAlert] = useState<Alert | null>(null);
     const [hasInteracted, setHasInteracted] = useState(false);
-    const [errorMsg, setErrorMsg] = useState<string | null>(null);
+    // const [errorMsg, setErrorMsg] = useState<string | null>(null);
     const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
 
     // Safety delay rules
@@ -88,6 +88,8 @@ const AlertManager: React.FC<{ initialDataLoaded?: boolean }> = ({ initialDataLo
     // Poll for alerts
     useEffect(() => {
         const fetchAlerts = async () => {
+            if (!auth?.user) return; // Don't fetch if not logged in
+
             try {
                 const data: Alert[] = await getAlerts('active');
 
@@ -126,14 +128,14 @@ const AlertManager: React.FC<{ initialDataLoaded?: boolean }> = ({ initialDataLo
                 }
             } catch (error: any) {
                 console.error("Failed to fetch alerts", error);
-                setErrorMsg(error.message as string);
+                // setErrorMsg(error.message as string);
             }
         };
 
         fetchAlerts();
         const interval = setInterval(fetchAlerts, 3000); // Poll every 3s instead of 5s
         return () => clearInterval(interval);
-    }, []);
+    }, [auth?.user]);
 
     // Debugging render
     useEffect(() => {
@@ -207,11 +209,11 @@ const AlertManager: React.FC<{ initialDataLoaded?: boolean }> = ({ initialDataLo
         }
     };
 
-    if (!currentAlert || isSafetyDelayActive) return <DebugOverlay alerts={alerts} error={errorMsg} user={auth?.user} isDelayed={isSafetyDelayActive} />;
+    if (!currentAlert || isSafetyDelayActive) return null; // <DebugOverlay alerts={alerts} error={null} user={auth?.user} isDelayed={isSafetyDelayActive} />;
 
     return (
         <>
-            <DebugOverlay alerts={alerts} error={errorMsg} user={auth?.user} isDelayed={isSafetyDelayActive} />
+            {/* <DebugOverlay alerts={alerts} error={null} user={auth?.user} isDelayed={isSafetyDelayActive} /> */}
             <div
                 style={{ zIndex: 99999, position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(20, 0, 0, 0.9)', backdropFilter: 'blur(12px)' }}
                 className={cn("transition-all duration-500", isExiting ? "opacity-0" : "opacity-100")}
@@ -282,6 +284,7 @@ const AlertManager: React.FC<{ initialDataLoaded?: boolean }> = ({ initialDataLo
 export default AlertManager;
 
 // Debug Overlay Component (Internal)
+/*
 const DebugOverlay = ({ alerts, error, user, isDelayed }: { alerts: Alert[], error: string | null, user: any, isDelayed: boolean }) => {
     const voices = window.speechSynthesis.getVoices();
     const esVoices = voices.filter(v => v.lang.startsWith('es-'));
@@ -308,3 +311,4 @@ const DebugOverlay = ({ alerts, error, user, isDelayed }: { alerts: Alert[], err
         </div>
     );
 };
+*/

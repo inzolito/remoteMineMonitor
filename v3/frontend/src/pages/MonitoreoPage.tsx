@@ -30,8 +30,8 @@ const MonitoreoPage = () => {
         refetchInterval: 30000
     });
 
-    // Filter by is_visible (fallback to status if undefined)
-    const activeSites = sites?.filter(s => (s.is_visible !== undefined && s.is_visible !== null ? Number(s.is_visible) : Number(s.status)) === 1) || [];
+    // Filter by status (active monitoring) instead of is_visible
+    const activeSites = sites?.filter(s => Number(s.status) === 1) || [];
 
     if (isLoading) {
         return (

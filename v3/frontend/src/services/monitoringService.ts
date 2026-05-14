@@ -1,15 +1,4 @@
-import axios from 'axios';
-import { getCurrentUser } from './authService';
-
-const API_URL = '/monitoreoLaboratorio/v3/api';
-
-const getAuthHeaders = () => {
-    const user = getCurrentUser();
-    if (user && user.token) {
-        return { Authorization: `Bearer ${user.token}` };
-    }
-    return {};
-};
+import { api } from './authService';
 
 export interface ServerMetric {
     id: number;
@@ -76,15 +65,11 @@ export interface SiteMonitoringResponse {
 }
 
 export const getSiteMetrics = async (siteId: number, type: string = 'fms'): Promise<SiteMonitoringResponse> => {
-    const response = await axios.get(`${API_URL}/metrics.php?site_id=${siteId}&type=${type}`, {
-        headers: getAuthHeaders(),
-    });
+    const response = await api.get(`/metrics.php?site_id=${siteId}&type=${type}`);
     return response.data;
 };
 
 export const getServerMetrics = async (serverId: number): Promise<any> => {
-    const response = await axios.get(`${API_URL}/metrics.php?server_id=${serverId}`, {
-        headers: getAuthHeaders(),
-    });
+    const response = await api.get(`/metrics.php?server_id=${serverId}`);
     return response.data;
 };

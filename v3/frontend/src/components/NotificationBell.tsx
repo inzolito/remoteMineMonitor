@@ -32,6 +32,7 @@ export const NotificationBell: React.FC = () => {
     const wrapperRef = useRef<HTMLDivElement>(null);
 
     const fetchHistory = async () => {
+        if (!localStorage.getItem('user')) return; // Defensive check
         try {
             const data = await getAlerts('active_or_acknowledged');
             setAlerts(data);

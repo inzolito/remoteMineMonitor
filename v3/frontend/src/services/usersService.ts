@@ -1,15 +1,4 @@
-import axios from 'axios';
-import { getCurrentUser } from './authService';
-
-const API_URL = '/monitoreoLaboratorio/v3/api';
-
-const getAuthHeaders = () => {
-    const user = getCurrentUser();
-    if (user && user.token) {
-        return { Authorization: `Bearer ${user.token}` };
-    }
-    return {};
-};
+import { api } from './authService';
 
 export interface UserData {
     id: number;
@@ -23,22 +12,16 @@ export interface UserData {
 }
 
 export const getUsers = async (): Promise<UserData[]> => {
-    const response = await axios.get(`${API_URL}/users.php`, {
-        headers: getAuthHeaders(),
-    });
+    const response = await api.get('/users.php');
     return response.data;
 };
 
 export const createUser = async (user: Partial<UserData>) => {
-    const response = await axios.post(`${API_URL}/users.php`, user, {
-        headers: getAuthHeaders(),
-    });
+    const response = await api.post('/users.php', user);
     return response.data;
 };
 
 export const updateUser = async (user: Partial<UserData>) => {
-    const response = await axios.put(`${API_URL}/users.php`, user, {
-        headers: getAuthHeaders(),
-    });
+    const response = await api.put('/users.php', user);
     return response.data;
 };

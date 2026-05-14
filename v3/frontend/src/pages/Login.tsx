@@ -118,7 +118,7 @@ const Login = () => {
                                     </div>
                                 </div>
                                 <h2 className="text-4xl font-black text-slate-900 mb-2 tracking-tighter">Bienvenido</h2>
-                                <p className="text-slate-500 text-sm font-bold opacity-60 tracking-wide uppercase">Control de Acceso Seguro</p>
+                                <p className="text-slate-500 text-sm font-bold opacity-60 tracking-wide uppercase">Control de Acceso Seguro v3.2</p>
                             </div>
 
                             {error && (

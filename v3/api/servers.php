@@ -18,31 +18,12 @@ require_once __DIR__ . '/db.php';
 
 $secret_key = "MONITOREO_LAB_V3_SECRET_KEY_CHANGE_ME_IN_PROD";
 
-// Validate JWT
-$authHeader = $_SERVER['HTTP_AUTHORIZATION'] ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '';
-$jwt = null;
-if (preg_match('/Bearer\s(\S+)/', $authHeader, $matches)) {
-    $jwt = $matches[1];
-}
-
-/*
-if (!$jwt) {
-    http_response_code(401);
-    echo json_encode(["message" => "Access denied. No token provided."]);
-    exit();
-}
-*/
-
-try {
-    if ($jwt) {
-        $decoded = JWT::decode($jwt, new Key($secret_key, 'HS256'));
-    }
-} catch (Exception $e) {
-    // Relaxed for stability
-}
-
 $database = new DB();
 $mysqli = $database->getConnection();
+
+require_once __DIR__ . '/auth_helper.php';
+$auth = require_auth($mysqli);
+$decoded = $auth['decoded'];
 
 $method = $_SERVER['REQUEST_METHOD'];
 

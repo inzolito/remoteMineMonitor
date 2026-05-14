@@ -20,44 +20,19 @@ require_once __DIR__ . '/db.php';
 // DEBUG LOGGING
 file_put_contents('/tmp/debug_sites.log', "Request received at " . date('Y-m-d H:i:s') . "\n", FILE_APPEND);
 
-$secret_key = "MONITOREO_LAB_V3_SECRET_KEY_CHANGE_ME_IN_PROD";
+// DB Connection
+$database = new DB();
+$mysqli = $database->getConnection();
 
-// Validate JWT (Strictness relaxed for Dev)
-$authHeader = $_SERVER['HTTP_AUTHORIZATION'] ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '';
-// file_put_contents('/tmp/debug_sites.log', "Auth Header: " . $authHeader . "\n", FILE_APPEND);
-
-$jwt = null;
-if (preg_match('/Bearer\s(\S+)/', $authHeader, $matches)) {
-    $jwt = $matches[1];
-}
-
-// if (!$jwt) {
-//     file_put_contents('/tmp/debug_sites.log', "No token provided.\n", FILE_APPEND);
-//     http_response_code(401);
-//     echo json_encode(["message" => "Access denied. No token provided."]);
-//     exit();
-// }
-
-try {
-    if ($jwt) {
-        $decoded = JWT::decode($jwt, new Key($secret_key, 'HS256'));
-    }
-} catch (Exception $e) {
-    // http_response_code(401);
-    // echo json_encode(["message" => "Access denied. Invalid token.", "error" => $e->getMessage()]);
-    // exit();
-}
-
+require_once __DIR__ . '/auth_helper.php';
+$auth = require_auth($mysqli);
+$decoded = $auth['decoded'];
 
 // Handle HTTP Methods
 $method = $_SERVER['REQUEST_METHOD'];
 
 // Input Data
 $input = json_decode(file_get_contents("php://input"), true);
-
-// DB Connection
-$database = new DB();
-$mysqli = $database->getConnection();
 
 switch ($method) {
     case 'GET':
@@ -92,10 +67,26 @@ switch ($method) {
                 (SELECT GROUP_CONCAT(name SEPARATOR ', ') FROM site_contacts WHERE site_id = sites.id AND role = 'contract_admin') as contract_admin_users,
                 (SELECT COUNT(*) FROM site_servers ss JOIN servers s ON ss.server_id = s.id WHERE ss.site_id = sites.id AND s.is_deleted = 0 AND (s.name LIKE '%fms%' OR s.server_type LIKE '%fms%')) as has_fms,
                 (SELECT COUNT(*) FROM site_servers ss JOIN servers s ON ss.server_id = s.id WHERE ss.site_id = sites.id AND s.is_deleted = 0 AND (s.name LIKE '%cas%' OR s.server_type LIKE '%cas%')) as has_cas,
-                (SELECT MAX(s.status) FROM site_servers ss JOIN servers s ON ss.server_id = s.id WHERE ss.site_id = sites.id AND s.is_deleted = 0 AND (s.name LIKE '%fms%' OR s.server_type LIKE '%fms%')) as fms_status,
-                (SELECT MAX(s.status) FROM site_servers ss JOIN servers s ON ss.server_id = s.id WHERE ss.site_id = sites.id AND s.is_deleted = 0 AND (s.name LIKE '%cas%' OR s.server_type LIKE '%cas%')) as cas_status,
-                (SELECT SUM(s.status) FROM site_servers ss JOIN servers s ON ss.server_id = s.id WHERE ss.site_id = sites.id AND s.is_deleted = 0) as online_servers,
-                (SELECT COUNT(*) FROM site_servers ss JOIN servers s ON ss.server_id = s.id WHERE ss.site_id = sites.id AND s.is_deleted = 0) as total_servers,
+                (SELECT MAX(CASE WHEN s.status = 1 AND EXISTS (SELECT 1 FROM server_metric_values smv WHERE smv.server_id = s.id AND smv.created_at > DATE_SUB(NOW(), INTERVAL 60 MINUTE) LIMIT 1) THEN 1 ELSE 0 END) 
+                 FROM site_servers ss JOIN servers s ON ss.server_id = s.id 
+                 WHERE ss.site_id = sites.id AND s.is_deleted = 0 AND (s.name LIKE '%fms%' OR s.server_type LIKE '%fms%')) as fms_status,
+                (SELECT MAX(CASE WHEN s.status = 1 AND EXISTS (SELECT 1 FROM server_metric_values smv WHERE smv.server_id = s.id AND smv.created_at > DATE_SUB(NOW(), INTERVAL 60 MINUTE) LIMIT 1) THEN 1 ELSE 0 END) 
+                 FROM site_servers ss JOIN servers s ON ss.server_id = s.id 
+                 WHERE ss.site_id = sites.id AND s.is_deleted = 0 AND (s.name LIKE '%cas%' OR s.server_type LIKE '%cas%')) as cas_status,
+                (SELECT COUNT(*) 
+                 FROM site_servers ss 
+                 JOIN servers s ON ss.server_id = s.id 
+                 WHERE ss.site_id = sites.id AND s.is_deleted = 0 
+                 AND s.server_type_id IN (5, 6)
+                 AND s.status = 1 
+                 AND EXISTS (SELECT 1 FROM server_metric_values smv WHERE smv.server_id = s.id AND smv.created_at > DATE_SUB(NOW(), INTERVAL 60 MINUTE) LIMIT 1)
+                ) as online_servers,
+                (SELECT COUNT(*) 
+                 FROM site_servers ss 
+                 JOIN servers s ON ss.server_id = s.id 
+                 WHERE ss.site_id = sites.id AND s.is_deleted = 0
+                 AND s.server_type_id IN (5, 6)
+                ) as total_servers,
                 
                 -- Alert-based Health Status
                 (SELECT GROUP_CONCAT(description SEPARATOR ' | ') 

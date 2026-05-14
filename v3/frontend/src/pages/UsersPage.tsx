@@ -202,7 +202,6 @@ const UsersPage = () => {
                                     value={formData.email}
                                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                                     className="w-full px-4 py-2 bg-muted/50 border border-input rounded-xl focus:ring-2 focus:ring-primary outline-none text-foreground"
-                                    required
                                 />
                             </div>
                             <div>

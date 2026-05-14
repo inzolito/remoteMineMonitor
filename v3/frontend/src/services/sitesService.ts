@@ -1,16 +1,4 @@
-import axios from 'axios';
-import { getCurrentUser } from './authService';
-
-const API_URL = '/monitoreoLaboratorio/v3/api';
-
-// Helper to get headers with token
-const getAuthHeaders = () => {
-    const user = getCurrentUser();
-    if (user && user.token) {
-        return { Authorization: `Bearer ${user.token}` };
-    }
-    return {};
-};
+import { api } from './authService';
 
 export interface Site {
     id: number;
@@ -44,21 +32,15 @@ export interface Site {
 }
 
 export const getSites = async (): Promise<Site[]> => {
-    const response = await axios.get(`${API_URL}/sites.php`, {
-        headers: getAuthHeaders(),
-    });
+    const response = await api.get('/sites.php');
     return response.data;
 };
 
 export const getSiteById = async (id: number): Promise<Site> => {
-    const response = await axios.get(`${API_URL}/sites.php?id=${id}`, {
-        headers: getAuthHeaders(),
-    });
+    const response = await api.get(`/sites.php?id=${id}`);
     return response.data;
 };
 
 export const updateSite = async (id: number, siteData: Partial<Site>): Promise<void> => {
-    await axios.put(`${API_URL}/sites.php?id=${id}`, siteData, {
-        headers: getAuthHeaders(),
-    });
+    await api.put(`/sites.php?id=${id}`, siteData);
 };

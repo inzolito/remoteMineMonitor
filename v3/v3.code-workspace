@@ -3,5 +3,28 @@
 		{
 			"path": "."
 		}
-	]
+	],
+	"settings": {
+		"workbench.colorCustomizations": {
+			"editor.background": "#ffffff",
+			"editor.foreground": "#2d3436",
+			"activityBar.background": "#ffffff",
+			"activityBar.foreground": "#0984e3",
+			"sideBar.background": "#f5f6fa",
+			"sideBar.foreground": "#2d3436",
+			"statusBar.background": "#0984e3",
+			"statusBar.foreground": "#ffffff",
+			"titleBar.activeBackground": "#ffffff",
+			"titleBar.activeForeground": "#2d3436",
+			"tab.activeBackground": "#ffffff",
+			"tab.inactiveBackground": "#f5f6fa",
+			"tab.activeBorder": "#0984e3",
+			"tab.activeForeground": "#2d3436",
+			"tab.inactiveForeground": "#636e72",
+			"panel.background": "#ffffff",
+			"panelTitle.activeForeground": "#0984e3",
+			"terminal.background": "#ffffff",
+			"terminal.foreground": "#2d3436"
+		}
+	}
 }

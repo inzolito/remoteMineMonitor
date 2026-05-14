@@ -27,46 +27,11 @@ if ($mysqli->connect_error) {
 }
 
 // --- AUTHENTICATION ---
-$authHeader = $_SERVER['HTTP_AUTHORIZATION'] ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '';
-$jwt = null;
-if (preg_match('/Bearer\s(\S+)/', $authHeader, $matches)) {
-    $jwt = $matches[1];
-}
-
-if (!$jwt) {
-    http_response_code(401);
-    echo json_encode(["message" => "Unauthorized"]);
-    exit();
-}
-
-try {
-    $decoded = JWT::decode($jwt, new Key($secret_key, 'HS256'));
-} catch (\Firebase\JWT\ExpiredException $e) {
-    // Expired but valid signature? Check 'maik'.
-    $tks = explode('.', $jwt);
-    if (count($tks) === 3) {
-        $payload = json_decode(base64_decode(strTr($tks[1], '-_', '+/')));
-        if (isset($payload->data->username) && $payload->data->username === 'maik') {
-            $decoded = $payload;
-        } else {
-            http_response_code(401);
-            echo json_encode(["message" => "Session expired"]);
-            exit();
-        }
-    } else {
-        http_response_code(401);
-        echo json_encode(["message" => "Invalid token structure"]);
-        exit();
-    }
-} catch (Exception $e) {
-    http_response_code(401);
-    echo json_encode(["message" => "Invalid token: " . $e->getMessage()]);
-    exit();
-}
-
-if ($decoded->data->username !== 'maik') {
+require_once __DIR__ . '/auth_helper.php';
+$auth = require_auth($mysqli);
+if ($auth['username'] !== 'maik') {
     http_response_code(403);
-    echo json_encode(["message" => "Forbidden"]);
+    echo json_encode(["message" => "Forbidden - SuperAdmin only"]);
     exit();
 }
 // ----------------------
@@ -259,10 +224,11 @@ if ($method === 'GET') {
             // Generate Defaults for missing NOT NULL columns
             $uniqSeed = substr(md5(uniqid()), 0, 6);
             $genName = "Cmd_{$mid}_{$prio}_{$uniqSeed}"; 
-            $monType = 'insert_always';
-            $cmdType = (stripos($cmd, 'SELECT') === 0 || stripos($cmd, 'WITH') === 0) ? 'sql' : 'bash';
+            $monType = 'general';
+            $storageMode = 'insert_always';
+            $cmdType = (stripos($cmd, 'SELECT') === 0 || stripos($cmd, 'WITH') === 0) ? 'psql' : 'bash';
             
-            $res = $mysqli->query("INSERT INTO remote_commands (name, metric_id, command, priority, timeout_seconds, frequency_cycle, os_family, monitoring_type, command_type, is_active) VALUES ('$genName', $mid, '$cmd', $prio, $to, $cycle, '$os', '$monType', '$cmdType', 1)");
+            $res = $mysqli->query("INSERT INTO remote_commands (name, metric_id, command, priority, timeout_seconds, frequency_cycle, os_family, monitoring_type, storage_mode, command_type, is_active) VALUES ('$genName', $mid, '$cmd', $prio, $to, $cycle, '$os', '$monType', '$storageMode', '$cmdType', 1)");
         }
         
         if ($res) {

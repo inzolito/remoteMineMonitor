@@ -30,7 +30,7 @@ const SuperAdmin = () => {
             { id: 'servers', label: 'Servidores', icon: Server },
             { id: 'metrics', label: 'Catálogo Métricas', icon: Activity },
             { id: 'commands', label: 'Comandos Fallback', icon: Terminal },
-            { id: 'profiles', label: 'Perfiles / Templates', icon: FileText },
+            { id: 'templates', label: 'Perfiles / Templates', icon: FileText },
             { id: 'alerts', label: 'Reglas Alerta', icon: AlertCircle },
             { id: 'rooteo', label: 'Inspección Red', icon: Network },
         ],

@@ -20,32 +20,10 @@ $secret_key = "MONITOREO_LAB_V3_SECRET_KEY_CHANGE_ME_IN_PROD";
 $database = new DB();
 $mysqli = $database->getConnection();
 
-// --- AUTHENTICATION ---
-$authHeader = $_SERVER['HTTP_AUTHORIZATION'] ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '';
-$jwt = null;
-if (preg_match('/Bearer\s(\S+)/', $authHeader, $matches)) {
-    $jwt = $matches[1];
-}
-
-$user_permission_id = 0;
-$user_id = 0;
-
-try {
-    if ($jwt) {
-        $decoded = JWT::decode($jwt, new Key($secret_key, 'HS256'));
-        $user_id = $decoded->data->id;
-        
-        $stmt = $mysqli->prepare("SELECT permission_id FROM users WHERE id = ?");
-        $stmt->bind_param("i", $user_id);
-        $stmt->execute();
-        $res = $stmt->get_result();
-        if ($row = $res->fetch_assoc()) {
-            $user_permission_id = $row['permission_id'];
-        }
-    }
-} catch (Exception $e) {
-    // Access denied or token error
-}
+require_once __DIR__ . '/auth_helper.php';
+$auth = require_auth($mysqli);
+$user_id = $auth['user_id'];
+$user_permission_id = $auth['permission_id'];
 
 // Action: List ALL (for Admin Matrix) or List ALLOWED (for Sidebar)
 $action = $_GET['action'] ?? 'allowed'; // 'all' or 'allowed'

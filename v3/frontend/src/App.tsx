@@ -28,6 +28,7 @@ function App() {
           <BrowserRouter basename="/monitoreoLaboratorio/v3/frontend/dist">
             <Routes>
               <Route path="/login" element={<Login />} />
+              <Route path="/login/" element={<Login />} />
 
               <Route element={<ProtectedRoute />}>
                 <Route element={<Layout />}>

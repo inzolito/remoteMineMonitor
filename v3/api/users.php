@@ -20,30 +20,12 @@ require_once __DIR__ . '/db.php';
 
 $secret_key = "MONITOREO_LAB_V3_SECRET_KEY_CHANGE_ME_IN_PROD";
 
-// Validate JWT
-$authHeader = $_SERVER['HTTP_AUTHORIZATION'] ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '';
-$jwt = null;
-if (preg_match('/Bearer\s(\S+)/', $authHeader, $matches)) {
-    $jwt = $matches[1];
-}
-
-if (!$jwt) {
-    http_response_code(401);
-    echo json_encode(["message" => "Access denied."]);
-    exit();
-}
-
-try {
-    $decoded = JWT::decode($jwt, new Key($secret_key, 'HS256'));
-} catch (Exception $e) {
-    // Relaxed for stability (Allow expired tokens)
-    // http_response_code(401);
-    // echo json_encode(["message" => "Access denied.", "error" => $e->getMessage()]);
-    // exit();
-}
-
 $database = new DB();
 $mysqli = $database->getConnection();
+
+require_once __DIR__ . '/auth_helper.php';
+$auth = require_auth($mysqli);
+$decoded = $auth['decoded'];
 $method = $_SERVER['REQUEST_METHOD'];
 
 if ($method === 'GET') {
@@ -64,9 +46,9 @@ if ($method === 'GET') {
     // Create User
     $data = json_decode(file_get_contents("php://input"));
 
-    if (!isset($data->username) || !isset($data->password) || !isset($data->email)) {
+    if (!isset($data->username) || !isset($data->password)) {
         http_response_code(400);
-        echo json_encode(["message" => "Incomplete data."]);
+        echo json_encode(["message" => "Incomplete data. Username and Password are required."]);
         exit();
     }
 

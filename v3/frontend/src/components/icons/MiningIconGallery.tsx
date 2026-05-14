@@ -12,7 +12,7 @@ const MiningIconGallery = () => {
         setTimeout(() => setCopied(null), 2000);
     };
 
-    const icons = Object.entries(MiningIcons).filter(([name]) => name !== 'default' && name !== 'SystemIcon');
+    const icons = Object.entries(MiningIcons).filter(([name]) => name !== 'default');
 
     return (
         <div className="space-y-6">

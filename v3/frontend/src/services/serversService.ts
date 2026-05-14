@@ -1,15 +1,4 @@
-import axios from 'axios';
-import { getCurrentUser } from './authService';
-
-const API_URL = '/monitoreoLaboratorio/v3/api';
-
-const getAuthHeaders = () => {
-    const user = getCurrentUser();
-    if (user && user.token) {
-        return { Authorization: `Bearer ${user.token}` };
-    }
-    return {};
-};
+import { api } from './authService';
 
 export interface Server {
     id: number;
@@ -32,36 +21,26 @@ export interface Server {
 }
 
 export const getServersBySite = async (siteId: number): Promise<Server[]> => {
-    const response = await axios.get(`${API_URL}/servers.php?site_id=${siteId}`, {
-        headers: getAuthHeaders(),
-    });
+    const response = await api.get(`/servers.php?site_id=${siteId}`);
     return response.data;
 };
 
 export const createServer = async (server: Partial<Server> & { site_id: number }) => {
-    const response = await axios.post(`${API_URL}/servers.php`, server, {
-        headers: getAuthHeaders(),
-    });
+    const response = await api.post('/servers.php', server);
     return response.data;
 };
 
 export const updateServer = async (server: Partial<Server>) => {
-    const response = await axios.put(`${API_URL}/servers.php`, server, {
-        headers: getAuthHeaders(),
-    });
+    const response = await api.put('/servers.php', server);
     return response.data;
 };
 
 export const deleteServer = async (id: number) => {
-    const response = await axios.delete(`${API_URL}/servers.php?id=${id}`, {
-        headers: getAuthHeaders(),
-    });
+    const response = await api.delete(`/servers.php?id=${id}`);
     return response.data;
 };
 
 export const getRawMetrics = async (serverId: number) => {
-    const response = await axios.get(`${API_URL}/raw_metrics.php?server_id=${serverId}`, {
-        headers: getAuthHeaders(),
-    });
+    const response = await api.get(`/raw_metrics.php?server_id=${serverId}`);
     return response.data;
 };

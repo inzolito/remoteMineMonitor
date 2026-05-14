@@ -59,6 +59,17 @@ class MetricsEvaluator {
             return 2147483647 - $currentId;
         }
 
+        // 5. Summarizer Execution Count (Multiline parsing)
+        if ($key === 'app.summarizer.ejecution') {
+            $lines = array_filter(explode("\n", trim($value)), function($l) {
+                $l = trim($l);
+                return !empty($l);
+            });
+            // Each 2 lines is one process (parent + child)
+            // Odd line = manual summarization, still counts as a process
+            return ceil(count($lines) / 2);
+        }
+
         return $value;
     }
 
@@ -102,7 +113,7 @@ class MetricsEvaluator {
             }
         }
 
-        if ($serverId && $matchedRule) {
+        if ($serverId) {
             $this->manageAlerts($serverId, $key, $status, $matchedRule);
         }
 
@@ -188,7 +199,7 @@ class MetricsEvaluator {
         return intval($str); 
     }
 
-    private function manageAlerts($serverId, $key, $status, $rule) {
+    public function manageAlerts($serverId, $key, $status, $rule = null) {
         $isDangerStatus = $this->isWorse($status, 'warning');
 
         if ($isDangerStatus) {

@@ -2,6 +2,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { LayoutDashboard, Users, Activity, Ticket, Clock, Menu, Briefcase, ShieldCheck } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
+import { api } from '../services/authService';
 
 const Sidebar = () => {
     const navigate = useNavigate();
@@ -21,13 +22,8 @@ const Sidebar = () => {
         const fetchModules = async () => {
             if (!user?.token) return;
             try {
-                const resp = await fetch('/monitoreoLaboratorio/v3/api/modules.php?action=allowed', {
-                    headers: { 'Authorization': `Bearer ${user.token}` }
-                });
-                if (resp.ok) {
-                    const data = await resp.json();
-                    setModules(data);
-                }
+                const resp = await api.get('/modules.php?action=allowed');
+                setModules(resp.data);
             } catch (err) {
                 console.error("Failed to load modules", err);
             }
