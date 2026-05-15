@@ -5,7 +5,7 @@ import {
     ShieldCheck, Server, Activity, Terminal,
     FileText, Plus, Trash2, Save, RefreshCw, Search,
     AlertCircle, ChevronRight, Settings, XOctagon, Network,
-    Users, Palette, LayoutGrid
+    Users, Palette, LayoutGrid, Clock, Cpu
 } from 'lucide-react';
 import UsersManagementTab from './admin/UsersManagementTab';
 import MiningIconGallery from '../components/icons/MiningIconGallery';
@@ -13,10 +13,50 @@ import RooteoTab from '../components/RooteoTab';
 
 const API_BASE = '/monitoreoLaboratorio/v3/api/admin.php';
 
+const formatUptime = (since: string) => {
+    if (!since || since === "" || since === "undefined") return "--h --m --s";
+    try {
+        let dateStr = since;
+        if (since.includes(' ')) {
+            const parts = since.trim().split(/\s+/);
+            // Expected: ["Fri", "2026-05-15", "12:21:04", "-04"] or similar
+            if (parts.length >= 3) {
+                // Try to find the YYYY-MM-DD part
+                const datePart = parts.find(p => p.includes('-'));
+                const timePart = parts.find(p => p.includes(':'));
+                const tzPart = parts.find(p => (p.startsWith('-') || p.startsWith('+')) && p.length <= 5);
+                
+                if (datePart && timePart) {
+                    dateStr = `${datePart}T${timePart}${tzPart || ''}`;
+                }
+            }
+        }
+        
+        let start = new Date(dateStr).getTime();
+        
+        // If still NaN, try one more aggressive normalization
+        if (isNaN(start)) {
+            const clean = since.replace(/[a-zA-Z]/g, ' ').trim().split(/\s+/);
+            if (clean.length >= 2) {
+                start = new Date(`${clean[0]}T${clean[1]}`).getTime();
+            }
+        }
+
+        if (isNaN(start)) return "--h --m --s";
+
+        const now = new Date().getTime();
+        const diff = Math.max(0, now - start);
+        const hours = Math.floor(diff / 3600000);
+        const minutes = Math.floor((diff % 3600000) / 60000);
+        const seconds = Math.floor((diff % 60000) / 1000);
+        return `${hours.toString().padStart(2, '0')}h ${minutes.toString().padStart(2, '0')}m ${seconds.toString().padStart(2, '0')}s`;
+    } catch (e) { return "--h --m --s"; }
+};
+
 const SuperAdmin = () => {
     const { user } = useAuth();
     const [activeCategory, setActiveCategory] = useState('infrastructure');
-    const [activeTab, setActiveTab] = useState('servers');
+    const [activeTab, setActiveTab] = useState('bot_fms');
     const [, setLoading] = useState(false);
     const [, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
@@ -27,6 +67,7 @@ const SuperAdmin = () => {
 
     const tabsByCategory: Record<string, any[]> = {
         infrastructure: [
+            { id: 'bot_fms', label: 'BOT FMS', icon: Activity },
             { id: 'servers', label: 'Servidores', icon: Server },
             { id: 'metrics', label: 'Catálogo Métricas', icon: Activity },
             { id: 'commands', label: 'Comandos Fallback', icon: Terminal },
@@ -50,6 +91,11 @@ const SuperAdmin = () => {
     const [alertRules, setAlertRules] = useState<any[]>([]);
     const [permissions, setPermissions] = useState<any[]>([]); // Roles
     const [modules, setModules] = useState<any[]>([]); // All Modules
+    const [botStatus, setBotStatus] = useState<any>(null);
+    const [botSites, setBotSites] = useState<any[]>([]);
+    const [selectedLogSite, setSelectedLogSite] = useState<any>(null);
+    const [botLogs, setBotLogs] = useState<string>('');
+    const [liveUptime, setLiveUptime] = useState('--h --m --s');
 
     // Selected items for editing
     const [selectedMetric, setSelectedMetric] = useState<any>(null);
@@ -181,6 +227,10 @@ const SuperAdmin = () => {
                 const [p, m] = await Promise.all([fetchData('permissions'), fetchData('modules')]);
                 if (p) setPermissions(p);
                 if (m) setModules(m);
+            } else if (activeTab === 'bot_fms') {
+                const [s, st] = await Promise.all([fetchData('bot_status'), fetchData('bot_sites')]);
+                if (s) setBotStatus(s);
+                if (st) setBotSites(st);
             }
         };
         loadInitial();
@@ -197,6 +247,44 @@ const SuperAdmin = () => {
             fetchData('template_metrics', `&type_id=${selectedType.id}`).then(tm => setTemplateMetrics(tm || []));
         }
     }, [selectedType, activeTab]);
+
+    // Polling for Bot Status and Logs
+    useEffect(() => {
+        if (activeTab !== 'bot_fms') return;
+
+        const pollStatus = async () => {
+            const s = await fetchData('bot_status');
+            if (s) setBotStatus(s);
+            
+            if (selectedLogSite) {
+                const l = await fetchData('bot_logs', `&site_id=${selectedLogSite.id}`);
+                if (l && l.logs) setBotLogs(l.logs);
+            }
+        };
+
+        const interval = setInterval(pollStatus, 10000);
+        return () => clearInterval(interval);
+    }, [activeTab, selectedLogSite]);
+
+    // Real-time Uptime Timer
+    useEffect(() => {
+        if (activeTab !== 'bot_fms' || !botStatus?.since) return;
+
+        const timer = setInterval(() => {
+            setLiveUptime(formatUptime(botStatus.since));
+        }, 1000);
+
+        return () => clearInterval(timer);
+    }, [activeTab, botStatus?.since]);
+
+    // Fetch logs immediately when site changes
+    useEffect(() => {
+        if (activeTab === 'bot_fms' && selectedLogSite) {
+            fetchData('bot_logs', `&site_id=${selectedLogSite.id}`).then(l => {
+                if (l && l.logs) setBotLogs(l.logs);
+            });
+        }
+    }, [activeTab, selectedLogSite]);
 
     return (
         <div className="p-8 max-w-7xl mx-auto space-y-6">
@@ -252,7 +340,210 @@ const SuperAdmin = () => {
                 })}
             </div>
 
-            {/* Tab: Servers */}
+            {/* Tab: BOT FMS */}
+            {activeTab === 'bot_fms' && (
+                <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500 h-[calc(100vh-250px)] flex flex-col">
+                    {/* TOP BAR: General Bot Status (Compact) */}
+                    <div className="bg-card border rounded-2xl p-3 px-6 shadow-sm flex items-center justify-between">
+                        <div className="flex items-center gap-6">
+                            <div className="flex items-center gap-2.5">
+                                <div className={`w-2 h-2 rounded-full ${botStatus?.state === 'active' ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`}></div>
+                                <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Master:</span>
+                                <span className={`text-[10px] font-black uppercase ${botStatus?.state === 'active' ? 'text-emerald-600' : 'text-red-600'}`}>{botStatus?.state || 'OFFLINE'}</span>
+                            </div>
+                            <div className="h-4 w-px bg-border"></div>
+                            <div className="flex items-center gap-2">
+                                <Cpu className="w-3.5 h-3.5 text-primary" />
+                                <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Obreros Totales:</span>
+                                <span className="text-[10px] font-black text-primary">{botStatus?.process_count || 0}</span>
+                            </div>
+                            <div className="h-4 w-px bg-border"></div>
+                            <div className="flex items-center gap-2">
+                                <Clock className="w-3.5 h-3.5 text-muted-foreground" />
+                                <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Uptime:</span>
+                                <span className="text-[10px] font-mono font-bold">{liveUptime}</span>
+                            </div>
+                        </div>
+                        <div className="flex gap-2">
+                            <button onClick={async () => { if (confirm('⚠️ ¿Reiniciar Maestro?')) { await sendData('bot_restart', 'POST', {}); const s = await fetchData('bot_status'); if (s) setBotStatus(s); } }} className="text-[9px] font-black uppercase tracking-tighter px-3 py-1 bg-red-500/10 text-red-600 border border-red-500/20 rounded-lg hover:bg-red-500 hover:text-white transition-all">Reiniciar Master</button>
+                            <button onClick={async () => { if (confirm('¿Reiniciar todos los obreros?')) { await sendData('bot_restart_subs', 'POST', {}); } }} className="text-[9px] font-black uppercase tracking-tighter px-3 py-1 bg-blue-500/10 text-blue-600 border border-blue-500/20 rounded-lg hover:bg-blue-500 hover:text-white transition-all">Reiniciar Todos</button>
+                        </div>
+                    </div>
+
+                    <div className="flex flex-col lg:flex-row gap-6 flex-1 overflow-hidden">
+                        {/* LEFT SIDEBAR: Faenas list by Conglomerate */}
+                        <div className="w-full lg:w-80 flex flex-col gap-4 overflow-hidden">
+                            <div className="bg-card border rounded-[1.5rem] p-4 shadow-xl shadow-primary/5 flex flex-col h-full">
+                                <div className="flex items-center gap-2 mb-4 px-2">
+                                    <LayoutGrid className="w-4 h-4 text-primary" />
+                                    <h2 className="text-sm font-black uppercase tracking-tight">Obreros FMS</h2>
+                                </div>
+                                
+                                <div className="flex-1 overflow-y-auto space-y-4 pr-1 custom-scrollbar">
+                                    {Object.entries(
+                                        botSites.reduce((acc: any, site: any) => {
+                                            const cong = site.conglomerate || 'OTROS';
+                                            if (!acc[cong]) acc[cong] = [];
+                                            acc[cong].push(site);
+                                            return acc;
+                                        }, {})
+                                    ).sort(([a], [b]) => {
+                                        if (a === 'AMSA') return -1;
+                                        if (b === 'AMSA') return 1;
+                                        if (a === 'CODELCO') return -1;
+                                        if (b === 'CODELCO') return 1;
+                                        if (a === 'OTROS') return 1;
+                                        if (b === 'OTROS') return -1;
+                                        return a.localeCompare(b);
+                                    }).map(([conglomerate, sites]: [string, any]) => (
+                                        <div key={conglomerate} className="space-y-1.5">
+                                            <div className="px-2 py-1 bg-muted/50 rounded-lg text-[9px] font-black uppercase tracking-widest text-muted-foreground flex justify-between items-center">
+                                                <span>{conglomerate}</span>
+                                                <span className="opacity-50">{sites.length}</span>
+                                            </div>
+                                            <div className="space-y-1">
+                                                {sites.map((site: any) => (
+                                                    <button
+                                                        key={site.id}
+                                                        onClick={() => setSelectedLogSite(site)}
+                                                        className={`w-full flex items-center justify-between p-2.5 rounded-xl transition-all duration-200 group ${selectedLogSite?.id === site.id 
+                                                            ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20 scale-[1.02]' 
+                                                            : 'hover:bg-muted/80 text-foreground/80'}`}
+                                                    >
+                                                        <div className="flex items-center gap-2 overflow-hidden">
+                                                            <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${site.is_monitored == 1 ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-slate-400 opacity-30'}`}></div>
+                                                            <span className="text-[10px] font-black truncate uppercase tracking-tight">{site.name}</span>
+                                                        </div>
+                                                        {site.is_monitored == 1 ? (
+                                                            <span className={`text-[8px] font-bold px-1 rounded ${selectedLogSite?.id === site.id ? 'bg-white/20' : 'bg-emerald-500/10 text-emerald-600'}`}>ON</span>
+                                                        ) : (
+                                                            <span className="text-[8px] font-bold opacity-30">PAUSA</span>
+                                                        )}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* RIGHT DASHBOARD: Summary + Logs */}
+                        <div className="flex-1 flex flex-col gap-4 overflow-hidden">
+                            {/* Summary Header */}
+                            <div className="bg-card border rounded-[1.5rem] p-5 shadow-xl shadow-primary/5 flex items-center justify-between relative overflow-hidden">
+                                <div className="flex items-center gap-5 relative z-10">
+                                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center border-2 ${selectedLogSite?.is_monitored == 1 ? 'border-emerald-500/20 bg-emerald-500/5' : 'border-slate-500/20 bg-slate-500/5'}`}>
+                                        <Activity className={`w-7 h-7 ${selectedLogSite?.is_monitored == 1 ? 'text-emerald-500' : 'text-slate-400'}`} />
+                                    </div>
+                                    <div>
+                                        <h2 className="text-2xl font-black tracking-tighter uppercase leading-tight">
+                                            {selectedLogSite ? selectedLogSite.name : 'Selecciona una faena'}
+                                        </h2>
+                                        <div className="flex items-center gap-3 mt-0.5">
+                                            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{selectedLogSite?.conglomerate || 'Sin Conglomerado'}</span>
+                                            <div className="w-1 h-1 rounded-full bg-border"></div>
+                                            <span className={`text-[10px] font-black uppercase tracking-widest ${selectedLogSite?.is_monitored == 1 ? 'text-emerald-500' : 'text-slate-400'}`}>
+                                                {selectedLogSite?.is_monitored == 1 ? 'Monitoreo Activo' : 'En Pausa'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="flex gap-4 items-center relative z-10">
+                                    {selectedLogSite && (
+                                        <>
+                                            <div className="flex items-center gap-3 px-4 py-2 bg-muted/30 rounded-2xl border">
+                                                <span className={`text-[9px] font-black uppercase tracking-widest ${selectedLogSite.is_monitored == 1 ? 'text-emerald-500' : 'text-muted-foreground opacity-50'}`}>
+                                                    {selectedLogSite.is_monitored == 1 ? 'Encendida' : 'Apagada'}
+                                                </span>
+                                                <button 
+                                                    onClick={async () => {
+                                                        const newStatus = selectedLogSite.is_monitored == 1 ? 0 : 1;
+                                                        await fetchData('bot_site_toggle', `&site_id=${selectedLogSite.id}&status=${newStatus}`);
+                                                        const updatedSites = await fetchData('bot_sites');
+                                                        if (updatedSites) {
+                                                            setBotSites(updatedSites);
+                                                            const fresh = updatedSites.find((s: any) => s.id === selectedLogSite.id);
+                                                            if (fresh) setSelectedLogSite(fresh);
+                                                        }
+                                                    }}
+                                                    className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors focus:outline-none ${selectedLogSite.is_monitored == 1 ? 'bg-emerald-500' : 'bg-slate-300'}`}
+                                                >
+                                                    <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform duration-200 ${selectedLogSite.is_monitored == 1 ? 'translate-x-[22px]' : 'translate-x-1'}`} />
+                                                </button>
+                                            </div>
+
+                                            <button 
+                                                onClick={async () => {
+                                                    if (confirm(`¿Reiniciar proceso de ${selectedLogSite.name}?`)) {
+                                                        await fetchData('bot_site_restart', `&site_id=${selectedLogSite.id}`);
+                                                    }
+                                                }}
+                                                className="flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary border border-primary/20 rounded-xl text-[10px] font-black uppercase hover:bg-primary hover:text-white transition-all"
+                                            >
+                                                <RefreshCw className="w-3.5 h-3.5" /> Reiniciar Obrero
+                                            </button>
+                                        </>
+                                    )}
+                                </div>
+
+                                {/* Decorative background element */}
+                                <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
+                                    <Cpu className="w-24 h-24 text-primary" />
+                                </div>
+                            </div>
+
+                            {/* Real-time Logs Terminal */}
+                            <div className="flex-1 bg-[#0b0e14] rounded-[1.5rem] border border-slate-800 shadow-2xl overflow-hidden flex flex-col relative group">
+                                <div className="flex items-center justify-between px-5 py-3 border-b border-slate-800/50 bg-slate-900/30">
+                                    <div className="flex items-center gap-3">
+                                        <div className="flex gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-[#ff5f56]"></div><div className="w-2.5 h-2.5 rounded-full bg-[#ffbd2e]"></div><div className="w-2.5 h-2.5 rounded-full bg-[#27c93f]"></div></div>
+                                        <span className="ml-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Terminal — {selectedLogSite ? selectedLogSite.alias : 'Monitor'}</span>
+                                    </div>
+                                    <div className="flex items-center gap-4">
+                                        <div className="flex items-center gap-1.5 px-2 py-1 bg-emerald-500/10 rounded-lg">
+                                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></div>
+                                            <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest">Live Stream (Last 200)</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div 
+                                    className="flex-1 p-5 overflow-y-auto font-mono text-[11px] text-slate-300 custom-scrollbar leading-relaxed scroll-smooth"
+                                    ref={(el) => { 
+                                        if (el) {
+                                            // Force scroll to bottom if we just changed site or if we are near bottom
+                                            const isAtBottom = el.scrollHeight - el.scrollTop <= el.clientHeight + 100;
+                                            if (isAtBottom || el.dataset.siteId !== selectedLogSite?.id?.toString()) {
+                                                el.scrollTop = el.scrollHeight;
+                                                el.dataset.siteId = selectedLogSite?.id?.toString() || '';
+                                            }
+                                        }
+                                    }}
+                                >
+                                    {selectedLogSite ? (
+                                        <pre className="whitespace-pre-wrap break-all">
+                                            {botLogs || 'Conectando con el obrero...'}
+                                        </pre>
+                                    ) : (
+                                        <div className="h-full flex flex-col items-center justify-center text-slate-700 opacity-40 gap-4">
+                                            <Activity className="w-12 h-12" />
+                                            <span className="text-xs font-black uppercase tracking-widest">Selecciona una faena para iniciar el monitoreo</span>
+                                        </div>
+                                    )}
+                                </div>
+                                
+                                {/* Auto-scroll anchor */}
+                                <div className="absolute bottom-4 right-6 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <div className="bg-primary/20 backdrop-blur px-3 py-1.5 rounded-full border border-primary/30 text-[8px] font-black text-primary uppercase tracking-widest">
+                                        Sincronizado
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
             {activeTab === 'servers' && (
                 <div className="grid gap-6">
                     <div className="bg-card rounded-xl border p-6">

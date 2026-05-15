@@ -182,6 +182,101 @@ if ($method === 'GET') {
             'connection' => $connection,
             'paths' => $paths
         ];
+    } elseif ($action === 'bot_status') {
+        $output = shell_exec('/var/www/monitoreoLaboratorio/v3/scripts/bot-control.sh status 2>&1');
+        $data = json_decode($output, true) ?: ["state" => "unknown", "since" => ""];
+        
+        // Compensate if bot-control.sh doesn't return process_count
+        if (!isset($data['process_count'])) {
+            $psOutput = shell_exec("ps aux | grep RMMEyeCatLaboratory_v3 | grep -v grep");
+            $lines = explode("\n", trim($psOutput));
+            $data['process_count'] = empty($psOutput) ? 0 : count($lines);
+            
+            // Extract site names using the correct relational path:
+            // Process (conn_id) -> connections (server_id) -> site_servers (site_id) -> sites (name)
+            $active_sites = [];
+            foreach ($lines as $line) {
+                if (preg_match('/RMMEyeCatLaboratory_v3\.py\s+(\d+)\s+fms/', $line, $matches)) {
+                    $conn_id = intval($matches[1]);
+                    $query = "SELECT s.name 
+                              FROM sites s 
+                              JOIN site_servers ss ON s.id = ss.site_id 
+                              JOIN connections c ON ss.server_id = c.server_id 
+                              WHERE c.id = $conn_id 
+                              LIMIT 1";
+                    $res = mysqli_query($mysqli, $query);
+                    if ($row = mysqli_fetch_assoc($res)) {
+                        $active_sites[] = $row['name'];
+                    }
+                }
+            }
+            $data['active_sites'] = array_values(array_unique($active_sites));
+        }
+        
+        // Ensure state is active/inactive
+        if ($data['state'] === 'unknown') {
+             $check = shell_exec("systemctl is-active rmm-monitor-v2.service 2>&1");
+             $data['state'] = trim($check);
+        }
+    } elseif ($action === 'bot_logs') {
+        $site_id = intval($_GET['site_id'] ?? 0);
+        $res = mysqli_query($mysqli, "SELECT alias FROM sites WHERE id = $site_id LIMIT 1");
+        $row = mysqli_fetch_assoc($res);
+        $alias = $row['alias'] ?? '';
+        
+        if ($alias) {
+            $logPath = "/home/jigsaw/msalas/dev/scripts/monitoreo_remoto/logs/{$alias}_fms.log";
+            if (file_exists($logPath)) {
+                $output = shell_exec("tail -n 200 " . escapeshellarg($logPath));
+                $data = ["logs" => $output ?: "Archivo de log vacío", "path" => $logPath];
+            } else {
+                $data = ["logs" => "Esperando primer registro del log... (Archivo no encontrado)", "path" => $logPath];
+            }
+        } else {
+            $data = ["logs" => "Alias no definido para el sitio ID $site_id"];
+        }
+    } elseif ($action === 'bot_sites') {
+        $query = "SELECT st.id, st.name, st.alias, st.conglomerate, 
+                  MAX(CASE WHEN c.status = 1 AND c.connection_status = 1 THEN 1 ELSE 0 END) as is_monitored
+                  FROM sites st 
+                  JOIN site_servers ss ON st.id = ss.site_id 
+                  JOIN servers srv ON ss.server_id = srv.id
+                  JOIN connections c ON srv.id = c.server_id
+                  WHERE srv.server_type_id IN (5, 6) 
+                  GROUP BY st.id 
+                  ORDER BY 
+                    CASE 
+                        WHEN st.conglomerate = 'AMSA' THEN 1 
+                        WHEN st.conglomerate = 'CODELCO' THEN 2 
+                        WHEN st.conglomerate IS NULL OR st.conglomerate = '' OR st.conglomerate = 'OTROS' THEN 4
+                        ELSE 3 
+                    END, 
+                    st.conglomerate ASC, st.name ASC";
+        $res = mysqli_query($mysqli, $query);
+        $data = [];
+        while ($row = mysqli_fetch_assoc($res)) {
+            $data[] = $row;
+        }
+    } elseif ($action === 'bot_site_toggle') {
+        $site_id = intval($_GET['site_id'] ?? 0);
+        $new_status = intval($_GET['status'] ?? 0);
+        // Toggle all connections associated with FMS servers for this site
+        $query = "UPDATE connections c
+                  JOIN servers srv ON c.server_id = srv.id
+                  JOIN site_servers ss ON srv.id = ss.server_id
+                  SET c.connection_status = $new_status
+                  WHERE ss.site_id = $site_id AND srv.server_type_id IN (5, 6)";
+        if (mysqli_query($mysqli, $query)) {
+            $data = ["success" => true, "message" => "Estado de faena actualizado"];
+        } else {
+            $data = ["success" => false, "message" => mysqli_error($mysqli)];
+        }
+    } elseif ($action === 'bot_site_restart') {
+        $site_id = intval($_GET['site_id'] ?? 0);
+        // pkill -f only for this site worker
+        $cmd = "pkill -f 'RMMEyeCatLaboratory_v3.py $site_id fms' 2>&1";
+        $output = shell_exec($cmd);
+        $data = ["success" => true, "message" => "Comando enviado", "output" => $output];
     }
     echo json_encode($data);
 
@@ -316,6 +411,14 @@ if ($method === 'GET') {
             http_response_code(500);
             echo json_encode(["message" => "Error: " . $e->getMessage()]);
         }
+    } elseif ($action === 'bot_restart') {
+        $output = shell_exec('sudo /var/www/monitoreoLaboratorio/v3/scripts/bot-control.sh restart-service 2>&1');
+        echo json_encode(["message" => "Restart initiated", "output" => $output]);
+        exit();
+    } elseif ($action === 'bot_restart_subs') {
+        $output = shell_exec('sudo /var/www/monitoreoLaboratorio/v3/scripts/bot-control.sh restart-subs 2>&1');
+        echo json_encode(["message" => "Subprocesses killed", "output" => $output]);
+        exit();
     }
 
 } elseif ($method === 'PUT') {
