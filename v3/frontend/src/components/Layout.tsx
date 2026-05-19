@@ -4,7 +4,8 @@ import { Outlet, Link } from 'react-router-dom';
 import { LogOut, Activity, User, ChevronDown, Settings } from 'lucide-react';
 import { ThemeToggle } from './ThemeToggle';
 import Sidebar from './Sidebar';
-import { NotificationBell } from './NotificationBell';
+import { MonitoringAlertsBell } from './MonitoringAlertsBell';
+import { SystemNotificationsBell } from './SystemNotificationsBell';
 
 const Layout = ({ children }: { children?: React.ReactNode }) => {
     const auth = useContext(AuthContext);
@@ -47,7 +48,8 @@ const Layout = ({ children }: { children?: React.ReactNode }) => {
                     <div className="hidden md:block"></div>
 
                     <div className="flex items-center gap-3">
-                        <NotificationBell />
+                        <MonitoringAlertsBell />
+                        <SystemNotificationsBell />
                         <ThemeToggle />
 
                         <div className="w-px h-6 bg-border mx-1"></div>
