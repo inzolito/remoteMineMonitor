@@ -75,7 +75,7 @@ const MonitoreoPage = () => {
                                         className={cn(
                                             "transition-all duration-300 group hover:shadow-md border-l-4",
                                             hasOfflineServers
-                                                ? "bg-red-50/50 hover:bg-red-50 border-l-red-500"
+                                                ? "bg-red-50/30 dark:bg-red-950/10 hover:bg-red-50/50 dark:hover:bg-red-950/20 border-l-red-500"
                                                 : "hover:bg-muted/30 border-l-transparent"
                                         )}
                                     >
@@ -84,14 +84,14 @@ const MonitoreoPage = () => {
                                                 <div className={cn(
                                                     "w-12 h-12 rounded-lg flex items-center justify-center font-bold text-sm border shrink-0 transition-all shadow-sm",
                                                     hasOfflineServers
-                                                        ? "bg-red-100 text-red-600 border-red-200"
+                                                        ? "bg-red-100 dark:bg-red-950/30 text-red-600 dark:text-red-400 border-red-200 dark:border-red-900/50"
                                                         : "bg-primary/10 text-primary border-primary/20"
                                                 )}>
                                                     {site.alias}
                                                 </div>
                                                 <div>
                                                     <div className="flex items-center gap-2">
-                                                        <div className={cn("font-bold text-base transition-colors", hasOfflineServers ? "text-red-700" : "text-foreground")}>
+                                                        <div className={cn("font-bold text-base transition-colors", hasOfflineServers ? "text-red-700 dark:text-red-400" : "text-foreground")}>
                                                             {site.name}
                                                         </div>
                                                         {hasOfflineServers && (
@@ -104,7 +104,7 @@ const MonitoreoPage = () => {
                                                     <div className="text-xs text-muted-foreground flex items-center gap-2">
                                                         {site.conglomerate}
                                                         {hasOfflineServers && (
-                                                            <span className="text-[10px] font-bold bg-red-100 text-red-600 px-1.5 py-0.5 rounded border border-red-200">
+                                                            <span className="text-[10px] font-bold bg-red-100 dark:bg-red-950/30 text-red-600 dark:text-red-400 px-1.5 py-0.5 rounded border border-red-200 dark:border-red-900/50">
                                                                 OFFLINE
                                                             </span>
                                                         )}

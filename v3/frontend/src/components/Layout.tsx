@@ -1,7 +1,7 @@
 import { useContext, useState, useRef, useEffect } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import { Outlet, Link } from 'react-router-dom';
-import { LogOut, Activity, User, ChevronDown, Settings, Sun, Moon } from 'lucide-react';
+import { LogOut, Activity, User, ChevronDown, Settings, Moon } from 'lucide-react';
 import Sidebar from './Sidebar';
 import { MonitoringAlertsBell } from './MonitoringAlertsBell';
 import { SystemNotificationsBell } from './SystemNotificationsBell';
@@ -92,19 +92,18 @@ const Layout = ({ children }: { children?: React.ReactNode }) => {
                                             className="w-full flex items-center justify-between px-4 py-2.5 text-sm font-medium hover:bg-muted transition-colors text-left group"
                                         >
                                             <div className="flex items-center gap-3">
-                                                {theme === 'dark' ? (
-                                                    <Sun className="w-4 h-4 text-muted-foreground group-hover:text-amber-500" />
-                                                ) : (
-                                                    <Moon className="w-4 h-4 text-muted-foreground group-hover:text-blue-500" />
-                                                )}
-                                                <span>Modo {theme === 'dark' ? 'Día' : 'Noche'}</span>
+                                                <Moon className={cn(
+                                                    "w-4 h-4 transition-colors",
+                                                    theme === 'dark' ? "text-primary" : "text-muted-foreground group-hover:text-primary"
+                                                )} />
+                                                <span>Modo Noche</span>
                                             </div>
                                             <div className={cn(
-                                                "w-8 h-4 rounded-full p-0.5 transition-colors duration-200 focus:outline-none relative flex items-center cursor-pointer",
-                                                theme === 'dark' ? "bg-primary" : "bg-slate-300"
+                                                "w-9 h-5 rounded-full p-0.5 transition-colors duration-200 focus:outline-none relative flex items-center cursor-pointer",
+                                                theme === 'dark' ? "bg-primary" : "bg-slate-300 dark:bg-slate-700"
                                             )}>
                                                 <div className={cn(
-                                                    "bg-white w-3 h-3 rounded-full shadow-md transform transition-transform duration-200 absolute",
+                                                    "bg-white w-3.5 h-3.5 rounded-full shadow-md transform transition-transform duration-200 absolute",
                                                     theme === 'dark' ? "right-0.5" : "left-0.5"
                                                 )} />
                                             </div>
