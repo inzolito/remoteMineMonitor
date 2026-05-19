@@ -264,7 +264,7 @@ if ($method === 'GET') {
         $query = "UPDATE connections c
                   JOIN servers srv ON c.server_id = srv.id
                   JOIN site_servers ss ON srv.id = ss.server_id
-                  SET c.connection_status = $new_status
+                  SET c.connection_status = $new_status, c.status = $new_status
                   WHERE ss.site_id = $site_id AND srv.server_type_id IN (5, 6)";
         if (mysqli_query($mysqli, $query)) {
             $data = ["success" => true, "message" => "Estado de faena actualizado"];
