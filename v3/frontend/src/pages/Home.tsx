@@ -415,7 +415,7 @@ const Home = () => {
                                                             className={cn(
                                                                 "transition-colors group",
                                                                 isClosed 
-                                                                    ? "bg-muted/30 dark:bg-slate-900/40 opacity-60 grayscale hover:bg-muted" 
+                                                                    ? "bg-muted/10 dark:bg-slate-900/20 opacity-40 dark:opacity-25 grayscale hover:bg-muted/20 hover:opacity-40" 
                                                                     : highlightRed
                                                                         ? "bg-rose-500/10 border-l-2 border-l-rose-500 hover:bg-rose-500/15"
                                                                         : isWorking
@@ -431,7 +431,7 @@ const Home = () => {
                                                                     className={cn(
                                                                         "text-[10px] font-black px-2 py-1 rounded-md border transition-all flex items-center gap-1.5 w-fit",
                                                                         isClosed
-                                                                            ? "bg-slate-500/10 text-slate-500 border-slate-500/20 grayscale dark:bg-slate-800/40 dark:text-slate-400 dark:border-slate-800/50"
+                                                                            ? "bg-slate-500/10 text-slate-500 border-slate-500/20 grayscale dark:bg-slate-800/40 dark:text-slate-500 dark:border-slate-800/50"
                                                                             : highlightRed
                                                                                 ? "bg-rose-500/15 text-rose-600 border-rose-500/20 hover:bg-rose-500 hover:text-white"
                                                                                 : "bg-primary/5 text-primary border-primary/10 hover:bg-primary hover:text-white"
@@ -444,7 +444,7 @@ const Home = () => {
                                                                 <span className={cn(
                                                                     "text-[10px] font-black px-2 py-1 rounded-md border uppercase tracking-tighter",
                                                                     isClosed
-                                                                        ? "text-slate-400 dark:text-slate-400 bg-slate-100/50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800/50"
+                                                                        ? "text-slate-500 dark:text-slate-500 bg-slate-100/50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800/50"
                                                                         : highlightRed
                                                                             ? "text-rose-600 bg-rose-500/10 border-rose-500/20"
                                                                             : "text-amber-600 bg-amber-500/5 border-amber-500/10"
@@ -456,10 +456,10 @@ const Home = () => {
                                                                 <p className={cn(
                                                                     "text-[11px] line-clamp-1 group-hover:line-clamp-none transition-all",
                                                                     isClosed
-                                                                        ? "font-normal text-slate-400"
+                                                                        ? "font-normal text-slate-500 dark:text-slate-500/70"
                                                                         : highlightRed
-                                                                            ? "font-bold text-rose-600"
-                                                                            : "font-bold text-slate-700"
+                                                                            ? "font-bold text-rose-600 dark:text-rose-400"
+                                                                            : "font-bold text-slate-700 dark:text-slate-200"
                                                                 )}>
                                                                     {ticket.Subject || '(Sin asunto)'}
                                                                 </p>
