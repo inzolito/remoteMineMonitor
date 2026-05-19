@@ -1,14 +1,16 @@
 import { useContext, useState, useRef, useEffect } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import { Outlet, Link } from 'react-router-dom';
-import { LogOut, Activity, User, ChevronDown, Settings } from 'lucide-react';
-import { ThemeToggle } from './ThemeToggle';
+import { LogOut, Activity, User, ChevronDown, Settings, Sun, Moon } from 'lucide-react';
 import Sidebar from './Sidebar';
 import { MonitoringAlertsBell } from './MonitoringAlertsBell';
 import { SystemNotificationsBell } from './SystemNotificationsBell';
+import { useTheme } from '../context/ThemeContext';
+import { cn } from '../lib/utils';
 
 const Layout = ({ children }: { children?: React.ReactNode }) => {
     const auth = useContext(AuthContext);
+    const { theme, setTheme } = useTheme();
     const [userMenuOpen, setUserMenuOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -50,7 +52,6 @@ const Layout = ({ children }: { children?: React.ReactNode }) => {
                     <div className="flex items-center gap-3">
                         <MonitoringAlertsBell />
                         <SystemNotificationsBell />
-                        <ThemeToggle />
 
                         <div className="w-px h-6 bg-border mx-1"></div>
 
@@ -85,6 +86,29 @@ const Layout = ({ children }: { children?: React.ReactNode }) => {
                                             <Settings className="w-4 h-4 text-muted-foreground group-hover:text-primary" />
                                             <span>Mi Perfil</span>
                                         </Link>
+
+                                        <button 
+                                            onClick={() => setTheme(theme === "light" ? "dark" : "light")}
+                                            className="w-full flex items-center justify-between px-4 py-2.5 text-sm font-medium hover:bg-muted transition-colors text-left group"
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                {theme === 'dark' ? (
+                                                    <Sun className="w-4 h-4 text-muted-foreground group-hover:text-amber-500" />
+                                                ) : (
+                                                    <Moon className="w-4 h-4 text-muted-foreground group-hover:text-blue-500" />
+                                                )}
+                                                <span>Modo {theme === 'dark' ? 'Día' : 'Noche'}</span>
+                                            </div>
+                                            <div className={cn(
+                                                "w-8 h-4 rounded-full p-0.5 transition-colors duration-200 focus:outline-none relative flex items-center cursor-pointer",
+                                                theme === 'dark' ? "bg-primary" : "bg-slate-300"
+                                            )}>
+                                                <div className={cn(
+                                                    "bg-white w-3 h-3 rounded-full shadow-md transform transition-transform duration-200 absolute",
+                                                    theme === 'dark' ? "right-0.5" : "left-0.5"
+                                                )} />
+                                            </div>
+                                        </button>
 
                                         <div className="h-px bg-border my-1"></div>
 
