@@ -123,15 +123,21 @@ if ($method === 'GET') {
     // Helper function to fetch tickets assigned to a specific shift group
     $get_tickets_for_shift = function($shift_num) use ($mysqli) {
         $query = "SELECT c.Id, c.CaseNumber, c.Subject, c.Status, c.Priority, c.CreatedDate, c.ClosedDate, c.Description,
-                         a.internal_faena_alias as Faena, a.Name as AccountName, u.Name as OwnerName,
+                         a.internal_faena_alias as Faena, a.Name as AccountName, u.Name as OwnerName, c.OwnerId,
                          (SELECT COUNT(*) FROM rmmsalesforce.sf_case_comments cc WHERE cc.ParentId = c.Id) as CommentCount
                   FROM rmmsalesforce.sf_cases c
                   LEFT JOIN rmmsalesforce.sf_accounts a ON c.AccountId = a.Id
                   LEFT JOIN rmmsalesforce.sf_users u ON c.OwnerId = u.Id
-                  WHERE c.OwnerId IN (
-                      SELECT salesforce_user_id COLLATE utf8mb4_unicode_ci 
-                      FROM monitoring_system.users 
-                      WHERE turno_7x7 = ? AND salesforce_user_id IS NOT NULL AND salesforce_user_id != ''
+                  WHERE (
+                      c.OwnerId IN (
+                          SELECT salesforce_user_id COLLATE utf8mb4_unicode_ci 
+                          FROM monitoring_system.users 
+                          WHERE turno_7x7 = ? AND salesforce_user_id IS NOT NULL AND salesforce_user_id != ''
+                      )
+                      OR (
+                          (c.OwnerId = '00G1I00000249DwUAI' OR u.Name = 'South American Support Q')
+                          AND LOWER(c.Status) != 'closed'
+                      )
                   ) AND c.IsDeleted = 0
                   ORDER BY c.CreatedDate DESC
                   LIMIT 50";
@@ -145,6 +151,10 @@ if ($method === 'GET') {
         $res = $stmt->get_result();
         $tickets = [];
         while ($row = $res->fetch_assoc()) {
+            $ownerName = $row['OwnerName'];
+            if ($row['OwnerId'] === '00G1I00000249DwUAI' || $ownerName === 'South American Support Q') {
+                $ownerName = 'South American Support Q';
+            }
             $tickets[] = [
                 'CaseId' => $row['Id'],
                 'CaseNumber' => $row['CaseNumber'],
@@ -156,7 +166,7 @@ if ($method === 'GET') {
                 'Description' => $row['Description'] ?? '',
                 'Faena' => $row['Faena'] ?? '',
                 'AccountName' => $row['AccountName'] ?? 'N/A',
-                'OwnerName' => $row['OwnerName'] ?? 'Mi Cuenta',
+                'OwnerName' => $ownerName ?? 'Mi Cuenta',
                 'CommentCount' => (int)($row['CommentCount'] ?? 0)
             ];
         }

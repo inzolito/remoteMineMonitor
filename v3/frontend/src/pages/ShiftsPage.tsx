@@ -263,6 +263,8 @@ const ShiftsPage = () => {
                     {filteredActiveTickets.map((t: SFCase, idx: number) => {
                         const isClosed = t.Status?.toLowerCase() === 'closed';
                         const isWorking = t.Status?.toLowerCase() === 'working';
+                        const isQueueTicket = t.OwnerName?.toLowerCase().includes('support q') || t.OwnerName?.toLowerCase().includes('queue');
+                        const highlightRed = isQueueTicket && !isClosed;
 
                         return (
                             <tr 
@@ -271,9 +273,11 @@ const ShiftsPage = () => {
                                     "transition-colors group",
                                     isClosed 
                                         ? "bg-slate-50/50 dark:bg-slate-900/20 opacity-60 grayscale hover:bg-slate-50 dark:hover:bg-slate-900/30" 
-                                        : isWorking
-                                            ? "bg-emerald-500/5 hover:bg-emerald-500/10"
-                                            : "hover:bg-slate-50 dark:hover:bg-muted/20"
+                                        : highlightRed
+                                            ? "bg-rose-500/10 dark:bg-rose-950/25 border-l-2 border-l-rose-500 hover:bg-rose-500/15 dark:hover:bg-rose-950/40"
+                                            : isWorking
+                                                ? "bg-emerald-500/5 hover:bg-emerald-500/10"
+                                                : "hover:bg-slate-50 dark:hover:bg-muted/20"
                                 )}
                             >
                                 <td className="px-4 py-3">
@@ -285,7 +289,9 @@ const ShiftsPage = () => {
                                             "text-[10px] px-2 py-1 rounded-md border transition-all flex items-center gap-1.5 w-fit",
                                             isClosed
                                                 ? "font-normal bg-slate-100 text-slate-400 border-slate-200 grayscale"
-                                                : "font-black bg-primary/5 text-primary border-primary/10 hover:bg-primary hover:text-white"
+                                                : highlightRed
+                                                    ? "font-black bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/20 hover:bg-rose-500 hover:text-white"
+                                                    : "font-black bg-primary/5 text-primary border-primary/10 hover:bg-primary hover:text-white"
                                         )}
                                     >
                                         {t.CaseNumber} <ExternalLink className="w-2.5 h-2.5 opacity-50" />
@@ -296,7 +302,9 @@ const ShiftsPage = () => {
                                         "text-[10px] px-2 py-1 rounded-md border uppercase tracking-tighter",
                                         isClosed
                                             ? "font-normal text-slate-400 bg-slate-100/50 border-slate-200"
-                                            : "font-black text-amber-600 bg-amber-500/5 border-amber-500/10"
+                                            : highlightRed
+                                                ? "font-black text-rose-600 dark:text-rose-400 bg-rose-500/10 border-rose-500/20"
+                                                : "font-black text-amber-600 bg-amber-500/5 border-amber-500/10"
                                     )}>
                                         {t.Faena || 'Global'}
                                     </span>
@@ -306,7 +314,9 @@ const ShiftsPage = () => {
                                         "text-[11px] line-clamp-1 group-hover:line-clamp-none transition-all",
                                         isClosed
                                             ? "font-normal text-slate-400 dark:text-slate-500"
-                                            : "font-bold text-foreground"
+                                            : highlightRed
+                                                ? "font-bold text-rose-600 dark:text-rose-400"
+                                                : "font-bold text-foreground"
                                     )}>
                                         {t.Subject || '(Sin asunto)'}
                                     </p>
@@ -315,13 +325,19 @@ const ShiftsPage = () => {
                                     <div className="flex items-center gap-1.5">
                                         <div className={cn(
                                             "w-1.5 h-1.5 rounded-full",
-                                            isClosed ? "bg-slate-300" : "bg-emerald-500 animate-pulse"
+                                            isClosed 
+                                                ? "bg-slate-300" 
+                                                : highlightRed
+                                                    ? "bg-rose-500 animate-pulse"
+                                                    : "bg-emerald-500 animate-pulse"
                                         )}></div>
                                         <span className={cn(
                                             "text-[10px] uppercase tracking-tight",
                                             isClosed
                                                 ? "font-normal text-slate-400"
-                                                : "font-black text-foreground/80"
+                                                : highlightRed
+                                                    ? "font-black text-rose-600 dark:text-rose-400"
+                                                    : "font-black text-foreground/80"
                                         )}>{t.Status}</span>
                                     </div>
                                 </td>
@@ -331,7 +347,9 @@ const ShiftsPage = () => {
                                             "text-[11px] uppercase",
                                             isClosed
                                                 ? "font-normal text-slate-400"
-                                                : "font-black text-foreground/90"
+                                                : highlightRed
+                                                    ? "font-black text-rose-600 dark:text-rose-400"
+                                                    : "font-black text-foreground/90"
                                         )}>
                                             {formatTimeElapsed(t.CreatedDate)}
                                         </span>
@@ -356,7 +374,9 @@ const ShiftsPage = () => {
                                         "text-[10px] px-2 py-1 rounded-md whitespace-nowrap border",
                                         isClosed
                                             ? "font-normal text-slate-400/80 bg-slate-50/50 dark:bg-muted/30 border-slate-200/30"
-                                            : "font-bold text-foreground/80 bg-slate-100/70 dark:bg-muted/70 border-slate-200/50 dark:border-border/50"
+                                            : highlightRed
+                                                ? "font-bold text-rose-600 dark:text-rose-400 bg-rose-500/10 border-rose-500/20"
+                                                : "font-bold text-foreground/80 bg-slate-100/70 dark:bg-muted/70 border-slate-200/50 dark:border-border/50"
                                     )}>
                                         {getOwnerAlias(t.OwnerName)}
                                     </span>
