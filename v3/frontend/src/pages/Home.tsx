@@ -406,6 +406,8 @@ const Home = () => {
                                                 paginatedTickets.map((ticket: any, idx: number) => {
                                                     const isClosed = ticket.Status?.toLowerCase() === 'closed';
                                                     const isWorking = ticket.Status?.toLowerCase() === 'working';
+                                                    const isQueueTicket = ticket.OwnerName?.toLowerCase().includes('support q') || ticket.OwnerName?.toLowerCase().includes('queue');
+                                                    const highlightRed = isQueueTicket && !isClosed;
                                                     
                                                     return (
                                                         <tr 
@@ -414,9 +416,11 @@ const Home = () => {
                                                                 "transition-colors group",
                                                                 isClosed 
                                                                     ? "bg-slate-50/50 opacity-60 grayscale hover:bg-slate-50" 
-                                                                    : isWorking
-                                                                        ? "bg-emerald-500/5 hover:bg-emerald-500/10"
-                                                                        : "hover:bg-slate-50"
+                                                                    : highlightRed
+                                                                        ? "bg-rose-500/10 border-l-2 border-l-rose-500 hover:bg-rose-500/15"
+                                                                        : isWorking
+                                                                            ? "bg-emerald-500/5 hover:bg-emerald-500/10"
+                                                                            : "hover:bg-slate-50"
                                                             )}
                                                         >
                                                             <td className="px-4 py-3">
@@ -428,19 +432,35 @@ const Home = () => {
                                                                         "text-[10px] font-black px-2 py-1 rounded-md border transition-all flex items-center gap-1.5 w-fit",
                                                                         isClosed
                                                                             ? "bg-slate-500/10 text-slate-500 border-slate-500/20 grayscale"
-                                                                            : "bg-primary/5 text-primary border-primary/10 hover:bg-primary hover:text-white"
+                                                                            : highlightRed
+                                                                                ? "bg-rose-500/15 text-rose-600 border-rose-500/20 hover:bg-rose-500 hover:text-white"
+                                                                                : "bg-primary/5 text-primary border-primary/10 hover:bg-primary hover:text-white"
                                                                     )}
                                                                 >
                                                                     {ticket.CaseNumber} <ExternalLink className="w-2.5 h-2.5 opacity-50" />
                                                                 </a>
                                                             </td>
                                                             <td className="px-4 py-3">
-                                                                <span className="text-[10px] font-black text-amber-600 bg-amber-500/5 px-2 py-1 rounded-md border border-amber-500/10 uppercase tracking-tighter">
+                                                                <span className={cn(
+                                                                    "text-[10px] font-black px-2 py-1 rounded-md border uppercase tracking-tighter",
+                                                                    isClosed
+                                                                        ? "text-slate-400 bg-slate-100/50 border-slate-200"
+                                                                        : highlightRed
+                                                                            ? "text-rose-600 bg-rose-500/10 border-rose-500/20"
+                                                                            : "text-amber-600 bg-amber-500/5 border-amber-500/10"
+                                                                )}>
                                                                     {ticket.Faena || ticket.AccountName || 'Global'}
                                                                 </span>
                                                             </td>
                                                             <td className="px-4 py-3 max-w-xs md:max-w-md">
-                                                                <p className="text-[11px] font-bold text-slate-700 line-clamp-1 group-hover:line-clamp-none transition-all">
+                                                                <p className={cn(
+                                                                    "text-[11px] line-clamp-1 group-hover:line-clamp-none transition-all",
+                                                                    isClosed
+                                                                        ? "font-normal text-slate-400"
+                                                                        : highlightRed
+                                                                            ? "font-bold text-rose-600"
+                                                                            : "font-bold text-slate-700"
+                                                                )}>
                                                                     {ticket.Subject || '(Sin asunto)'}
                                                                 </p>
                                                             </td>
@@ -448,9 +468,16 @@ const Home = () => {
                                                                 <div className="flex items-center gap-1.5">
                                                                     <div className={cn(
                                                                         "w-1.5 h-1.5 rounded-full",
-                                                                        isClosed ? "bg-slate-400" : "bg-emerald-500 animate-pulse"
+                                                                        isClosed 
+                                                                            ? "bg-slate-400" 
+                                                                            : highlightRed
+                                                                                ? "bg-rose-500 animate-pulse"
+                                                                                : "bg-emerald-500 animate-pulse"
                                                                     )}></div>
-                                                                    <span className="text-[10px] font-black uppercase tracking-tight text-slate-600">{ticket.Status}</span>
+                                                                    <span className={cn(
+                                                                        "text-[10px] font-black uppercase tracking-tight",
+                                                                        highlightRed ? "text-rose-600" : "text-slate-600"
+                                                                    )}>{ticket.Status}</span>
                                                                 </div>
                                                             </td>
                                                             <td className="px-4 py-3">
@@ -471,7 +498,12 @@ const Home = () => {
                                                             </td>
                                                             {is7x7 && (
                                                                 <td className="px-4 py-3">
-                                                                    <span className="text-[10px] font-bold text-slate-600 bg-slate-100/70 border border-slate-200/50 px-2 py-1 rounded-md whitespace-nowrap">
+                                                                    <span className={cn(
+                                                                        "text-[10px] font-bold border px-2 py-1 rounded-md whitespace-nowrap",
+                                                                        highlightRed
+                                                                            ? "text-rose-600 bg-rose-500/10 border-rose-500/20"
+                                                                            : "text-slate-600 bg-slate-100/70 border-slate-200/50"
+                                                                    )}>
                                                                         {getOwnerAlias(ticket.OwnerName)}
                                                                     </span>
                                                                 </td>

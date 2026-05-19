@@ -179,13 +179,19 @@ function get_active_alerts_v3($mysqli) {
 function get_salesforce_tickets($mysqli, $salesforce_user_id, $is_7x7 = false, $limit = 100) {
     if ($is_7x7) {
         $query = "SELECT c.Id, c.CaseNumber, c.Subject, c.Status, c.Priority, c.CreatedDate, c.Description,
-                         a.internal_faena_alias as Faena, a.Name as AccountName, u.Name as OwnerName,
+                         a.internal_faena_alias as Faena, a.Name as AccountName, u.Name as OwnerName, c.OwnerId,
                          (SELECT COUNT(*) FROM rmmsalesforce.sf_case_comments cc WHERE cc.ParentId = c.Id) as CommentCount
                   FROM rmmsalesforce.sf_cases c
                   LEFT JOIN rmmsalesforce.sf_accounts a ON c.AccountId = a.Id
                   LEFT JOIN rmmsalesforce.sf_users u ON c.OwnerId = u.Id
-                  WHERE c.OwnerId IN (
-                      SELECT salesforce_user_id COLLATE utf8mb4_unicode_ci FROM monitoring_system.users WHERE cargo LIKE '%7x7%' AND salesforce_user_id IS NOT NULL AND salesforce_user_id != ''
+                  WHERE (
+                      c.OwnerId IN (
+                          SELECT salesforce_user_id COLLATE utf8mb4_unicode_ci FROM monitoring_system.users WHERE cargo LIKE '%7x7%' AND salesforce_user_id IS NOT NULL AND salesforce_user_id != ''
+                      )
+                      OR (
+                          (c.OwnerId = '00G1I00000249DwUAI' OR u.Name = 'South American Support Q')
+                          AND LOWER(c.Status) != 'closed'
+                      )
                   ) AND c.IsDeleted = 0
                   ORDER BY c.CreatedDate DESC
                   LIMIT ?";
@@ -197,12 +203,18 @@ function get_salesforce_tickets($mysqli, $salesforce_user_id, $is_7x7 = false, $
         $stmt->bind_param("i", $limit);
     } else {
         $query = "SELECT c.Id, c.CaseNumber, c.Subject, c.Status, c.Priority, c.CreatedDate, c.Description,
-                         a.internal_faena_alias as Faena, a.Name as AccountName, u.Name as OwnerName,
+                         a.internal_faena_alias as Faena, a.Name as AccountName, u.Name as OwnerName, c.OwnerId,
                          (SELECT COUNT(*) FROM rmmsalesforce.sf_case_comments cc WHERE cc.ParentId = c.Id) as CommentCount
                   FROM rmmsalesforce.sf_cases c
                   LEFT JOIN rmmsalesforce.sf_accounts a ON c.AccountId = a.Id
                   LEFT JOIN rmmsalesforce.sf_users u ON c.OwnerId = u.Id
-                  WHERE c.OwnerId = ? AND c.IsDeleted = 0
+                  WHERE (
+                      c.OwnerId = ?
+                      OR (
+                          (c.OwnerId = '00G1I00000249DwUAI' OR u.Name = 'South American Support Q')
+                          AND LOWER(c.Status) != 'closed'
+                      )
+                  ) AND c.IsDeleted = 0
                   ORDER BY c.CreatedDate DESC
                   LIMIT ?";
                   
@@ -219,6 +231,10 @@ function get_salesforce_tickets($mysqli, $salesforce_user_id, $is_7x7 = false, $
     $tickets = [];
     if ($result) {
         while ($row = $result->fetch_assoc()) {
+            $ownerName = $row['OwnerName'];
+            if ($row['OwnerId'] === '00G1I00000249DwUAI' || $ownerName === 'South American Support Q') {
+                $ownerName = 'South American Support Q';
+            }
             $tickets[] = [
                 'CaseId' => $row['Id'],
                 'CaseNumber' => $row['CaseNumber'],
@@ -229,7 +245,7 @@ function get_salesforce_tickets($mysqli, $salesforce_user_id, $is_7x7 = false, $
                 'Description' => $row['Description'] ?? '',
                 'Faena' => $row['Faena'] ?? '',
                 'AccountName' => $row['AccountName'] ?? 'N/A',
-                'OwnerName' => $row['OwnerName'] ?? 'Mi Cuenta',
+                'OwnerName' => $ownerName ?? 'Mi Cuenta',
                 'CommentCount' => (int)($row['CommentCount'] ?? 0)
             ];
         }
