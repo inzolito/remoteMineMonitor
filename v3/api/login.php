@@ -51,7 +51,7 @@ $password = $data->password; // Legacy passwords are plain text in old controlle
 
 // Query User
 // We join with permissions to get role info
-$query = "SELECT u.id, u.username, u.first_name, u.last_name, u.email, p.name as role 
+$query = "SELECT u.id, u.username, u.first_name, u.last_name, u.email, u.cargo, p.name as role, u.permission_id, u.salesforce_user_id, u.teams_webhook_url, u.is_active 
           FROM users u 
           JOIN permissions p ON u.permission_id = p.id 
           WHERE u.username = '$username' AND u.password = '$password'
@@ -68,6 +68,14 @@ file_put_contents('/tmp/debug_monitoreo.log', $log, FILE_APPEND);
 
 if ($result->num_rows > 0) {
     $row = $result->fetch_assoc();
+    
+    // Check if account is active
+    if (intval($row['is_active'] ?? 1) !== 1) {
+        http_response_code(401);
+        echo json_encode(["message" => "Login failed. Account is deactivated."]);
+        exit();
+    }
+    
     file_put_contents(__DIR__ . '/login_debug_keys.log', "Keys: " . implode(', ', array_keys($row)) . "\n", FILE_APPEND);
 
     $token = array(
@@ -82,7 +90,11 @@ if ($result->num_rows > 0) {
             "firstname" => $row['first_name'],
             "lastname" => $row['last_name'],
             "email" => $row['email'],
-            "role" => $row['role']
+            "cargo" => $row['cargo'],
+            "role" => $row['role'],
+            "permission_id" => $row['permission_id'],
+            "salesforce_user_id" => $row['salesforce_user_id'],
+            "teams_webhook_url" => $row['teams_webhook_url']
         )
     );
 

@@ -1548,7 +1548,7 @@ require_once 'controllerOAS.php'; ?>
   var websocketStatusElem = document.getElementById("websocketStatus");
 
   function connectWebSocket() {
-    var ws = new WebSocket("ws://10.40.90.99:9505");
+    var ws = new WebSocket("ws://10.169.140.99:9505");
 
     ws.onopen = function() {
       console.log("Conexión WebSocket establecida");

@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Clock, Ticket, Calendar, AlertCircle, Eye, Loader2, X, Sun, Moon, ExternalLink, MessageSquare, Search } from 'lucide-react';
+import { Clock, Ticket, Calendar, AlertCircle, Eye, Loader2, X, Sun, Moon, ExternalLink, MessageSquare, Search, CheckCircle2, HelpCircle, Activity } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
 
 interface ShiftMember {
     id: number;
@@ -22,6 +23,7 @@ interface SFCase {
     Status: string;
     Priority: string;
     CreatedDate: string;
+    ClosedDate?: string | null;
     Description: string;
     Faena: string;
     AccountName: string;
@@ -35,6 +37,8 @@ interface ShiftResponse {
         shift1_alias: string;
         shift2_alias: string;
         start_date: string;
+        start_hour?: string;
+        end_hour?: string;
         days_elapsed: number;
     };
     shift1_members: ShiftMember[];
@@ -58,6 +62,7 @@ const ShiftsPage = () => {
     const [isLoadingComments, setIsLoadingComments] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('ALL');
+    const [activeTab, setActiveTab] = useState<'all' | 'today' | 'shift'>('all');
 
     const handleOpenTicketDetails = async (ticket: SFCase) => {
         setSelectedSfTicket(ticket);
@@ -109,7 +114,31 @@ const ShiftsPage = () => {
 
     const { config, shift1_members, shift2_members, active_tickets, inactive_tickets } = data;
 
-    const filteredActiveTickets = active_tickets.filter((t) => {
+    const todayTickets = active_tickets.filter(t => {
+        if (!t.CreatedDate) return false;
+        const created = new Date(t.CreatedDate.replace(' ', 'T'));
+        const today = new Date();
+        return created.getDate() === today.getDate() &&
+               created.getMonth() === today.getMonth() &&
+               created.getFullYear() === today.getFullYear();
+    });
+
+    const currentShiftTickets = active_tickets.filter(t => {
+        if (!t.CreatedDate) return false;
+        const created = new Date(t.CreatedDate.replace(' ', 'T')).getTime();
+        const startHour = config.start_hour || '08:00:00';
+        const combinedStart = `${config.start_date}T${startHour}`;
+        const shiftStart = new Date(combinedStart).getTime();
+        return created >= shiftStart;
+    });
+
+    const tabTickets = (() => {
+        if (activeTab === 'today') return todayTickets;
+        if (activeTab === 'shift') return currentShiftTickets;
+        return active_tickets;
+    })();
+
+    const filteredActiveTickets = tabTickets.filter((t) => {
         const matchesSearch = !searchTerm ? true : (
             t.CaseNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
             t.Faena?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -120,6 +149,43 @@ const ShiftsPage = () => {
         const matchesStatus = statusFilter === 'ALL' || t.Status === statusFilter;
         return matchesSearch && matchesStatus;
     });
+
+    const stats = (() => {
+        const total = tabTickets.length;
+        const closed = tabTickets.filter(t => t.Status?.toLowerCase() === 'closed').length;
+        const seeking = tabTickets.filter(t => t.Status?.toLowerCase().includes('seeking')).length;
+        const open = tabTickets.filter(t => {
+            const statusLower = t.Status?.toLowerCase() || '';
+            return statusLower !== 'closed' && !statusLower.includes('seeking');
+        }).length;
+
+        const closedWithDates = tabTickets.filter(t => t.Status?.toLowerCase() === 'closed' && t.ClosedDate && t.CreatedDate);
+        let avgResolutionTime = 'N/A';
+        if (closedWithDates.length > 0) {
+            let totalMs = 0;
+            closedWithDates.forEach(t => {
+                const created = new Date(t.CreatedDate.replace(' ', 'T')).getTime();
+                const closed = new Date(t.ClosedDate!.replace(' ', 'T')).getTime();
+                if (closed > created) {
+                    totalMs += (closed - created);
+                }
+            });
+            const avgMs = totalMs / closedWithDates.length;
+            const totalMinutes = Math.floor(avgMs / (1000 * 60));
+            const hours = Math.floor(totalMinutes / 60);
+            const mins = totalMinutes % 60;
+            if (hours > 24) {
+                const days = (hours / 24).toFixed(1);
+                avgResolutionTime = `${days}d`;
+            } else if (hours > 0) {
+                avgResolutionTime = `${hours}h ${mins}m`;
+            } else {
+                avgResolutionTime = `${mins}m`;
+            }
+        }
+
+        return { total, open, closed, seeking, avgResolutionTime };
+    })();
 
     const activeAlias = config.active_shift === 1 ? config.shift1_alias : config.shift2_alias;
     const inactiveAlias = config.active_shift === 1 ? config.shift2_alias : config.shift1_alias;
@@ -161,6 +227,155 @@ const ShiftsPage = () => {
             return `${parts[0][0]}. ${parts[parts.length - 1]}`;
         }
         return name;
+    };
+
+    const renderTicketsTable = () => {
+        if (filteredActiveTickets.length === 0) {
+            if (active_tickets.length > 0) {
+                return (
+                    <div className="p-8 text-center text-xs text-muted-foreground">
+                        No se encontraron tickets con los filtros aplicados.
+                    </div>
+                );
+            }
+            return (
+                <div className="p-8 text-center text-xs text-muted-foreground">
+                    No hay tickets activos asignados a este turno en Salesforce.
+                </div>
+            );
+        }
+
+        return (
+            <table className="w-full text-left border-collapse">
+                <thead className="sticky top-0 bg-white/95 dark:bg-card/95 backdrop-blur-sm shadow-sm z-10">
+                    <tr className="text-[9px] text-slate-500 dark:text-slate-400 uppercase font-black tracking-widest border-b bg-slate-50/70 dark:bg-muted/30">
+                        <th className="px-4 py-3"># Ticket</th>
+                        <th className="px-4 py-3">Faena</th>
+                        <th className="px-4 py-3">Asunto</th>
+                        <th className="px-4 py-3">Estado</th>
+                        <th className="px-4 py-3">Time</th>
+                        <th className="px-4 py-3 text-center">Coments</th>
+                        <th className="px-4 py-3">Owner</th>
+                        <th className="px-4 py-3 text-right">Ver</th>
+                    </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-border/40 text-[11px]">
+                    {filteredActiveTickets.map((t: SFCase, idx: number) => {
+                        const isClosed = t.Status?.toLowerCase() === 'closed';
+                        const isWorking = t.Status?.toLowerCase() === 'working';
+
+                        return (
+                            <tr 
+                                key={idx} 
+                                className={cn(
+                                    "transition-colors group",
+                                    isClosed 
+                                        ? "bg-slate-50/50 dark:bg-slate-900/20 opacity-60 grayscale hover:bg-slate-50 dark:hover:bg-slate-900/30" 
+                                        : isWorking
+                                            ? "bg-emerald-500/5 hover:bg-emerald-500/10"
+                                            : "hover:bg-slate-50 dark:hover:bg-muted/20"
+                                )}
+                            >
+                                <td className="px-4 py-3">
+                                    <a 
+                                        href={`https://usa1.lightning.force.com/lightning/r/Case/${t.CaseId}/view`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className={cn(
+                                            "text-[10px] px-2 py-1 rounded-md border transition-all flex items-center gap-1.5 w-fit",
+                                            isClosed
+                                                ? "font-normal bg-slate-100 text-slate-400 border-slate-200 grayscale"
+                                                : "font-black bg-primary/5 text-primary border-primary/10 hover:bg-primary hover:text-white"
+                                        )}
+                                    >
+                                        {t.CaseNumber} <ExternalLink className="w-2.5 h-2.5 opacity-50" />
+                                    </a>
+                                </td>
+                                <td className="px-4 py-3">
+                                    <span className={cn(
+                                        "text-[10px] px-2 py-1 rounded-md border uppercase tracking-tighter",
+                                        isClosed
+                                            ? "font-normal text-slate-400 bg-slate-100/50 border-slate-200"
+                                            : "font-black text-amber-600 bg-amber-500/5 border-amber-500/10"
+                                    )}>
+                                        {t.Faena || 'Global'}
+                                    </span>
+                                </td>
+                                <td className="px-4 py-3 max-w-xs md:max-w-md">
+                                    <p className={cn(
+                                        "text-[11px] line-clamp-1 group-hover:line-clamp-none transition-all",
+                                        isClosed
+                                            ? "font-normal text-slate-400 dark:text-slate-500"
+                                            : "font-bold text-foreground"
+                                    )}>
+                                        {t.Subject || '(Sin asunto)'}
+                                    </p>
+                                </td>
+                                <td className="px-4 py-3">
+                                    <div className="flex items-center gap-1.5">
+                                        <div className={cn(
+                                            "w-1.5 h-1.5 rounded-full",
+                                            isClosed ? "bg-slate-300" : "bg-emerald-500 animate-pulse"
+                                        )}></div>
+                                        <span className={cn(
+                                            "text-[10px] uppercase tracking-tight",
+                                            isClosed
+                                                ? "font-normal text-slate-400"
+                                                : "font-black text-foreground/80"
+                                        )}>{t.Status}</span>
+                                    </div>
+                                </td>
+                                <td className="px-4 py-3">
+                                    <div className="flex flex-col">
+                                        <span className={cn(
+                                            "text-[11px] uppercase",
+                                            isClosed
+                                                ? "font-normal text-slate-400"
+                                                : "font-black text-foreground/90"
+                                        )}>
+                                            {formatTimeElapsed(t.CreatedDate)}
+                                        </span>
+                                        <span className="text-[9px] font-medium text-muted-foreground whitespace-nowrap opacity-70">
+                                            {new Date(t.CreatedDate).toLocaleDateString()}
+                                        </span>
+                                    </div>
+                                </td>
+                                <td className="px-4 py-3 text-center">
+                                    <div className="inline-flex items-center gap-1.5 px-2 py-1 bg-slate-50 dark:bg-muted/50 rounded-lg">
+                                        <MessageSquare className="w-3 h-3 text-primary opacity-50" />
+                                        <span className={cn(
+                                            "text-[10px]",
+                                            isClosed
+                                                ? "font-normal text-slate-400"
+                                                : "font-black text-foreground"
+                                        )}>{t.CommentCount || 0}</span>
+                                    </div>
+                                </td>
+                                <td className="px-4 py-3">
+                                    <span className={cn(
+                                        "text-[10px] px-2 py-1 rounded-md whitespace-nowrap border",
+                                        isClosed
+                                            ? "font-normal text-slate-400/80 bg-slate-50/50 dark:bg-muted/30 border-slate-200/30"
+                                            : "font-bold text-foreground/80 bg-slate-100/70 dark:bg-muted/70 border-slate-200/50 dark:border-border/50"
+                                    )}>
+                                        {getOwnerAlias(t.OwnerName)}
+                                    </span>
+                                </td>
+                                <td className="px-4 py-3 text-right">
+                                    <button 
+                                        onClick={() => handleOpenTicketDetails(t)}
+                                        className="p-2 hover:bg-primary/10 text-primary rounded-xl transition-all"
+                                        title="Ver Detalles"
+                                    >
+                                        <Eye className="w-4 h-4" />
+                                    </button>
+                                </td>
+                            </tr>
+                        );
+                    })}
+                </tbody>
+            </table>
+        );
     };
 
     // Cap elapsed progress bar at 7 days
@@ -329,22 +544,49 @@ const ShiftsPage = () => {
                 {/* Active Tickets List */}
                 <div className={`${inactive_tickets.length > 0 ? 'xl:col-span-2' : 'xl:col-span-3'} space-y-6`}>
                     <div className="bg-card rounded-2xl border border-border overflow-hidden shadow-sm">
-                        <div className="p-4 border-b border-border/60 bg-muted/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                            <div className="flex items-center gap-2">
-                                <h3 className="text-sm font-extrabold text-foreground flex items-center gap-2">
-                                    <Ticket className="w-4 h-4 text-primary" />
-                                    Tickets del Turno Activo ({active_tickets.filter(t => t.Status?.toLowerCase() !== 'closed').length})
-                                </h3>
-                                {inactive_tickets.length === 0 && (
-                                    <div className="flex items-center gap-1.5 p-1 px-2.5 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-emerald-600 dark:text-emerald-400 text-[10px] font-extrabold">
-                                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></div>
-                                        <span>Todos los tickets transferidos</span>
-                                    </div>
-                                )}
+                        <div className="p-4 border-b border-border/60 bg-muted/10 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                            {/* Tabs Navigation */}
+                            <div className="flex border border-border/60 p-0.5 bg-background dark:bg-muted/20 gap-0.5 rounded-xl shrink-0 w-fit">
+                                <button
+                                    onClick={() => { setActiveTab('all'); setStatusFilter('ALL'); }}
+                                    className={cn(
+                                        "px-3 py-1.5 rounded-lg text-[11px] font-black transition-all flex items-center gap-1.5",
+                                        activeTab === 'all'
+                                            ? "bg-primary text-white shadow-sm"
+                                            : "text-muted-foreground hover:bg-muted/40 hover:text-foreground"
+                                    )}
+                                >
+                                    <Ticket className="w-3.5 h-3.5" />
+                                    General ({active_tickets.length})
+                                </button>
+                                <button
+                                    onClick={() => { setActiveTab('today'); setStatusFilter('ALL'); }}
+                                    className={cn(
+                                        "px-3 py-1.5 rounded-lg text-[11px] font-black transition-all flex items-center gap-1.5",
+                                        activeTab === 'today'
+                                            ? "bg-primary text-white shadow-sm"
+                                            : "text-muted-foreground hover:bg-muted/40 hover:text-foreground"
+                                    )}
+                                >
+                                    <Clock className="w-3.5 h-3.5" />
+                                    Creados Hoy ({todayTickets.length})
+                                </button>
+                                <button
+                                    onClick={() => { setActiveTab('shift'); setStatusFilter('ALL'); }}
+                                    className={cn(
+                                        "px-3 py-1.5 rounded-lg text-[11px] font-black transition-all flex items-center gap-1.5",
+                                        activeTab === 'shift'
+                                            ? "bg-primary text-white shadow-sm"
+                                            : "text-muted-foreground hover:bg-muted/40 hover:text-foreground"
+                                    )}
+                                >
+                                    <Calendar className="w-3.5 h-3.5" />
+                                    Creados en el Turno ({currentShiftTickets.length})
+                                </button>
                             </div>
 
                             {/* Search & Status Filters */}
-                            <div className="flex items-center gap-2 max-w-md w-full sm:w-auto shrink-0">
+                            <div className="flex items-center gap-2 max-w-md w-full lg:w-auto shrink-0">
                                 {/* Status Filter */}
                                 <select
                                     value={statusFilter}
@@ -361,7 +603,7 @@ const ShiftsPage = () => {
                                 </select>
 
                                 {/* Search Bar */}
-                                <div className="relative group flex-1 sm:w-48">
+                                <div className="relative group flex-1 lg:w-48">
                                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground group-focus-within:text-primary transition-colors" />
                                     <input
                                         type="text"
@@ -373,144 +615,153 @@ const ShiftsPage = () => {
                                 </div>
                             </div>
                         </div>
-                        <div className="overflow-x-auto max-h-[550px] overflow-y-auto">
-                            {filteredActiveTickets.length > 0 ? (
-                                <table className="w-full text-left border-collapse">
-                                    <thead className="sticky top-0 bg-white/95 dark:bg-card/95 backdrop-blur-sm shadow-sm z-10">
-                                        <tr className="text-[9px] text-slate-500 dark:text-slate-400 uppercase font-black tracking-widest border-b bg-slate-50/70 dark:bg-muted/30">
-                                            <th className="px-4 py-3"># Ticket</th>
-                                            <th className="px-4 py-3">Faena</th>
-                                            <th className="px-4 py-3">Asunto</th>
-                                            <th className="px-4 py-3">Estado</th>
-                                            <th className="px-4 py-3">Time</th>
-                                            <th className="px-4 py-3 text-center">Coments</th>
-                                            <th className="px-4 py-3">Owner</th>
-                                            <th className="px-4 py-3 text-right">Ver</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-100 dark:divide-border/40 text-[11px]">
-                                        {filteredActiveTickets.map((t: SFCase, idx: number) => {
-                                            const isClosed = t.Status?.toLowerCase() === 'closed';
-                                            const isWorking = t.Status?.toLowerCase() === 'working';
 
-                                            return (
-                                                <tr 
-                                                    key={idx} 
-                                                    className={cn(
-                                                        "transition-colors group",
-                                                        isClosed 
-                                                            ? "bg-slate-50/50 dark:bg-slate-900/20 opacity-60 grayscale hover:bg-slate-50 dark:hover:bg-slate-900/30" 
-                                                            : isWorking
-                                                                ? "bg-emerald-500/5 hover:bg-emerald-500/10"
-                                                                : "hover:bg-slate-50 dark:hover:bg-muted/20"
-                                                    )}
-                                                >
-                                                    <td className="px-4 py-3">
-                                                        <a 
-                                                            href={`https://usa1.lightning.force.com/lightning/r/Case/${t.CaseId}/view`}
-                                                            target="_blank"
-                                                            rel="noopener noreferrer"
-                                                            className={cn(
-                                                                "text-[10px] px-2 py-1 rounded-md border transition-all flex items-center gap-1.5 w-fit",
-                                                                isClosed
-                                                                    ? "font-normal bg-slate-100 text-slate-400 border-slate-200 grayscale"
-                                                                    : "font-black bg-primary/5 text-primary border-primary/10 hover:bg-primary hover:text-white"
-                                                            )}
-                                                        >
-                                                            {t.CaseNumber} <ExternalLink className="w-2.5 h-2.5 opacity-50" />
-                                                        </a>
-                                                    </td>
-                                                    <td className="px-4 py-3">
-                                                        <span className={cn(
-                                                            "text-[10px] px-2 py-1 rounded-md border uppercase tracking-tighter",
-                                                            isClosed
-                                                                ? "font-normal text-slate-400 bg-slate-100/50 border-slate-200"
-                                                                : "font-black text-amber-600 bg-amber-500/5 border-amber-500/10"
-                                                        )}>
-                                                            {t.Faena || 'Global'}
-                                                        </span>
-                                                    </td>
-                                                    <td className="px-4 py-3 max-w-xs md:max-w-md">
-                                                        <p className={cn(
-                                                            "text-[11px] line-clamp-1 group-hover:line-clamp-none transition-all",
-                                                            isClosed
-                                                                ? "font-normal text-slate-400 dark:text-slate-500"
-                                                                : "font-bold text-foreground"
-                                                        )}>
-                                                            {t.Subject || '(Sin asunto)'}
-                                                        </p>
-                                                    </td>
-                                                    <td className="px-4 py-3">
-                                                        <div className="flex items-center gap-1.5">
-                                                            <div className={cn(
-                                                                "w-1.5 h-1.5 rounded-full",
-                                                                isClosed ? "bg-slate-300" : "bg-emerald-500 animate-pulse"
-                                                            )}></div>
-                                                            <span className={cn(
-                                                                "text-[10px] uppercase tracking-tight",
-                                                                isClosed
-                                                                    ? "font-normal text-slate-400"
-                                                                    : "font-black text-foreground/80"
-                                                            )}>{t.Status}</span>
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-4 py-3">
-                                                        <div className="flex flex-col">
-                                                            <span className={cn(
-                                                                "text-[11px] uppercase",
-                                                                isClosed
-                                                                    ? "font-normal text-slate-400"
-                                                                    : "font-black text-foreground/90"
-                                                            )}>
-                                                                {formatTimeElapsed(t.CreatedDate)}
-                                                            </span>
-                                                            <span className="text-[9px] font-medium text-muted-foreground whitespace-nowrap opacity-70">
-                                                                {new Date(t.CreatedDate).toLocaleDateString()}
-                                                            </span>
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-4 py-3 text-center">
-                                                        <div className="inline-flex items-center gap-1.5 px-2 py-1 bg-slate-50 dark:bg-muted/50 rounded-lg">
-                                                            <MessageSquare className="w-3 h-3 text-primary opacity-50" />
-                                                            <span className={cn(
-                                                                "text-[10px]",
-                                                                isClosed
-                                                                    ? "font-normal text-slate-400"
-                                                                    : "font-black text-foreground"
-                                                            )}>{t.CommentCount || 0}</span>
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-4 py-3">
-                                                        <span className={cn(
-                                                            "text-[10px] px-2 py-1 rounded-md whitespace-nowrap border",
-                                                            isClosed
-                                                                ? "font-normal text-slate-400/80 bg-slate-50/50 dark:bg-muted/30 border-slate-200/30"
-                                                                : "font-bold text-foreground/80 bg-slate-100/70 dark:bg-muted/70 border-slate-200/50 dark:border-border/50"
-                                                        )}>
-                                                            {getOwnerAlias(t.OwnerName)}
-                                                        </span>
-                                                    </td>
-                                                    <td className="px-4 py-3 text-right">
-                                                        <button 
-                                                            onClick={() => handleOpenTicketDetails(t)}
-                                                            className="p-2 hover:bg-primary/10 text-primary rounded-xl transition-all"
-                                                            title="Ver Detalles"
-                                                        >
-                                                            <Eye className="w-4 h-4" />
-                                                        </button>
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
-                            ) : active_tickets.length > 0 ? (
-                                <div className="p-8 text-center text-xs text-muted-foreground">
-                                    No se encontraron tickets con los filtros aplicados.
+                        {/* Tab Content Body */}
+                        <div className={cn(
+                            activeTab === 'all' 
+                                ? "overflow-x-auto max-h-[550px] overflow-y-auto"
+                                : "grid grid-cols-1 lg:grid-cols-4 divide-y lg:divide-y-0 lg:divide-x divide-border/60"
+                        )}>
+                            {/* Left Side (Table wrapper) */}
+                            {activeTab !== 'all' ? (
+                                <div className="lg:col-span-3 overflow-x-auto max-h-[550px] overflow-y-auto">
+                                    {renderTicketsTable()}
                                 </div>
                             ) : (
-                                <div className="p-8 text-center text-xs text-muted-foreground">
-                                    No hay tickets activos asignados a este turno en Salesforce.
+                                renderTicketsTable()
+                            )}
+
+                            {/* Right Side (Analytics Sidebar) */}
+                            {activeTab !== 'all' && (
+                                <div className="lg:col-span-1 p-3 bg-muted/5 flex flex-col gap-3.5 max-h-[550px] overflow-y-auto">
+                                    {/* Donut Chart */}
+                                    <div className="space-y-2">
+                                        <div className="flex items-center justify-between border-b border-border/40 pb-1.5 shrink-0">
+                                            <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider">Distribución</span>
+                                            <span className="text-[9px] font-extrabold text-muted-foreground bg-muted dark:bg-muted/30 px-2 py-0.5 rounded-full">Total: {stats.total}</span>
+                                        </div>
+
+                                        {stats.total > 0 ? (
+                                            <div className="flex flex-col items-center">
+                                                <div className="w-36 h-36 shrink-0 relative flex items-center justify-center">
+                                                    <ResponsiveContainer width="100%" height="100%">
+                                                        <PieChart>
+                                                            <Pie
+                                                                data={[
+                                                                    { name: 'WORKING', value: stats.open, color: '#6366f1' },
+                                                                    { name: 'SEEKING', value: stats.seeking, color: '#f59e0b' },
+                                                                    { name: 'CLOSED', value: stats.closed, color: '#10b981' }
+                                                                ].filter(d => d.value > 0)}
+                                                                cx="50%"
+                                                                cy="50%"
+                                                                innerRadius={38}
+                                                                outerRadius={54}
+                                                                paddingAngle={2}
+                                                                dataKey="value"
+                                                            >
+                                                                {[
+                                                                    { name: 'WORKING', value: stats.open, color: '#6366f1' },
+                                                                    { name: 'SEEKING', value: stats.seeking, color: '#f59e0b' },
+                                                                    { name: 'CLOSED', value: stats.closed, color: '#10b981' }
+                                                                ].filter(d => d.value > 0).map((entry, index) => (
+                                                                    <Cell key={`cell-${index}`} fill={entry.color} />
+                                                                ))}
+                                                            </Pie>
+                                                            <RechartsTooltip 
+                                                                contentStyle={{ 
+                                                                    fontSize: '9px', 
+                                                                    borderRadius: '8px', 
+                                                                    background: 'rgba(255,255,255,0.95)',
+                                                                    border: '1px solid #e2e8f0',
+                                                                    padding: '4px 8px',
+                                                                    boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'
+                                                                }}
+                                                            />
+                                                        </PieChart>
+                                                    </ResponsiveContainer>
+                                                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                                                        <span className="text-[8px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-wider">Total</span>
+                                                        <span className="text-xl font-black text-foreground leading-none">{stats.total}</span>
+                                                    </div>
+                                                </div>
+
+                                                {/* Legend (Horizontal & Compact) */}
+                                                <div className="w-full mt-2 flex flex-wrap justify-center gap-x-3 gap-y-1.5 text-[9px] border-t border-slate-100 dark:border-slate-800/40 pt-2">
+                                                    <span className="flex items-center gap-1 text-muted-foreground font-bold">
+                                                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0"></span>
+                                                        WORKING: <span className="text-foreground font-black">{stats.open} ({stats.total > 0 ? Math.round((stats.open / stats.total) * 100) : 0}%)</span>
+                                                    </span>
+                                                    <span className="flex items-center gap-1 text-muted-foreground font-bold">
+                                                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0"></span>
+                                                        SEEKING: <span className="text-foreground font-black">{stats.seeking} ({stats.total > 0 ? Math.round((stats.seeking / stats.total) * 100) : 0}%)</span>
+                                                    </span>
+                                                    <span className="flex items-center gap-1 text-muted-foreground font-bold">
+                                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>
+                                                        CLOSED: <span className="text-foreground font-black">{stats.closed} ({stats.total > 0 ? Math.round((stats.closed / stats.total) * 100) : 0}%)</span>
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="py-6 text-center text-[10px] text-muted-foreground italic font-semibold">Sin datos para graficar</div>
+                                        )}
+                                    </div>
+
+                                    <div className="border-t border-border/60 my-0.5 shrink-0"></div>
+
+                                    {/* 2x2 Grid of 4 KPIs */}
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {/* Card 1: WORKING */}
+                                        <div className="bg-background rounded-xl border border-border/50 p-2.5 flex items-center justify-between shadow-sm relative overflow-hidden group">
+                                            <div className="space-y-0.5 z-10 min-w-0">
+                                                <p className="text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider">WORKING</p>
+                                                <p className="text-sm font-black text-foreground tracking-tight leading-none">{stats.open}</p>
+                                                <p className="text-[8px] text-indigo-500 dark:text-indigo-400/80 font-bold truncate">Atención activa</p>
+                                            </div>
+                                            <div className="w-6 h-6 rounded-md bg-indigo-500/10 dark:bg-indigo-500/20 flex items-center justify-center text-indigo-600 dark:text-indigo-400 z-10 shrink-0">
+                                                <Activity className="w-3.5 h-3.5 animate-pulse" />
+                                            </div>
+                                            <div className="absolute -bottom-6 -right-6 w-10 h-10 bg-indigo-500/5 rounded-full blur-lg group-hover:bg-indigo-500/10 transition-colors"></div>
+                                        </div>
+
+                                        {/* Card 2: SEEKING */}
+                                        <div className="bg-background rounded-xl border border-border/50 p-2.5 flex items-center justify-between shadow-sm relative overflow-hidden group">
+                                            <div className="space-y-0.5 z-10 min-w-0">
+                                                <p className="text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider">SEEKING</p>
+                                                <p className="text-sm font-black text-foreground tracking-tight leading-none">{stats.seeking}</p>
+                                                <p className="text-[8px] text-amber-500 dark:text-amber-400/80 font-bold truncate">Espera cliente</p>
+                                            </div>
+                                            <div className="w-6 h-6 rounded-md bg-amber-500/10 dark:bg-amber-500/20 flex items-center justify-center text-amber-600 dark:text-amber-400 z-10 shrink-0">
+                                                <HelpCircle className="w-3.5 h-3.5" />
+                                            </div>
+                                            <div className="absolute -bottom-6 -right-6 w-10 h-10 bg-amber-500/5 rounded-full blur-lg group-hover:bg-amber-500/10 transition-colors"></div>
+                                        </div>
+
+                                        {/* Card 3: CLOSED */}
+                                        <div className="bg-background rounded-xl border border-border/50 p-2.5 flex items-center justify-between shadow-sm relative overflow-hidden group">
+                                            <div className="space-y-0.5 z-10 min-w-0">
+                                                <p className="text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider">CLOSED</p>
+                                                <p className="text-sm font-black text-foreground tracking-tight leading-none">{stats.closed}</p>
+                                                <p className="text-[8px] text-emerald-500 dark:text-emerald-400/80 font-bold truncate">Casos resueltos</p>
+                                            </div>
+                                            <div className="w-6 h-6 rounded-md bg-emerald-500/10 dark:bg-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400 z-10 shrink-0">
+                                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                            </div>
+                                            <div className="absolute -bottom-6 -right-6 w-10 h-10 bg-emerald-500/5 rounded-full blur-lg group-hover:bg-emerald-500/10 transition-colors"></div>
+                                        </div>
+
+                                        {/* Card 4: PROM. CIERRE */}
+                                        <div className="bg-background rounded-xl border border-border/50 p-2.5 flex items-center justify-between shadow-sm relative overflow-hidden group">
+                                            <div className="space-y-0.5 z-10 min-w-0">
+                                                <p className="text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider">PROM. CIERRE</p>
+                                                <p className="text-sm font-black text-foreground tracking-tight leading-none">{stats.avgResolutionTime}</p>
+                                                <p className="text-[8px] text-sky-500 dark:text-sky-400/80 font-bold truncate">Prom. resolución</p>
+                                            </div>
+                                            <div className="w-6 h-6 rounded-md bg-sky-500/10 dark:bg-sky-500/20 flex items-center justify-center text-sky-600 dark:text-sky-400 z-10 shrink-0">
+                                                <Clock className="w-3.5 h-3.5" />
+                                            </div>
+                                            <div className="absolute -bottom-6 -right-6 w-10 h-10 bg-sky-500/5 rounded-full blur-lg group-hover:bg-sky-500/10 transition-colors"></div>
+                                        </div>
+                                    </div>
                                 </div>
                             )}
                         </div>

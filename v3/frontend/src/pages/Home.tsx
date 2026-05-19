@@ -1,11 +1,20 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Activity, Bell, Ticket, ExternalLink, Shield, Cloud, LayoutDashboard, Clock, X, Terminal, Search, ChevronLeft, ChevronRight, User } from 'lucide-react';
+import { Activity, Bell, Ticket, ExternalLink, Shield, Cloud, LayoutDashboard, Clock, X, Terminal, Search, ChevronLeft, ChevronRight, MessageSquare, Eye } from 'lucide-react';
 import { cn } from '../lib/utils'; // Assuming cn helper is available or used directly
 
 const fetchHomeMetrics = async () => {
-    const token = localStorage.getItem('token');
+    let token = null;
+    try {
+        const userStr = localStorage.getItem('user');
+        if (userStr) {
+            const userData = JSON.parse(userStr);
+            token = userData.token;
+        }
+    } catch (e) {
+        console.error('Error reading token from localStorage:', e);
+    }
     const response = await fetch('/monitoreoLaboratorio/v3/api/home_metrics.php', {
         headers: { 'Authorization': `Bearer ${token}` }
     });
@@ -17,7 +26,72 @@ const Home = () => {
     const [selectedLog, setSelectedLog] = useState<{ title: string, content: string } | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
-    const itemsPerPage = 8;
+    const itemsPerPage = 5;
+
+    const [selectedSfTicket, setSelectedSfTicket] = useState<any | null>(null);
+    const [isSfModalOpen, setIsSfModalOpen] = useState(false);
+    const [sfTicketComments, setSfTicketComments] = useState<any[]>([]);
+    const [isLoadingComments, setIsLoadingComments] = useState(false);
+    const [statusFilter, setStatusFilter] = useState('ALL');
+
+    const formatTimeElapsed = (dateString: string) => {
+        if (!dateString) return '--';
+        const now = new Date();
+        const created = new Date(dateString);
+        const diffMs = now.getTime() - created.getTime();
+        const diffSec = Math.floor(diffMs / 1000);
+        const diffMin = Math.floor(diffSec / 60);
+        const diffHrs = Math.floor(diffMin / 60);
+        const diffDays = Math.floor(diffHrs / 24);
+
+        if (diffDays > 0) return `${diffDays} ${diffDays === 1 ? 'Día' : 'Días'}`;
+        if (diffHrs > 0) return `${diffHrs}H`;
+        if (diffMin > 0) return `${diffMin}M`;
+        return 'NEW';
+    };
+
+    const getOwnerAlias = (name: string) => {
+        if (!name) return '--';
+        if (name.toLowerCase().includes('support q') || name.toLowerCase().includes('queue')) {
+            return 'S.A. Queue';
+        }
+        const parts = name.trim().split(/\s+/);
+        if (parts.length >= 2) {
+            return `${parts[0][0]}. ${parts[parts.length - 1]}`;
+        }
+        return name;
+    };
+
+    const handleOpenTicketDetails = async (ticket: any) => {
+        setSelectedSfTicket(ticket);
+        setIsSfModalOpen(true);
+        setIsLoadingComments(true);
+        setSfTicketComments([]);
+
+        try {
+            let token = null;
+            try {
+                const userStr = localStorage.getItem('user');
+                if (userStr) {
+                    const userData = JSON.parse(userStr);
+                    token = userData.token;
+                }
+            } catch (e) {
+                console.error('Error reading token from localStorage:', e);
+            }
+            const res = await fetch(`/monitoreoLaboratorio/v3/api/admin.php?action=bot_sf_ticket_comments&case_id=${ticket.CaseId || ticket.Id}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (res.ok) {
+                const comments = await res.json();
+                setSfTicketComments(comments || []);
+            }
+        } catch (err) {
+            console.error('Error fetching comments:', err);
+        } finally {
+            setIsLoadingComments(false);
+        }
+    };
 
     const { data, isLoading } = useQuery({
         queryKey: ['homeMetrics'],
@@ -154,7 +228,7 @@ const Home = () => {
             {/* Row 2: Alerts and Tickets */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Active Alerts */}
-                <div className="lg:col-span-1 border rounded-xl overflow-hidden bg-white shadow-sm flex flex-col min-h-[450px]">
+                <div className="lg:col-span-1 border rounded-xl overflow-hidden bg-white shadow-sm flex flex-col">
                     <div className="bg-slate-50 px-4 py-3 border-b flex items-center justify-between">
                         <div className="flex items-center gap-2">
                             <Bell className="w-5 h-5 text-amber-500" />
@@ -162,9 +236,9 @@ const Home = () => {
                         </div>
                         <span className="bg-red-100 text-red-700 text-[10px] font-black px-2 py-0.5 rounded-full">{data?.alerts?.length || 0}</span>
                     </div>
-                    <div className="flex-1 overflow-auto p-3 space-y-2 max-h-[500px]">
+                    <div className="flex-1 p-3 space-y-2">
                         {data?.alerts?.length > 0 ? (
-                            data.alerts.map((alerta: any) => {
+                            data.alerts.slice(0, 5).map((alerta: any) => {
                                 const isAck = alerta.status === 'acknowledged';
                                 const desc = alerta.description?.split('] ').pop() || alerta.description;
                                 const ipMatch = alerta.description?.match(/\[IP: (.*?)\]/);
@@ -224,35 +298,87 @@ const Home = () => {
                 <div className="lg:col-span-2 border rounded-xl overflow-hidden bg-white shadow-sm flex flex-col">
                     <div className="bg-slate-50 px-4 py-2 border-b flex flex-wrap items-center justify-between gap-3">
                         <div className="flex items-center gap-2">
-                            <Ticket className="w-4 h-4 text-blue-500" />
-                            <h2 className="font-bold text-slate-700 text-sm">Tickets (Sudamerican Support)</h2>
+                            {data?.salesforce_linked ? (
+                                <>
+                                    <Cloud className="w-4 h-4 text-sky-500 animate-pulse" />
+                                    <div className="flex flex-col">
+                                        <h2 className="font-extrabold text-slate-800 text-sm leading-none flex items-center gap-1.5">
+                                            Mis Tickets
+                                            <span className="text-[9px] px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-600 font-bold border border-sky-500/20 uppercase tracking-wider animate-pulse">Salesforce</span>
+                                        </h2>
+                                    </div>
+                                </>
+                            ) : (
+                                <>
+                                    <Ticket className="w-4 h-4 text-blue-500" />
+                                    <div className="flex items-center gap-3">
+                                        <h2 className="font-bold text-slate-700 text-sm">Tickets (Sudamerican Support)</h2>
+                                        <Link 
+                                            to="/perfil" 
+                                            className="text-[9px] bg-[#00A1E0]/10 hover:bg-[#00A1E0]/20 text-[#00A1E0] px-2 py-0.5 rounded-full font-bold transition-all flex items-center gap-1.5 border border-[#00A1E0]/20 hover:shadow-sm"
+                                        >
+                                            <svg viewBox="0 0 24 24" className="w-3 h-3 fill-current" xmlns="http://www.w3.org/2000/svg">
+                                                <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z"/>
+                                            </svg>
+                                            Vincular con Salesforce
+                                        </Link>
+                                    </div>
+                                </>
+                            )}
                         </div>
 
-                        {/* Search Bar */}
-                        <div className="relative group max-w-xs w-full sm:w-64">
-                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 group-focus-within:text-primary transition-colors" />
-                            <input
-                                type="text"
-                                placeholder="Buscar ticket, cliente o responsable..."
-                                value={searchTerm}
+                        {/* Search & Status Filters */}
+                        <div className="flex items-center gap-2 max-w-md w-full sm:w-auto">
+                            {/* Status Filter */}
+                            <select
+                                value={statusFilter}
                                 onChange={(e) => {
-                                    setSearchTerm(e.target.value);
-                                    setCurrentPage(1); // Reset to first page on search
+                                    setStatusFilter(e.target.value);
+                                    setCurrentPage(1); // Reset to first page on status filter change
                                 }}
-                                className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-200 rounded-lg text-[11px] focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
-                            />
+                                className="px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-[11px] font-bold text-slate-600 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all cursor-pointer hover:border-slate-300"
+                            >
+                                <option value="ALL">Todos los Estados</option>
+                                {Array.from(new Set((data?.tickets || []).map((t: any) => t.Status).filter(Boolean)))
+                                    .map((status: any) => (
+                                        <option key={status} value={status}>
+                                            {status.toUpperCase()}
+                                        </option>
+                                    ))}
+                            </select>
+
+                            {/* Search Bar */}
+                            <div className="relative group flex-1 sm:w-48">
+                                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 group-focus-within:text-primary transition-colors" />
+                                <input
+                                    type="text"
+                                    placeholder="Buscar..."
+                                    value={searchTerm}
+                                    onChange={(e) => {
+                                        setSearchTerm(e.target.value);
+                                        setCurrentPage(1); // Reset to first page on search
+                                    }}
+                                    className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-200 rounded-lg text-[11px] focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                                />
+                            </div>
                         </div>
                     </div>
 
-                    <div className="flex-1 overflow-auto max-h-[500px]">
+                    <div className="flex-1 overflow-x-auto">
                         {(() => {
                             const tickets = data?.tickets || [];
-                            const filteredTickets = tickets.filter((t: any) =>
-                                t.CaseNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                                t.AccountName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                                t.Subject?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                                t.OwnerName?.toLowerCase().includes(searchTerm.toLowerCase())
-                            );
+                            const filteredTickets = tickets.filter((t: any) => {
+                                const matchesSearch = t.CaseNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                    t.AccountName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                    t.Subject?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                    t.OwnerName?.toLowerCase().includes(searchTerm.toLowerCase());
+                                    
+                                const matchesStatus = statusFilter === 'ALL' || t.Status === statusFilter;
+                                
+                                return matchesSearch && matchesStatus;
+                            });
+
+                            const is7x7 = !!data?.is_7x7;
 
                             const totalPages = Math.ceil(filteredTickets.length / itemsPerPage);
                             const paginatedTickets = filteredTickets.slice(
@@ -263,53 +389,108 @@ const Home = () => {
                             return (
                                 <>
                                     <table className="w-full text-left border-collapse">
-                                        <thead className="sticky top-0 bg-white/80 backdrop-blur-sm shadow-sm z-10">
-                                            <tr className="text-[9px] text-slate-500 uppercase font-black tracking-widest border-b">
-                                                <th className="px-3 py-2">Ticket</th>
-                                                <th className="px-3 py-2">Cliente</th>
-                                                <th className="px-3 py-2">Responsable</th>
-                                                <th className="px-3 py-2">Asunto</th>
-                                                <th className="px-3 py-2">Estado</th>
+                                        <thead className="sticky top-0 bg-white/95 backdrop-blur-sm shadow-sm z-10">
+                                            <tr className="text-[9px] text-slate-500 uppercase font-black tracking-widest border-b bg-slate-50/70">
+                                                <th className="px-4 py-3"># Ticket</th>
+                                                <th className="px-4 py-3">Faena</th>
+                                                <th className="px-4 py-3">Asunto</th>
+                                                <th className="px-4 py-3">Estado</th>
+                                                <th className="px-4 py-3">Time</th>
+                                                <th className="px-4 py-3 text-center">Coments</th>
+                                                {is7x7 && <th className="px-4 py-3">Owner</th>}
+                                                <th className="px-4 py-3 text-right">Ver</th>
                                             </tr>
                                         </thead>
-                                        <tbody className="divide-y text-[11px]">
+                                        <tbody className="divide-y divide-slate-100 text-[11px]">
                                             {paginatedTickets.length > 0 ? (
-                                                paginatedTickets.map((ticket: any, idx: number) => (
-                                                    <tr key={idx} className="hover:bg-slate-50 transition-colors">
-                                                        <td className="px-3 py-2 font-mono text-blue-600 font-bold">
-                                                            <a
-                                                                href={`https://usa1.lightning.force.com/lightning/r/Case/${ticket.CaseId}/view`}
-                                                                target="_blank"
-                                                                rel="noreferrer"
-                                                                className="hover:underline flex items-center gap-1 group/link"
-                                                            >
-                                                                {ticket.CaseNumber}
-                                                                <ExternalLink size={10} className="opacity-0 group-hover/link:opacity-100 transition-opacity" />
-                                                            </a>
-                                                        </td>
-                                                        <td className="px-3 py-2 font-bold text-slate-700 max-w-[120px] truncate">{ticket.AccountName}</td>
-                                                        <td className="px-3 py-2 text-slate-500 font-medium whitespace-nowrap">
-                                                            <div className="flex items-center gap-1.5">
-                                                                <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
-                                                                    <User size={10} />
+                                                paginatedTickets.map((ticket: any, idx: number) => {
+                                                    const isClosed = ticket.Status?.toLowerCase() === 'closed';
+                                                    const isWorking = ticket.Status?.toLowerCase() === 'working';
+                                                    
+                                                    return (
+                                                        <tr 
+                                                            key={idx} 
+                                                            className={cn(
+                                                                "transition-colors group",
+                                                                isClosed 
+                                                                    ? "bg-slate-50/50 opacity-60 grayscale hover:bg-slate-50" 
+                                                                    : isWorking
+                                                                        ? "bg-emerald-500/5 hover:bg-emerald-500/10"
+                                                                        : "hover:bg-slate-50"
+                                                            )}
+                                                        >
+                                                            <td className="px-4 py-3">
+                                                                <a 
+                                                                    href={`https://usa1.lightning.force.com/lightning/r/Case/${ticket.CaseId || ticket.Id}/view`}
+                                                                    target="_blank"
+                                                                    rel="noopener noreferrer"
+                                                                    className={cn(
+                                                                        "text-[10px] font-black px-2 py-1 rounded-md border transition-all flex items-center gap-1.5 w-fit",
+                                                                        isClosed
+                                                                            ? "bg-slate-500/10 text-slate-500 border-slate-500/20 grayscale"
+                                                                            : "bg-primary/5 text-primary border-primary/10 hover:bg-primary hover:text-white"
+                                                                    )}
+                                                                >
+                                                                    {ticket.CaseNumber} <ExternalLink className="w-2.5 h-2.5 opacity-50" />
+                                                                </a>
+                                                            </td>
+                                                            <td className="px-4 py-3">
+                                                                <span className="text-[10px] font-black text-amber-600 bg-amber-500/5 px-2 py-1 rounded-md border border-amber-500/10 uppercase tracking-tighter">
+                                                                    {ticket.Faena || ticket.AccountName || 'Global'}
+                                                                </span>
+                                                            </td>
+                                                            <td className="px-4 py-3 max-w-xs md:max-w-md">
+                                                                <p className="text-[11px] font-bold text-slate-700 line-clamp-1 group-hover:line-clamp-none transition-all">
+                                                                    {ticket.Subject || '(Sin asunto)'}
+                                                                </p>
+                                                            </td>
+                                                            <td className="px-4 py-3">
+                                                                <div className="flex items-center gap-1.5">
+                                                                    <div className={cn(
+                                                                        "w-1.5 h-1.5 rounded-full",
+                                                                        isClosed ? "bg-slate-400" : "bg-emerald-500 animate-pulse"
+                                                                    )}></div>
+                                                                    <span className="text-[10px] font-black uppercase tracking-tight text-slate-600">{ticket.Status}</span>
                                                                 </div>
-                                                                <span className="truncate max-w-[100px]">{ticket.OwnerName}</span>
-                                                            </div>
-                                                        </td>
-                                                        <td className="px-3 py-2 text-slate-600 max-w-[200px] truncate">{ticket.Subject}</td>
-                                                        <td className="px-3 py-2">
-                                                            <span className={cn(
-                                                                "px-1.5 py-0.5 rounded text-[8px] font-black uppercase shadow-sm",
-                                                                ticket.Status === 'Closed' ? "bg-slate-100 text-slate-500" : "bg-amber-100 text-amber-700"
-                                                            )}>
-                                                                {ticket.Status}
-                                                            </span>
-                                                        </td>
-                                                    </tr>
-                                                ))
+                                                            </td>
+                                                            <td className="px-4 py-3">
+                                                                <div className="flex flex-col">
+                                                                    <span className="text-[11px] font-black text-slate-700 uppercase">
+                                                                        {formatTimeElapsed(ticket.CreatedDate)}
+                                                                    </span>
+                                                                    <span className="text-[9px] font-medium text-slate-400 whitespace-nowrap opacity-70">
+                                                                        {new Date(ticket.CreatedDate).toLocaleDateString()}
+                                                                    </span>
+                                                                </div>
+                                                            </td>
+                                                            <td className="px-4 py-3 text-center">
+                                                                <div className="inline-flex items-center gap-1.5 px-2 py-1 bg-slate-50 rounded-lg">
+                                                                    <MessageSquare className="w-3 h-3 text-primary opacity-50" />
+                                                                    <span className="text-[10px] font-black">{ticket.CommentCount || 0}</span>
+                                                                </div>
+                                                            </td>
+                                                            {is7x7 && (
+                                                                <td className="px-4 py-3">
+                                                                    <span className="text-[10px] font-bold text-slate-600 bg-slate-100/70 border border-slate-200/50 px-2 py-1 rounded-md whitespace-nowrap">
+                                                                        {getOwnerAlias(ticket.OwnerName)}
+                                                                    </span>
+                                                                </td>
+                                                            )}
+                                                            <td className="px-4 py-3 text-right">
+                                                                <button 
+                                                                    onClick={() => handleOpenTicketDetails(ticket)}
+                                                                    className="p-2 hover:bg-primary/10 text-primary rounded-xl transition-all"
+                                                                    title="Ver Detalles"
+                                                                >
+                                                                    <Eye className="w-4 h-4" />
+                                                                </button>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })
                                             ) : (
                                                 <tr>
-                                                    <td colSpan={5} className="px-3 py-10 text-center text-slate-400 italic">
+                                                    <td colSpan={is7x7 ? 8 : 7} className="px-4 py-10 text-center text-slate-400 italic">
                                                         No se encontraron tickets que coincidan con la búsqueda
                                                     </td>
                                                 </tr>
@@ -389,6 +570,90 @@ const Home = () => {
                             >
                                 Cerrar Terminal
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Salesforce Ticket Modal */}
+            {isSfModalOpen && selectedSfTicket && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
+                    <div className="bg-card border border-border rounded-[2rem] w-full max-w-4xl max-h-[85vh] shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200 bg-white">
+                        <div className="p-6 border-b flex items-center justify-between bg-slate-50/50">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-primary/10 rounded-xl">
+                                    <Ticket className="w-5 h-5 text-primary" />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-black uppercase tracking-tight text-slate-800">Ticket #{selectedSfTicket.CaseNumber}</h3>
+                                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{selectedSfTicket.Faena || selectedSfTicket.AccountName || 'Global'}</p>
+                                </div>
+                            </div>
+                            <button 
+                                onClick={() => setIsSfModalOpen(false)}
+                                className="p-2 hover:bg-slate-100 rounded-xl transition-colors"
+                            >
+                                <X className="w-5 h-5 text-muted-foreground" />
+                            </button>
+                        </div>
+                        
+                        <div className="flex-1 overflow-y-auto p-8 space-y-8 custom-scrollbar">
+                            {/* Description */}
+                            <div className="space-y-3">
+                                <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-primary flex items-center gap-2">
+                                    <Terminal className="w-3.5 h-3.5" /> Descripción del Caso
+                                </h4>
+                                <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200">
+                                    <p className="text-xs leading-relaxed text-slate-700 whitespace-pre-wrap">
+                                        {selectedSfTicket.Description || 'Sin descripción detallada.'}
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* Comments */}
+                            <div className="space-y-4">
+                                <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-primary flex items-center gap-2">
+                                    <MessageSquare className="w-3.5 h-3.5" /> Comentarios ({sfTicketComments.length})
+                                </h4>
+                                
+                                <div className="space-y-3">
+                                    {isLoadingComments ? (
+                                        <div className="py-12 text-center">
+                                            <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full mx-auto mb-2"></div>
+                                            <p className="text-xs text-slate-500 font-bold">Cargando comentarios...</p>
+                                        </div>
+                                    ) : sfTicketComments.length > 0 ? (
+                                        sfTicketComments.map((comment: any, idx: number) => (
+                                            <div key={idx} className="bg-white border rounded-2xl p-4 shadow-sm relative overflow-hidden group">
+                                                <div className="flex justify-between items-start mb-2">
+                                                    <span className="text-[10px] font-black text-primary uppercase tracking-tight">{comment.Author || 'Sistema'}</span>
+                                                    <span className="text-[9px] font-mono text-muted-foreground italic">{new Date(comment.CreatedDate).toLocaleString()}</span>
+                                                </div>
+                                                <p className="text-[11px] leading-relaxed text-slate-600 whitespace-pre-wrap">
+                                                    {comment.CommentBody}
+                                                </p>
+                                                <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary/20 group-hover:bg-primary transition-colors"></div>
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <div className="py-10 text-center bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
+                                            <MessageSquare className="w-10 h-10 text-slate-400/20 mx-auto mb-3" />
+                                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">No hay comentarios registrados</p>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="p-4 border-t bg-slate-50/30 flex justify-end gap-3">
+                            <a 
+                                href={`https://usa1.lightning.force.com/lightning/r/Case/${selectedSfTicket.CaseId || selectedSfTicket.Id}/view`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-2 px-6 py-2.5 bg-primary text-primary-foreground rounded-xl text-[10px] font-black uppercase tracking-widest hover:shadow-lg hover:shadow-primary/20 transition-all text-white"
+                            >
+                                <ExternalLink className="w-3.5 h-3.5" /> Abrir en Salesforce
+                            </a>
                         </div>
                     </div>
                 </div>

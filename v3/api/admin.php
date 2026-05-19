@@ -277,6 +277,99 @@ if ($method === 'GET') {
         $cmd = "pkill -f 'RMMEyeCatLaboratory_v3.py $site_id fms' 2>&1";
         $output = shell_exec($cmd);
         $data = ["success" => true, "message" => "Comando enviado", "output" => $output];
+    } elseif ($action === 'bot_sf_status') {
+        $output = shell_exec(__DIR__ . "/../scripts/bot-sf-control.sh status");
+        $data = json_decode($output, true) ?: ["state" => "unknown"];
+        
+        // Add DB metrics from rmmsalesforce
+        $sf_mysqli = mysqli_connect("localhost", "jigsaw", "Jigsaw1", "rmmsalesforce");
+        if ($sf_mysqli) {
+            $res = mysqli_query($sf_mysqli, "SELECT sync_time, records_processed FROM sf_sync_logs WHERE status = 'success' ORDER BY sync_time DESC LIMIT 1");
+            if ($row = mysqli_fetch_assoc($res)) {
+                $data['last_sync'] = $row['sync_time'];
+                $data['records_processed'] = $row['records_processed'];
+            }
+            mysqli_close($sf_mysqli);
+        }
+    } elseif ($action === 'bot_sf_restart') {
+        $output = shell_exec(__DIR__ . "/../scripts/bot-sf-control.sh restart");
+        $data = ["success" => true, "output" => $output];
+    } elseif ($action === 'bot_sf_logs') {
+        $logPath = "/home/jigsaw/monitoreoRemoto/RMMSF/daemon.log";
+        if (file_exists($logPath)) {
+            $output = shell_exec("tail -n 200 " . escapeshellarg($logPath));
+            $data = ["logs" => $output ?: "Archivo de log vacío", "path" => $logPath];
+        } else {
+            $data = ["logs" => "Archivo de log no encontrado", "path" => $logPath];
+        }
+    } elseif ($action === 'bot_sf_users') {
+        $sf_mysqli = mysqli_connect("localhost", "jigsaw", "Jigsaw1", "rmmsalesforce");
+        if ($sf_mysqli) {
+            // Fetch special queue first
+            $queue_id = '00G1I00000249DwUAI';
+            $res_q = mysqli_query($sf_mysqli, "SELECT COUNT(*) as cnt FROM sf_cases WHERE OwnerId = '$queue_id'");
+            $q_count = mysqli_fetch_assoc($res_q)['cnt'];
+            
+            $special_queue = [
+                'Id' => $queue_id,
+                'Name' => 'South American Support Q',
+                'Username' => 'Support Queue',
+                'is_active_stats' => 1,
+                'is_queue' => true,
+                'ticket_count' => $q_count
+            ];
+
+            $res = mysqli_query($sf_mysqli, "SELECT Id, Name, Username, is_active_stats FROM sf_users ORDER BY Name ASC");
+            $data = [$special_queue];
+            while ($row = mysqli_fetch_assoc($res)) {
+                $row['is_queue'] = false;
+                $data[] = $row;
+            }
+            mysqli_close($sf_mysqli);
+        }
+    } elseif ($action === 'bot_sf_user_tickets') {
+        $user_id = $_GET['user_id'] ?? '';
+        $sf_mysqli = mysqli_connect("localhost", "jigsaw", "Jigsaw1", "rmmsalesforce");
+        if ($sf_mysqli && $user_id) {
+            $user_id = mysqli_real_escape_string($sf_mysqli, $user_id);
+            $res = mysqli_query($sf_mysqli, "SELECT c.Id, c.CaseNumber, c.Subject, c.Status, c.CreatedDate, c.Description, 
+                                             a.internal_faena_alias as Faena,
+                                             (SELECT COUNT(*) FROM sf_case_comments cc WHERE cc.ParentId = c.Id) as CommentCount
+                                             FROM sf_cases c 
+                                             LEFT JOIN sf_accounts a ON c.AccountId = a.Id 
+                                             WHERE c.OwnerId = '$user_id' 
+                                             ORDER BY c.CreatedDate DESC");
+            $data = [];
+            while ($row = mysqli_fetch_assoc($res)) $data[] = $row;
+            mysqli_close($sf_mysqli);
+        }
+    } elseif ($action === 'bot_sf_ticket_comments') {
+        $case_id = $_GET['case_id'] ?? '';
+        $sf_mysqli = mysqli_connect("localhost", "jigsaw", "Jigsaw1", "rmmsalesforce");
+        if ($sf_mysqli && $case_id) {
+            $case_id = mysqli_real_escape_string($sf_mysqli, $case_id);
+            $res = mysqli_query($sf_mysqli, "SELECT cc.CommentBody, cc.CreatedDate, u.Name as Author 
+                                             FROM sf_case_comments cc 
+                                             LEFT JOIN sf_users u ON cc.CreatedById = u.Id
+                                             WHERE cc.ParentId = '$case_id' 
+                                             ORDER BY cc.CreatedDate ASC");
+            $data = [];
+            while ($row = mysqli_fetch_assoc($res)) $data[] = $row;
+            mysqli_close($sf_mysqli);
+        }
+    } elseif ($action === 'bot_sf_user_toggle') {
+        $user_id = $_GET['user_id'] ?? '';
+        $new_status = intval($_GET['status'] ?? 0);
+        $sf_mysqli = mysqli_connect("localhost", "jigsaw", "Jigsaw1", "rmmsalesforce");
+        if ($sf_mysqli && $user_id) {
+            $user_id = mysqli_real_escape_string($sf_mysqli, $user_id);
+            if (mysqli_query($sf_mysqli, "UPDATE sf_users SET is_active_stats = $new_status WHERE Id = '$user_id'")) {
+                $data = ["success" => true];
+            } else {
+                $data = ["success" => false, "message" => mysqli_error($sf_mysqli)];
+            }
+            mysqli_close($sf_mysqli);
+        }
     }
     echo json_encode($data);
 

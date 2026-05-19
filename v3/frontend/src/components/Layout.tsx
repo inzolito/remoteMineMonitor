@@ -1,6 +1,6 @@
 import { useContext, useState, useRef, useEffect } from 'react';
 import { AuthContext } from '../context/AuthContext';
-import { Outlet } from 'react-router-dom';
+import { Outlet, Link } from 'react-router-dom';
 import { LogOut, Activity, User, ChevronDown, Settings } from 'lucide-react';
 import { ThemeToggle } from './ThemeToggle';
 import Sidebar from './Sidebar';
@@ -75,10 +75,14 @@ const Layout = ({ children }: { children?: React.ReactNode }) => {
                                             <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{auth.user.role || 'Usuario'}</p>
                                         </div>
 
-                                        <button className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium hover:bg-muted transition-colors text-left group">
+                                        <Link 
+                                            to="/perfil"
+                                            onClick={() => setUserMenuOpen(false)}
+                                            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium hover:bg-muted transition-colors text-left group"
+                                        >
                                             <Settings className="w-4 h-4 text-muted-foreground group-hover:text-primary" />
                                             <span>Mi Perfil</span>
-                                        </button>
+                                        </Link>
 
                                         <div className="h-px bg-border my-1"></div>
 

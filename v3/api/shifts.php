@@ -122,7 +122,7 @@ if ($method === 'GET') {
 
     // Helper function to fetch tickets assigned to a specific shift group
     $get_tickets_for_shift = function($shift_num) use ($mysqli) {
-        $query = "SELECT c.Id, c.CaseNumber, c.Subject, c.Status, c.Priority, c.CreatedDate, c.Description,
+        $query = "SELECT c.Id, c.CaseNumber, c.Subject, c.Status, c.Priority, c.CreatedDate, c.ClosedDate, c.Description,
                          a.internal_faena_alias as Faena, a.Name as AccountName, u.Name as OwnerName,
                          (SELECT COUNT(*) FROM rmmsalesforce.sf_case_comments cc WHERE cc.ParentId = c.Id) as CommentCount
                   FROM rmmsalesforce.sf_cases c
@@ -152,6 +152,7 @@ if ($method === 'GET') {
                 'Status' => $row['Status'],
                 'Priority' => $row['Priority'],
                 'CreatedDate' => $row['CreatedDate'],
+                'ClosedDate' => $row['ClosedDate'],
                 'Description' => $row['Description'] ?? '',
                 'Faena' => $row['Faena'] ?? '',
                 'AccountName' => $row['AccountName'] ?? 'N/A',

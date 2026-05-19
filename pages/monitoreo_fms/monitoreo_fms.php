@@ -373,7 +373,7 @@ $metricasServidorSecundario = $metricas->obtenerUltimosValoresServidor($servidor
   var servidorSecundario = [];
 
   function connectWebSocket() {
-    var ws = new WebSocket("ws://10.40.90.99:9504");
+    var ws = new WebSocket("ws://10.169.140.99:9504");
 
 
     ws.onopen = function() {

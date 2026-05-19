@@ -250,7 +250,7 @@ $conn = $system->conectaDB();
 <!--Scripts WebscoektInicio-->
 <script>
     // Conecta al WebSocket. Ajusta la URL según tu configuración.
-    var ws = new WebSocket("ws://10.40.90.99:9506");
+    var ws = new WebSocket("ws://10.169.140.99:9506");
 
     ws.onopen = function() {
         console.log("Conectado al servidor WebSocket.");

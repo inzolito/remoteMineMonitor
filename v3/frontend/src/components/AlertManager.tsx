@@ -90,6 +90,15 @@ const AlertManager: React.FC<{ initialDataLoaded?: boolean }> = ({ initialDataLo
         const fetchAlerts = async () => {
             if (!auth?.user) return; // Don't fetch if not logged in
 
+            // Only trigger and handle alerts within the site monitoring module
+            const isMonitoringSite = window.location.pathname.includes('/monitoreo/site/');
+            if (!isMonitoringSite) {
+                setAlerts([]);
+                setCurrentAlert(null);
+                if (synthRef.current) synthRef.current.cancel();
+                return;
+            }
+
             try {
                 const data: Alert[] = await getAlerts('active');
 

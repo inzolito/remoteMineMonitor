@@ -43,7 +43,7 @@ if ($_SESSION["permiso"] == "Administrador" || $_SESSION["permiso"] == "Soporte"
 
 -->
                 <div class="col-md-3 d-flex justify-content-center">
-                    <a class="btn btn-app bg-info" href="https://10.40.90.99:13000" target="_blank">
+                    <a class="btn btn-app bg-info" href="https://10.169.140.99:13000" target="_blank">
 
                         <img src="dist/img/system/grafana.webp" style="width: 25px;  filter: brightness(0) saturate(100%) invert(100%);">
                         <br>Grafana OAS Centinela
@@ -51,7 +51,7 @@ if ($_SESSION["permiso"] == "Administrador" || $_SESSION["permiso"] == "Soporte"
                 </div>
 
                 <div class="col-md-3 d-flex justify-content-center">
-                    <a class="btn btn-app bg-info" href="https://10.40.90.99:23000" target="_blank">
+                    <a class="btn btn-app bg-info" href="https://10.169.140.99:23000" target="_blank">
 
                         <img src="dist/img/system/grafana.webp" style="width: 25px;  filter: brightness(0) saturate(100%) invert(100%);">
                         <br>Grafana OAS Antucoya

@@ -49,7 +49,7 @@ class systemClass
         $conn->conectaDB();
 
         $urlSistema = $conn->urlSystem();
-        $urlProduccion = "http://10.40.90.99/soporte/"; // Producción
+        $urlProduccion = "http://10.169.140.99/soporte/"; // Producción
         $pathProduccion = "/soporte"; // Ruta de producción
 
         if (session_status() !== PHP_SESSION_ACTIVE) {

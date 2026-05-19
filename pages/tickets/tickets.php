@@ -721,7 +721,7 @@ if ($show_alert) {
 <script>
     /*
     const source = "tickets";
-    const socket = new WebSocket("ws://10.40.90.99:9503");
+    const socket = new WebSocket("ws://10.169.140.99:9503");
 
     // Definir las columnas visibles (debe coincidir con las mostradas en PHP)
     const visibleHeaders = <?php echo json_encode($columnas_visibles); ?>;

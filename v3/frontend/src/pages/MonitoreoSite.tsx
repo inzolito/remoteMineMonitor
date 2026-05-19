@@ -4,10 +4,10 @@ import { useQuery } from '@tanstack/react-query';
 import { getSiteMetrics, type SiteMonitoringResponse } from '../services/monitoringService';
 import { getSiteById } from '../services/sitesService';
 import {
-    Loader2, Activity,
+    Activity,
     Database, Terminal, ShieldCheck, Clock, X,
     FolderOpen, FileText, ChevronDown, ChevronRight,
-    AlertTriangle, Layers, Copy, Trash2, WifiOff
+    AlertTriangle, Layers, Copy, Trash2, WifiOff, Repeat
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -555,7 +555,7 @@ const MonitoreoSite = () => {
     };
 
     const { data: site } = useQuery({ queryKey: ['site', siteId], queryFn: () => getSiteById(siteId), enabled: siteId > 0 });
-    const { data: metricsData, isLoading } = useQuery<SiteMonitoringResponse>({
+    const { data: metricsData } = useQuery<SiteMonitoringResponse>({
         queryKey: ['siteMetrics', siteId],
         queryFn: () => getSiteMetrics(siteId, 'fms'),
         refetchInterval: 5000,
@@ -640,30 +640,35 @@ const MonitoreoSite = () => {
         return str + defaultUnit;
     };
 
+
     const primaryFail = primaryServer?.app?.['app.jams.status']?.status === 'danger';
     const secondaryFail = secondaryServer?.app?.['app.jams.status']?.status === 'warning' || secondaryServer?.app?.['app.jams.status']?.status === 'danger';
     const hasFailover = primaryFail || secondaryFail;
 
     // --- Static Header & Summary Row (Emergency Request) ---
     return (
-        <div
-            className="min-h-screen p-4 text-slate-800 font-sans transition-all duration-1000"
-            style={{ backgroundColor: hasFailover ? '#fff5f5' : '#f8fafc' }}
-        >
-            {hasFailover && (
-                <style>{`
-                    @keyframes pulse-emergency {
-                        0%   { opacity: 1; }
-                        50%  { opacity: 0.6; }
-                        100% { opacity: 1; }
-                    }
-                    .emergency-banner-pulse { animation: pulse-emergency 1.5s ease-in-out infinite; }
-                `}</style>
-            )}
+        <div className="min-h-screen p-4 text-slate-800 dark:text-slate-100 font-sans transition-all duration-1000 bg-[#f8fafc] dark:bg-slate-950">
+
             {/* Top Banner Warning (Yellow) */}
             <div className={cn("bg-[#fcd34d] text-slate-900 text-xs font-bold text-center py-1 rounded-t-md mb-4 shadow-sm transition-all duration-700", isFullSiteOffline && "grayscale opacity-50")}>
                 Entorno de desarrollo del sistema de monitoreo Hexagon Mining.
             </div>
+
+            {hasFailover && (
+                <style>{`
+                    @keyframes heartbeat {
+                        0% { transform: scale(1); }
+                        10% { transform: scale(1.02); }
+                        20% { transform: scale(1); }
+                        30% { transform: scale(1.02); }
+                        40% { transform: scale(1); }
+                        100% { transform: scale(1); }
+                    }
+                    .animate-heartbeat {
+                        animation: heartbeat 2.5s ease-in-out infinite;
+                    }
+                `}</style>
+            )}
 
             {/* --- SECCIÓN ALERTAS DE SISTEMA (Inesperado) - Moved to bottom if needed, but keeping structure --- */}
 
@@ -674,7 +679,7 @@ const MonitoreoSite = () => {
                     </div>
                     <div>
                         <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
-                            MONITOREO FMS - {site.name} <span className="text-slate-400 dark:text-slate-500 font-normal text-sm">({site.alias}) v3.3-DEBUG</span>
+                            MONITOREO FMS - {site?.name} <span className="text-slate-400 dark:text-slate-500 font-normal text-sm">({site?.alias}) v3.3-DEBUG</span>
                         </h1>
                     </div>
                 </div>
@@ -883,32 +888,29 @@ const MonitoreoSite = () => {
                 </div>
             </div>
 
-            {/* Failover Detection Banner */}
-            {(() => {
-                const primaryFail = primaryServer?.app?.['app.jams.status']?.status === 'danger';
-                const secondaryFail = secondaryServer?.app?.['app.jams.status']?.status === 'warning' || secondaryServer?.app?.['app.jams.status']?.status === 'danger';
-                if (primaryFail || secondaryFail) {
-                    return (
-                        <div
-                            className="text-white rounded-lg px-4 py-2 flex items-center justify-center gap-3 shadow-md animate-in slide-in-from-top-2 duration-500 emergency-banner-pulse"
-                            style={{ backgroundColor: '#dc2626' }}
-                        >
-                            <Activity className="w-5 h-5" />
-                            <span className="font-black text-sm tracking-widest uppercase">⚠ FAILOVER DETECTADO ⚠</span>
-                            <Activity className="w-5 h-5" />
-                        </div>
-                    );
-                }
-                return null;
-            })()}
-
             {/* Simplified Content Row: Servers Only -> NOW 3 COLUMNS */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 h-fit">
+                {/* FAILOVER ALERT BANNER (Aligned & Heartbeat) */}
+                {hasFailover && (
+                    <>
+                        <div className="lg:col-span-2">
+                            <div className="bg-red-600 text-white rounded-lg px-4 py-3 flex items-center justify-center gap-4 shadow-lg animate-heartbeat duration-500 mb-2">
+                                <Activity className="w-6 h-6" />
+                                <div className="flex flex-col items-center">
+                                    <span className="font-black text-sm tracking-widest uppercase">FAILOVER DETECTADO</span>
+                                    <p className="text-[10px] font-medium text-red-100 text-center max-w-md mt-1 leading-tight">
+                                        El sistema es inteligente y sigue monitoreando las métricas después del switcheo de servidores. Pero el cambio de IP debe hacerse manual para eliminar la alerta.
+                                    </p>
+                                </div>
+                                <Activity className="w-6 h-6" />
+                            </div>
+                        </div>
+                        <div className="hidden lg:block" /> {/* Gap for Services column */}
+                    </>
+                )}
+
                 {/* Primary Server */}
-                <div
-                    className="bg-white rounded-xl shadow-lg overflow-hidden flex flex-col relative"
-                    style={hasFailover ? { border: '2px solid #dc2626', boxShadow: '0 0 0 3px rgba(220,38,38,0.1)' } : { border: '1px solid #e2e8f0' }}
-                >
+                <div className="bg-white dark:bg-slate-900 rounded-xl shadow-lg overflow-hidden border border-slate-200 dark:border-slate-800 flex flex-col ring-2 ring-[#0ea5e9]/5 relative">
                     {/* Smart Disconnect Overlay - Rendered separately to keep color */}
                     {isPrimaryOffline && (
                         <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-white/40 dark:bg-slate-950/40 backdrop-blur-[1.5px] transition-all duration-500 rounded-xl">
@@ -923,19 +925,17 @@ const MonitoreoSite = () => {
                     )}
 
                     <div className={cn("flex flex-col flex-1 transition-all duration-1000", isFullSiteOffline && "grayscale opacity-40")}>
-                        <div
-                            className="text-white px-5 py-1.5 flex justify-between items-center shadow-sm relative z-10 transition-all"
-                            style={{ backgroundColor: hasFailover ? '#000' : '#0284c7' }}
-                        >
-                            <span className="text-[11px] font-bold tracking-tight uppercase opacity-90">Servidor Primario</span>
-                            <span
-                                className="text-[9px] px-2 py-0.5 rounded-md font-bold shadow-sm uppercase"
-                                style={hasFailover ? { backgroundColor: '#fff', color: '#000', border: '1px solid #333' } : { backgroundColor: '#0ea5e9' }}
-                            >Active</span>
+                        <div className={cn(
+                            "text-white px-5 py-1.5 flex items-center shadow-sm relative z-10 transition-all",
+                            hasFailover ? "bg-red-600" : "bg-[#0284c7] dark:bg-[#0c2d48]"
+                        )}>
+                            <div className="flex items-center gap-2">
+                                {hasFailover && <Repeat size={14} className="animate-pulse" />}
+                                <span className="text-[11px] font-bold tracking-tight uppercase opacity-90">Servidor Primario</span>
+                            </div>
                         </div>
 
                     <div className="p-3 flex-1 flex flex-col gap-3">
-                        {/* Main Content Area: Side-by-Side Gauges and Large Chart */}
                         <div className="flex flex-col xl:flex-row gap-4 items-stretch">
                             {/* Gauges Column - Increased width for harmony */}
                             <div className="flex flex-row gap-4 items-start justify-center xl:justify-start px-0 flex-none w-[220px]">
@@ -943,7 +943,7 @@ const MonitoreoSite = () => {
                                 {(() => {
                                     const pct = primaryServer?.system?.disk_percent ?? 0;
                                     const status = primaryServer?.system?.disk_status;
-                                    const color = hasFailover ? '#000' : (status === 'danger' ? '#ef4444' : (status === 'warning' ? '#f59e0b' : '#10b981'));
+                                    const color = (status === 'danger' ? '#ef4444' : (status === 'warning' ? '#f59e0b' : '#10b981'));
                                     return (
                                         <CircularUsage
                                             percentage={pct}
@@ -959,7 +959,7 @@ const MonitoreoSite = () => {
                                 {(() => {
                                     const pct = primaryServer?.system?.ram_percent ?? 0;
                                     const status = primaryServer?.system?.ram_status;
-                                    const color = hasFailover ? '#000' : (status === 'danger' ? '#ef4444' : (status === 'warning' ? '#f59e0b' : '#10b981'));
+                                    const color = (status === 'danger' ? '#ef4444' : (status === 'warning' ? '#f59e0b' : '#10b981'));
                                     return (
                                         <CircularUsage
                                             percentage={pct}
@@ -986,7 +986,7 @@ const MonitoreoSite = () => {
                                     <div className={cn(
                                         "w-4 h-4 transition-colors",
                                         primaryServer?.system?.cpu_status === 'danger' ? "text-red-400" :
-                                        hasFailover ? "text-black" : (primaryServer?.system?.cpu_status === 'danger' ? "text-red-400" :
+                                        (primaryServer?.system?.cpu_status === 'danger' ? "text-red-400" :
                                             (primaryServer?.system?.cpu_status === 'warning' ? "text-amber-400" : "text-emerald-400"))
                                     )}>
                                         <Activity size={14} />
@@ -994,7 +994,7 @@ const MonitoreoSite = () => {
                                 </div>
                                 {(() => {
                                     const cpuStatus = primaryServer?.system?.cpu_status || 'ok';
-                                    const cpuColor = hasFailover ? '#000' : (cpuStatus === 'danger' ? '#ef4444' : (cpuStatus === 'warning' ? '#f59e0b' : '#10b981'));
+                                    const cpuColor = (cpuStatus === 'danger' ? '#ef4444' : (cpuStatus === 'warning' ? '#f59e0b' : '#10b981'));
                                     return (
                                         <ResponsiveContainer width="100%" height="100%">
                                             <AreaChart data={livePrimaryHistory} margin={{ top: 20, right: 10, left: -20, bottom: 5 }}>
@@ -1043,10 +1043,7 @@ const MonitoreoSite = () => {
             </div>
 
                 {/* Secondary Server */}
-                <div
-                    className="bg-white rounded-xl shadow-lg overflow-hidden flex flex-col relative"
-                    style={hasFailover ? { border: '2px solid #dc2626', boxShadow: '0 0 0 3px rgba(220,38,38,0.1)' } : { border: '1px solid #e2e8f0' }}
-                >
+                <div className="bg-white dark:bg-slate-900 rounded-xl shadow-lg overflow-hidden border border-slate-200 dark:border-slate-800 flex flex-col relative">
                     {/* Smart Disconnect Overlay - Rendered separately to keep color */}
                     {isSecondaryOffline && (
                         <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-white/40 dark:bg-slate-950/40 backdrop-blur-[1.5px] transition-all duration-500 rounded-xl">
@@ -1061,12 +1058,14 @@ const MonitoreoSite = () => {
                     )}
 
                     <div className={cn("flex flex-col flex-1 transition-all duration-1000", isFullSiteOffline && "grayscale opacity-40")}>
-                        <div
-                            className="text-white px-5 py-1.5 flex justify-between items-center shadow-sm relative z-10 transition-all"
-                            style={{ backgroundColor: hasFailover ? '#000' : '#0284c7' }}
-                        >
-                            <span className="text-[11px] font-bold tracking-tight uppercase opacity-90">Servidor Secundario</span>
-                            <span className="text-[9px] bg-slate-400/50 px-2 py-0.5 rounded-md font-bold shadow-sm uppercase">Backup</span>
+                        <div className={cn(
+                            "text-white px-5 py-1.5 flex items-center shadow-sm relative z-10 transition-all",
+                            hasFailover ? "bg-red-600" : "bg-[#0284c7] dark:bg-[#0c2d48]"
+                        )}>
+                            <div className="flex items-center gap-2">
+                                {hasFailover && <Repeat size={14} className="animate-pulse" />}
+                                <span className="text-[11px] font-bold tracking-tight uppercase opacity-90">Servidor Secundario</span>
+                            </div>
                         </div>
 
                     <div className={cn("p-3 flex-1 flex flex-col gap-3", !secondaryServer && "opacity-50 grayscale")}>
@@ -1077,7 +1076,7 @@ const MonitoreoSite = () => {
                                         {(() => {
                                             const pct = secondaryServer?.system?.disk_percent ?? 0;
                                             const status = secondaryServer?.system?.disk_status;
-                                            const color = hasFailover ? '#000' : (status === 'danger' ? '#ef4444' : (status === 'warning' ? '#f59e0b' : '#10b981'));
+                                            const color = (status === 'danger' ? '#ef4444' : (status === 'warning' ? '#f59e0b' : '#10b981'));
                                             return (
                                                 <CircularUsage
                                                     percentage={pct}
@@ -1093,7 +1092,7 @@ const MonitoreoSite = () => {
                                         {(() => {
                                             const pct = secondaryServer?.system?.ram_percent ?? 0;
                                             const status = secondaryServer?.system?.ram_status;
-                                            const color = hasFailover ? '#000' : (status === 'danger' ? '#ef4444' : (status === 'warning' ? '#f59e0b' : '#10b981'));
+                                            const color = (status === 'danger' ? '#ef4444' : (status === 'warning' ? '#f59e0b' : '#10b981'));
                                             return (
                                                 <CircularUsage
                                                     percentage={pct}
@@ -1126,7 +1125,7 @@ const MonitoreoSite = () => {
                                         </div>
                                         {(() => {
                                             const cpuStatus = secondaryServer?.system?.cpu_status || 'ok';
-                                            const cpuColor = hasFailover ? '#000' : (cpuStatus === 'danger' ? '#ef4444' : (cpuStatus === 'warning' ? '#f59e0b' : '#10b981'));
+                                            const cpuColor = (cpuStatus === 'danger' ? '#ef4444' : (cpuStatus === 'warning' ? '#f59e0b' : '#10b981'));
                                             return (
                                                 <ResponsiveContainer width="100%" height="100%">
                                                     <AreaChart data={liveSecondaryHistory} margin={{ top: 20, right: 10, left: -20, bottom: 5 }}>

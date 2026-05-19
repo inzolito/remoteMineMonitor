@@ -1002,7 +1002,7 @@ $faenas = $oasController->getFaenasConMetricas(true);
 </script>
 <!-- WebSocket para actualización en tiempo real -->
 <script>
-    var ws = new WebSocket("ws://10.40.90.99:9507");
+    var ws = new WebSocket("ws://10.169.140.99:9507");
     ws.onopen = function() {
         console.log("Conexión WebSocket establecida");
     };

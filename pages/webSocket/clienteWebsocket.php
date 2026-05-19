@@ -2,7 +2,7 @@
 <h1>Actualización en Tiempo Real del CSV</h1>
 <pre id="csvContent">Esperando datos...</pre>
 <script>
-    var ws = new WebSocket("ws://10.40.90.99:15001");
+    var ws = new WebSocket("ws://10.169.140.99:15001");
 
     ws.onopen = function() {
         console.log("Conectado al servidor WebSocket");

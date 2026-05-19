@@ -6,14 +6,14 @@ ob_implicit_flush();
 // ---------------------
 // CONFIGURACIÓN GENERAL
 // ---------------------
-$host = '10.40.90.99';  // Escucha en todas las interfaces
+$host = '10.169.140.99';  // Escucha en todas las interfaces
 $port = 15001;       // Puerto en el que se ejecuta el servidor
 
 
  
 
 // Definir los archivos a monitorear
-$csvFile = 'http://10.40.90.99/monitoreoLaboratorio/data/fileTemporal.csv';         // Archivo CSV a monitorear
+$csvFile = 'http://10.169.140.99/monitoreoLaboratorio/data/fileTemporal.csv';         // Archivo CSV a monitorear
 //$csv_file = "../../data/
 $logFile = 'logs/app.log';     // Archivo de log a monitorear
 
