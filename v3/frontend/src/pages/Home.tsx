@@ -132,8 +132,8 @@ const Home = () => {
 
             {/* Quick Links (Moved to Top) */}
             <div className="space-y-2">
-                <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest pl-1">Accesos Útiles</h3>
-                <div className="bg-slate-50/50 p-3 rounded-xl border border-slate-100 mb-2">
+                <h3 className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest pl-1">Accesos Útiles</h3>
+                <div className="bg-muted/30 dark:bg-slate-900/40 p-3 rounded-xl border border-border/60 mb-2">
                     <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
                         {quickLinks.map((link) => (
                             link.url ? (
@@ -142,7 +142,7 @@ const Home = () => {
                                     href={link.url}
                                     target="_blank"
                                     rel="noreferrer"
-                                    className="bg-white border border-slate-200 rounded-lg p-2.5 flex items-center gap-3 hover:shadow-sm hover:border-primary/30 transition-all group overflow-hidden"
+                                    className="bg-card border border-border rounded-lg p-2.5 flex items-center gap-3 hover:shadow-sm hover:border-primary/30 transition-all group overflow-hidden"
                                 >
                                     <div className={cn(
                                         "p-2 rounded-lg shrink-0 transition-transform group-hover:scale-105 ring-1 ring-inset",
@@ -150,13 +150,13 @@ const Home = () => {
                                     )}>
                                         <link.icon size={16} />
                                     </div>
-                                    <span className="text-[10px] font-black text-slate-600 uppercase tracking-tight truncate">{link.name}</span>
+                                    <span className="text-[10px] font-black text-muted-foreground dark:text-slate-300 uppercase tracking-tight truncate">{link.name}</span>
                                 </a>
                             ) : (
                                 <Link
                                     key={link.name}
                                     to={link.path || '#'}
-                                    className="bg-white border border-slate-200 rounded-lg p-2.5 flex items-center gap-3 hover:shadow-sm hover:border-primary/30 transition-all group overflow-hidden"
+                                    className="bg-card border border-border rounded-lg p-2.5 flex items-center gap-3 hover:shadow-sm hover:border-primary/30 transition-all group overflow-hidden"
                                 >
                                     <div className={cn(
                                         "p-2 rounded-lg shrink-0 transition-transform group-hover:scale-105 ring-1 ring-inset",
@@ -164,7 +164,7 @@ const Home = () => {
                                     )}>
                                         <link.icon size={16} />
                                     </div>
-                                    <span className="text-[10px] font-black text-slate-600 uppercase tracking-tight truncate">{link.name}</span>
+                                    <span className="text-[10px] font-black text-muted-foreground dark:text-slate-300 uppercase tracking-tight truncate">{link.name}</span>
                                 </Link>
                             )
                         ))}
@@ -187,21 +187,21 @@ const Home = () => {
                                 onClick={() => setSelectedLog({ title, content: svc?.log || 'Cargando logs...' })}
                                 className={cn(
                                     "p-4 rounded-xl border transition-all flex items-center justify-between shadow-sm cursor-pointer hover:scale-[1.005] active:scale-[0.995]",
-                                    isOk ? "bg-white border-slate-200 hover:border-emerald-300" : "bg-red-600 border-red-700 text-white animate-pulse"
+                                    isOk ? "bg-card border-border hover:border-emerald-300 dark:hover:border-emerald-500" : "bg-red-600 dark:bg-rose-950/40 border-red-700 dark:border-red-900 text-white dark:text-red-300 animate-pulse"
                                 )}
                             >
                                 <div className="flex items-center gap-3">
                                     <div className={cn(
                                         "p-2.5 rounded-lg",
-                                        isOk ? "bg-emerald-500 text-white" : "bg-white text-red-600"
+                                        isOk ? "bg-emerald-500 text-white" : "bg-white dark:bg-red-900 text-red-600 dark:text-red-200"
                                     )}>
                                         <Activity size={20} />
                                     </div>
                                     <div className="min-w-0">
-                                        <h3 className={cn("font-black text-base uppercase truncate leading-none mb-1", isOk ? "text-slate-700" : "text-white")}>
+                                        <h3 className={cn("font-black text-base uppercase truncate leading-none mb-1", isOk ? "text-foreground" : "text-white")}>
                                             {title}
                                         </h3>
-                                        <p className={cn("text-[10px] font-medium", isOk ? "text-slate-500" : "text-white/80")}>
+                                        <p className={cn("text-[10px] font-medium", isOk ? "text-muted-foreground" : "text-white/80")}>
                                             {svc?.fecha || 'Sin actividad'}
                                         </p>
                                     </div>
@@ -209,12 +209,12 @@ const Home = () => {
                                 <div className="flex flex-col items-end shrink-0">
                                     <span className={cn(
                                         "px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider shadow-sm mb-1",
-                                        isOk ? "bg-emerald-100 text-emerald-700" : "bg-white text-red-700"
+                                        isOk ? "bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400" : "bg-white dark:bg-red-900 text-red-700 dark:text-red-200"
                                     )}>
                                         {isOk ? 'Activo' : 'Inactivo'}
                                     </span>
                                     {svc?.minutos !== null && (
-                                        <span className={cn("text-[9px] font-bold", isOk ? "text-slate-400" : "text-white/70")}>
+                                        <span className={cn("text-[9px] font-bold", isOk ? "text-muted-foreground/60" : "text-white/70")}>
                                             {svc?.minutos}m
                                         </span>
                                     )}
@@ -228,13 +228,13 @@ const Home = () => {
             {/* Row 2: Alerts and Tickets */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Active Alerts */}
-                <div className="lg:col-span-1 border rounded-xl overflow-hidden bg-white shadow-sm flex flex-col">
-                    <div className="bg-slate-50 px-4 py-3 border-b flex items-center justify-between">
+                <div className="lg:col-span-1 border border-border rounded-xl overflow-hidden bg-card shadow-sm flex flex-col">
+                    <div className="bg-muted/50 dark:bg-slate-900/60 px-4 py-3 border-b border-border flex items-center justify-between">
                         <div className="flex items-center gap-2">
                             <Bell className="w-5 h-5 text-amber-500" />
-                            <h2 className="font-bold text-slate-700">Alertas Activas</h2>
+                            <h2 className="font-bold text-foreground">Alertas Activas</h2>
                         </div>
-                        <span className="bg-red-100 text-red-700 text-[10px] font-black px-2 py-0.5 rounded-full">{data?.alerts?.length || 0}</span>
+                        <span className="bg-red-100 dark:bg-red-950 text-red-700 dark:text-red-300 text-[10px] font-black px-2 py-0.5 rounded-full">{data?.alerts?.length || 0}</span>
                     </div>
                     <div className="flex-1 p-3 space-y-2">
                         {data?.alerts?.length > 0 ? (
@@ -246,7 +246,7 @@ const Home = () => {
 
                                 return (
                                     <div key={alerta.alert_id} className={cn(
-                                        "p-3 rounded-lg border-l-4 transition-all shadow-sm flex flex-col gap-1.5 relative group bg-white border-slate-200 border-y border-r",
+                                        "p-3 rounded-lg border-l-4 transition-all shadow-sm flex flex-col gap-1.5 relative group bg-card border-border border-y border-r",
                                         alerta.status === 'active'
                                             ? "border-l-red-600"
                                             : "border-l-slate-400 opacity-80"
@@ -259,26 +259,26 @@ const Home = () => {
                                                 )}>
                                                     {alerta.status === 'active' ? 'ACTIVA' : 'EN REVISIÓN'}
                                                 </span>
-                                                <span className="text-[9px] font-bold text-slate-500 uppercase truncate max-w-[100px]">{alerta.server_name}</span>
-                                                {ip && <span className="text-[8px] font-mono text-blue-600 font-black bg-slate-50 px-1 rounded border border-blue-100/30 shrink-0">{ip}</span>}
+                                                <span className="text-[9px] font-bold text-muted-foreground uppercase truncate max-w-[100px]">{alerta.server_name}</span>
+                                                {ip && <span className="text-[8px] font-mono text-blue-600 dark:text-blue-400 font-black bg-muted/50 dark:bg-slate-900 px-1 rounded border border-border shrink-0">{ip}</span>}
                                             </div>
-                                            <span className="text-[9px] text-slate-400 font-bold ml-auto shrink-0">
+                                            <span className="text-[9px] text-muted-foreground font-bold ml-auto shrink-0">
                                                 {new Date(alerta.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                             </span>
                                         </div>
 
-                                        <h4 className={cn("text-xs font-black leading-tight", alerta.status === 'active' ? "text-slate-800" : "text-slate-600")}>
+                                        <h4 className={cn("text-xs font-black leading-tight", alerta.status === 'active' ? "text-red-700 dark:text-red-400" : "text-muted-foreground")}>
                                             {alerta.title}
                                         </h4>
 
-                                        <p className="text-[10px] text-slate-500 leading-snug italic line-clamp-1 group-hover:line-clamp-none transition-all">
+                                        <p className="text-[10px] text-muted-foreground leading-snug italic line-clamp-1 group-hover:line-clamp-none transition-all">
                                             "{desc}"
                                         </p>
 
                                         {isAck && (
-                                            <div className="flex items-center gap-1 mt-0.5 pt-1 border-t border-black/5">
+                                            <div className="flex items-center gap-1 mt-0.5 pt-1 border-t border-border">
                                                 <div className="w-1 h-1 rounded-full bg-emerald-500" />
-                                                <span className="text-[8px] text-slate-400 font-bold italic truncate">
+                                                <span className="text-[8px] text-muted-foreground/60 font-bold italic truncate">
                                                     Visto por {alerta.user_name?.split(' ')[0]}
                                                 </span>
                                             </div>
@@ -287,7 +287,7 @@ const Home = () => {
                                 );
                             })
                         ) : (
-                            <div className="h-40 flex items-center justify-center text-slate-400 text-sm italic">
+                            <div className="h-40 flex items-center justify-center text-muted-foreground text-sm italic">
                                 Sin notificaciones activas
                             </div>
                         )}
@@ -295,14 +295,14 @@ const Home = () => {
                 </div>
 
                 {/* Latest Tickets */}
-                <div className="lg:col-span-2 border rounded-xl overflow-hidden bg-white shadow-sm flex flex-col">
-                    <div className="bg-slate-50 px-4 py-2 border-b flex flex-wrap items-center justify-between gap-3">
+                <div className="lg:col-span-2 border border-border rounded-xl overflow-hidden bg-card shadow-sm flex flex-col">
+                    <div className="bg-muted/50 dark:bg-slate-900/60 px-4 py-2 border-b border-border flex flex-wrap items-center justify-between gap-3">
                         <div className="flex items-center gap-2">
                             {data?.salesforce_linked ? (
                                 <>
                                     <Cloud className="w-4 h-4 text-sky-500 animate-pulse" />
                                     <div className="flex flex-col">
-                                        <h2 className="font-extrabold text-slate-800 text-sm leading-none flex items-center gap-1.5">
+                                        <h2 className="font-extrabold text-foreground text-sm leading-none flex items-center gap-1.5">
                                             Mis Tickets
                                             <span className="text-[9px] px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-600 font-bold border border-sky-500/20 uppercase tracking-wider animate-pulse">Salesforce</span>
                                         </h2>
@@ -312,7 +312,7 @@ const Home = () => {
                                 <>
                                     <Ticket className="w-4 h-4 text-blue-500" />
                                     <div className="flex items-center gap-3">
-                                        <h2 className="font-bold text-slate-700 text-sm">Tickets (Sudamerican Support)</h2>
+                                        <h2 className="font-bold text-foreground text-sm">Tickets (Sudamerican Support)</h2>
                                         <Link 
                                             to="/perfil" 
                                             className="text-[9px] bg-[#00A1E0]/10 hover:bg-[#00A1E0]/20 text-[#00A1E0] px-2 py-0.5 rounded-full font-bold transition-all flex items-center gap-1.5 border border-[#00A1E0]/20 hover:shadow-sm"
@@ -336,7 +336,7 @@ const Home = () => {
                                     setStatusFilter(e.target.value);
                                     setCurrentPage(1); // Reset to first page on status filter change
                                 }}
-                                className="px-2 py-1.5 bg-white border border-slate-200 rounded-lg text-[11px] font-bold text-slate-600 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all cursor-pointer hover:border-slate-300"
+                                className="px-2 py-1.5 bg-card dark:bg-slate-900 border border-border dark:border-border/50 rounded-lg text-[11px] font-bold text-muted-foreground dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all cursor-pointer hover:border-slate-300"
                             >
                                 <option value="ALL">Todos los Estados</option>
                                 {Array.from(new Set((data?.tickets || []).map((t: any) => t.Status).filter(Boolean)))
@@ -358,7 +358,7 @@ const Home = () => {
                                         setSearchTerm(e.target.value);
                                         setCurrentPage(1); // Reset to first page on search
                                     }}
-                                    className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-200 rounded-lg text-[11px] focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                                    className="w-full pl-8 pr-3 py-1.5 bg-card dark:bg-slate-900 border border-border dark:border-border/50 rounded-lg text-[11px] focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
                                 />
                             </div>
                         </div>
@@ -389,8 +389,8 @@ const Home = () => {
                             return (
                                 <>
                                     <table className="w-full text-left border-collapse">
-                                        <thead className="sticky top-0 bg-white/95 backdrop-blur-sm shadow-sm z-10">
-                                            <tr className="text-[9px] text-slate-500 uppercase font-black tracking-widest border-b bg-slate-50/70">
+                                        <thead className="sticky top-0 bg-card/95 backdrop-blur-sm shadow-sm z-10">
+                                            <tr className="text-[9px] text-muted-foreground uppercase font-black tracking-widest border-b border-border bg-muted/50 dark:bg-slate-900/60">
                                                 <th className="px-4 py-3"># Ticket</th>
                                                 <th className="px-4 py-3">Faena</th>
                                                 <th className="px-4 py-3">Asunto</th>
@@ -401,7 +401,7 @@ const Home = () => {
                                                 <th className="px-4 py-3 text-right">Ver</th>
                                             </tr>
                                         </thead>
-                                        <tbody className="divide-y divide-slate-100 text-[11px]">
+                                        <tbody className="divide-y divide-border text-[11px]">
                                             {paginatedTickets.length > 0 ? (
                                                 paginatedTickets.map((ticket: any, idx: number) => {
                                                     const isClosed = ticket.Status?.toLowerCase() === 'closed';
@@ -415,12 +415,12 @@ const Home = () => {
                                                             className={cn(
                                                                 "transition-colors group",
                                                                 isClosed 
-                                                                    ? "bg-slate-50/50 opacity-60 grayscale hover:bg-slate-50" 
+                                                                    ? "bg-muted/30 dark:bg-slate-900/40 opacity-60 grayscale hover:bg-muted" 
                                                                     : highlightRed
                                                                         ? "bg-rose-500/10 border-l-2 border-l-rose-500 hover:bg-rose-500/15"
                                                                         : isWorking
                                                                             ? "bg-emerald-500/5 hover:bg-emerald-500/10"
-                                                                            : "hover:bg-slate-50"
+                                                                            : "hover:bg-muted"
                                                             )}
                                                         >
                                                             <td className="px-4 py-3">
@@ -431,7 +431,7 @@ const Home = () => {
                                                                     className={cn(
                                                                         "text-[10px] font-black px-2 py-1 rounded-md border transition-all flex items-center gap-1.5 w-fit",
                                                                         isClosed
-                                                                            ? "bg-slate-500/10 text-slate-500 border-slate-500/20 grayscale"
+                                                                            ? "bg-slate-500/10 text-slate-500 border-slate-500/20 grayscale dark:bg-slate-800/40 dark:text-slate-400 dark:border-slate-800/50"
                                                                             : highlightRed
                                                                                 ? "bg-rose-500/15 text-rose-600 border-rose-500/20 hover:bg-rose-500 hover:text-white"
                                                                                 : "bg-primary/5 text-primary border-primary/10 hover:bg-primary hover:text-white"
@@ -444,7 +444,7 @@ const Home = () => {
                                                                 <span className={cn(
                                                                     "text-[10px] font-black px-2 py-1 rounded-md border uppercase tracking-tighter",
                                                                     isClosed
-                                                                        ? "text-slate-400 bg-slate-100/50 border-slate-200"
+                                                                        ? "text-slate-400 dark:text-slate-400 bg-slate-100/50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800/50"
                                                                         : highlightRed
                                                                             ? "text-rose-600 bg-rose-500/10 border-rose-500/20"
                                                                             : "text-amber-600 bg-amber-500/5 border-amber-500/10"
@@ -476,22 +476,22 @@ const Home = () => {
                                                                     )}></div>
                                                                     <span className={cn(
                                                                         "text-[10px] font-black uppercase tracking-tight",
-                                                                        highlightRed ? "text-rose-600" : "text-slate-600"
+                                                                        highlightRed ? "text-rose-600 dark:text-rose-400" : "text-muted-foreground"
                                                                     )}>{ticket.Status}</span>
                                                                 </div>
                                                             </td>
                                                             <td className="px-4 py-3">
                                                                 <div className="flex flex-col">
-                                                                    <span className="text-[11px] font-black text-slate-700 uppercase">
+                                                                    <span className="text-[11px] font-black text-foreground uppercase">
                                                                         {formatTimeElapsed(ticket.CreatedDate)}
                                                                     </span>
-                                                                    <span className="text-[9px] font-medium text-slate-400 whitespace-nowrap opacity-70">
+                                                                    <span className="text-[9px] font-medium text-muted-foreground/60 whitespace-nowrap opacity-70">
                                                                         {new Date(ticket.CreatedDate).toLocaleDateString()}
                                                                     </span>
                                                                 </div>
                                                             </td>
                                                             <td className="px-4 py-3 text-center">
-                                                                <div className="inline-flex items-center gap-1.5 px-2 py-1 bg-slate-50 rounded-lg">
+                                                                <div className="inline-flex items-center gap-1.5 px-2 py-1 bg-muted dark:bg-slate-900 rounded-lg">
                                                                     <MessageSquare className="w-3 h-3 text-primary opacity-50" />
                                                                     <span className="text-[10px] font-black">{ticket.CommentCount || 0}</span>
                                                                 </div>
@@ -502,7 +502,7 @@ const Home = () => {
                                                                         "text-[10px] font-bold border px-2 py-1 rounded-md whitespace-nowrap",
                                                                         highlightRed
                                                                             ? "text-rose-600 bg-rose-500/10 border-rose-500/20"
-                                                                            : "text-slate-600 bg-slate-100/70 border-slate-200/50"
+                                                                            : "text-slate-600 dark:text-slate-300 bg-slate-100/70 dark:bg-slate-800/70 border-slate-200/50 dark:border-slate-800/50"
                                                                     )}>
                                                                         {getOwnerAlias(ticket.OwnerName)}
                                                                     </span>
@@ -532,29 +532,29 @@ const Home = () => {
 
                                     {/* Pagination Controls */}
                                     {totalPages > 1 && (
-                                        <div className="px-4 py-2 bg-slate-50/50 border-t flex items-center justify-between">
-                                            <p className="text-[10px] text-slate-500 font-bold">
-                                                Mostrando <span className="text-slate-800">{Math.min(filteredTickets.length, (currentPage - 1) * itemsPerPage + 1)}-{Math.min(filteredTickets.length, currentPage * itemsPerPage)}</span> de <span className="text-slate-800">{filteredTickets.length}</span> tickets
+                                        <div className="px-4 py-2 bg-muted/30 dark:bg-slate-900/40 border-t border-border flex items-center justify-between">
+                                            <p className="text-[10px] text-muted-foreground font-bold">
+                                                Mostrando <span className="text-foreground">{Math.min(filteredTickets.length, (currentPage - 1) * itemsPerPage + 1)}-{Math.min(filteredTickets.length, currentPage * itemsPerPage)}</span> de <span className="text-foreground">{filteredTickets.length}</span> tickets
                                             </p>
                                             <div className="flex items-center gap-1">
                                                 <button
                                                     onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                                                     disabled={currentPage === 1}
-                                                    className="p-1 rounded border bg-white enabled:hover:bg-slate-50 disabled:opacity-50 transition-colors"
+                                                    className="p-1 rounded border border-border bg-card hover:bg-muted disabled:opacity-50 transition-colors"
                                                 >
-                                                    <ChevronLeft size={14} className="text-slate-600" />
+                                                    <ChevronLeft size={14} className="text-muted-foreground" />
                                                 </button>
                                                 <div className="flex items-center px-2">
-                                                    <span className="text-[10px] font-black text-slate-700">{currentPage}</span>
-                                                    <span className="text-[10px] font-bold text-slate-400 mx-1">/</span>
-                                                    <span className="text-[10px] font-black text-slate-400">{totalPages}</span>
+                                                    <span className="text-[10px] font-black text-foreground">{currentPage}</span>
+                                                    <span className="text-[10px] font-bold text-muted-foreground/60 mx-1">/</span>
+                                                    <span className="text-[10px] font-black text-muted-foreground/60">{totalPages}</span>
                                                 </div>
                                                 <button
                                                     onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                                                     disabled={currentPage === totalPages}
-                                                    className="p-1 rounded border bg-white enabled:hover:bg-slate-50 disabled:opacity-50 transition-colors"
+                                                    className="p-1 rounded border border-border bg-card hover:bg-muted disabled:opacity-50 transition-colors"
                                                 >
-                                                    <ChevronRight size={14} className="text-slate-600" />
+                                                    <ChevronRight size={14} className="text-muted-foreground" />
                                                 </button>
                                             </div>
                                         </div>
@@ -610,20 +610,20 @@ const Home = () => {
             {/* Salesforce Ticket Modal */}
             {isSfModalOpen && selectedSfTicket && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
-                    <div className="bg-card border border-border rounded-[2rem] w-full max-w-4xl max-h-[85vh] shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200 bg-white">
-                        <div className="p-6 border-b flex items-center justify-between bg-slate-50/50">
+                    <div className="bg-card border border-border rounded-[2rem] w-full max-w-4xl max-h-[85vh] shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
+                        <div className="p-6 border-b border-border flex items-center justify-between bg-muted/30 dark:bg-slate-900/40">
                             <div className="flex items-center gap-3">
                                 <div className="p-2 bg-primary/10 rounded-xl">
                                     <Ticket className="w-5 h-5 text-primary" />
                                 </div>
                                 <div>
-                                    <h3 className="text-lg font-black uppercase tracking-tight text-slate-800">Ticket #{selectedSfTicket.CaseNumber}</h3>
+                                    <h3 className="text-lg font-black uppercase tracking-tight text-foreground">Ticket #{selectedSfTicket.CaseNumber}</h3>
                                     <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{selectedSfTicket.Faena || selectedSfTicket.AccountName || 'Global'}</p>
                                 </div>
                             </div>
                             <button 
                                 onClick={() => setIsSfModalOpen(false)}
-                                className="p-2 hover:bg-slate-100 rounded-xl transition-colors"
+                                className="p-2 hover:bg-muted rounded-xl transition-colors"
                             >
                                 <X className="w-5 h-5 text-muted-foreground" />
                             </button>
@@ -635,8 +635,8 @@ const Home = () => {
                                 <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-primary flex items-center gap-2">
                                     <Terminal className="w-3.5 h-3.5" /> Descripción del Caso
                                 </h4>
-                                <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200">
-                                    <p className="text-xs leading-relaxed text-slate-700 whitespace-pre-wrap">
+                                <div className="bg-muted/30 dark:bg-slate-900/40 p-5 rounded-2xl border border-border">
+                                    <p className="text-xs leading-relaxed text-foreground whitespace-pre-wrap">
                                         {selectedSfTicket.Description || 'Sin descripción detallada.'}
                                     </p>
                                 </div>
@@ -652,32 +652,32 @@ const Home = () => {
                                     {isLoadingComments ? (
                                         <div className="py-12 text-center">
                                             <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full mx-auto mb-2"></div>
-                                            <p className="text-xs text-slate-500 font-bold">Cargando comentarios...</p>
+                                            <p className="text-xs text-muted-foreground font-bold">Cargando comentarios...</p>
                                         </div>
                                     ) : sfTicketComments.length > 0 ? (
                                         sfTicketComments.map((comment: any, idx: number) => (
-                                            <div key={idx} className="bg-white border rounded-2xl p-4 shadow-sm relative overflow-hidden group">
+                                            <div key={idx} className="bg-card border border-border rounded-2xl p-4 shadow-sm relative overflow-hidden group">
                                                 <div className="flex justify-between items-start mb-2">
                                                     <span className="text-[10px] font-black text-primary uppercase tracking-tight">{comment.Author || 'Sistema'}</span>
                                                     <span className="text-[9px] font-mono text-muted-foreground italic">{new Date(comment.CreatedDate).toLocaleString()}</span>
                                                 </div>
-                                                <p className="text-[11px] leading-relaxed text-slate-600 whitespace-pre-wrap">
+                                                <p className="text-[11px] leading-relaxed text-muted-foreground whitespace-pre-wrap">
                                                     {comment.CommentBody}
                                                 </p>
                                                 <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary/20 group-hover:bg-primary transition-colors"></div>
                                             </div>
                                         ))
                                     ) : (
-                                        <div className="py-10 text-center bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
-                                            <MessageSquare className="w-10 h-10 text-slate-400/20 mx-auto mb-3" />
-                                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">No hay comentarios registrados</p>
+                                        <div className="py-10 text-center bg-muted/20 dark:bg-slate-900/30 rounded-2xl border border-dashed border-border">
+                                            <MessageSquare className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
+                                            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">No hay comentarios registrados</p>
                                         </div>
                                     )}
                                 </div>
                             </div>
                         </div>
 
-                        <div className="p-4 border-t bg-slate-50/30 flex justify-end gap-3">
+                        <div className="p-4 border-t border-border bg-muted/20 dark:bg-slate-900/30 flex justify-end gap-3">
                             <a 
                                 href={`https://usa1.lightning.force.com/lightning/r/Case/${selectedSfTicket.CaseId || selectedSfTicket.Id}/view`}
                                 target="_blank"
