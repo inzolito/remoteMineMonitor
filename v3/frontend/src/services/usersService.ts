@@ -8,7 +8,11 @@ export interface UserData {
     email: string;
     role: string;
     permission_id: number;
+    is_active?: number;
     password?: string; // Only for create/update
+    cargo?: string;
+    turno_7x7?: number | null;
+    turno_tipo?: string | null;
 }
 
 export const getUsers = async (): Promise<UserData[]> => {

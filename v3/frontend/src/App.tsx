@@ -13,6 +13,9 @@ import MonitoreoSite from './pages/MonitoreoSite';
 import Home from './pages/Home';
 import AlertManager from './components/AlertManager';
 import SuperAdmin from './pages/SuperAdmin';
+import Profile from './pages/Profile';
+
+import ShiftsPage from './pages/ShiftsPage';
 
 // Placeholder for Site Monitoring (Will create next) - This local definition is now replaced by MonitoreoSite for the route.
 // If SiteMonitoringPlaceholder is needed as a fallback or for other purposes, it should be imported from a file or redefined.
@@ -39,9 +42,10 @@ function App() {
                   <Route path="/site/:id" element={<SiteDetails />} />
                   <Route path="/users" element={<UsersPage />} />
                   <Route path="/super-admin" element={<SuperAdmin />} />
+                  <Route path="/perfil" element={<Profile />} />
                   {/* Placeholder routes for others */}
                   <Route path="/tickets" element={<div className="p-8 text-center text-muted-foreground">Módulo Tickets en construcción</div>} />
-                  <Route path="/shifts" element={<div className="p-8 text-center text-muted-foreground">Módulo Turnos en construcción</div>} />
+                  <Route path="/shifts" element={<ShiftsPage />} />
                 </Route>
               </Route>
 

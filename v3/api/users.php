@@ -29,15 +29,19 @@ $decoded = $auth['decoded'];
 $method = $_SERVER['REQUEST_METHOD'];
 
 if ($method === 'GET') {
-    // List Users
-    $query = "SELECT u.id, u.first_name, u.last_name, u.username, u.email, p.name as role, u.permission_id 
+    // List Users - Alphabetical sort by first_name
+    $query = "SELECT u.id, u.first_name, u.last_name, u.username, u.email, p.name as role, u.permission_id, u.is_active, u.cargo, u.turno_7x7, u.turno_tipo 
               FROM users u 
               JOIN permissions p ON u.permission_id = p.id 
-              ORDER BY u.last_name ASC";
+              ORDER BY u.first_name ASC";
     $result = $mysqli->query($query);
     
     $users = array();
     while($row = $result->fetch_assoc()) {
+        // Ensure is_active is cast to integer/boolean
+        $row['is_active'] = intval($row['is_active'] ?? 1);
+        $row['turno_7x7'] = $row['turno_7x7'] !== null ? intval($row['turno_7x7']) : null;
+        $row['turno_tipo'] = $row['turno_tipo'] ?? 'Día';
         $users[] = $row;
     }
     echo json_encode($users);
@@ -55,18 +59,16 @@ if ($method === 'GET') {
     $fname = $mysqli->real_escape_string($data->first_name ?? '');
     $lname = $mysqli->real_escape_string($data->last_name ?? '');
     $user = $mysqli->real_escape_string($data->username);
-    $pass = $data->password; // In future: password_hash($data->password, PASSWORD_BCRYPT);
-    // Note: Legacy system might use plain text or MD5. For V3 new users, we should use hash, 
-    // but to maintain compatibility with legacy login controller (if kept), we might need to stick to what it expects.
-    // The previous plan mentioned "MD5 legacy -> Upgrade future".
-    // For now, let's store it as is (or MD5 if that's what legacy does) to avoid breaking hybrid login.
-    // Assuming plain text based on previous controller-login.php analysis (password='$pass').
-    
-    $email = $mysqli->real_escape_string($data->email);
-    $perm_id = intval($data->permission_id ?? 2); // Default to generic role if not set
+    $pass = $data->password;
+    $email = $mysqli->real_escape_string($data->email ?? '');
+    $perm_id = intval($data->permission_id ?? 2);
+    $is_active = isset($data->is_active) ? intval($data->is_active) : 1;
+    $cargo = $mysqli->real_escape_string($data->cargo ?? '');
+    $turno_7x7 = isset($data->turno_7x7) && $data->turno_7x7 !== '' && $data->turno_7x7 !== null ? intval($data->turno_7x7) : null;
+    $turno_tipo = $mysqli->real_escape_string($data->turno_tipo ?? 'Día');
 
-    $stmt = $mysqli->prepare("INSERT INTO users (first_name, last_name, username, password, email, permission_id) VALUES (?, ?, ?, ?, ?, ?)");
-    $stmt->bind_param("sssssi", $fname, $lname, $user, $pass, $email, $perm_id);
+    $stmt = $mysqli->prepare("INSERT INTO users (first_name, last_name, username, password, email, permission_id, is_active, cargo, turno_7x7, turno_tipo) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+    $stmt->bind_param("sssssiisis", $fname, $lname, $user, $pass, $email, $perm_id, $is_active, $cargo, $turno_7x7, $turno_tipo);
 
     if ($stmt->execute()) {
         http_response_code(201);
@@ -86,19 +88,38 @@ if ($method === 'GET') {
     }
 
     $id = intval($data->id);
+
+    // Dynamic single status toggle update
+    if (isset($data->is_active) && !isset($data->first_name)) {
+        $is_active = intval($data->is_active);
+        $stmt = $mysqli->prepare("UPDATE users SET is_active = ? WHERE id = ?");
+        $stmt->bind_param("ii", $is_active, $id);
+        if ($stmt->execute()) {
+            echo json_encode(["message" => "User status updated."]);
+        } else {
+            http_response_code(500);
+            echo json_encode(["message" => "Status update failed."]);
+        }
+        exit();
+    }
+
     $fname = $mysqli->real_escape_string($data->first_name);
     $lname = $mysqli->real_escape_string($data->last_name);
-    $email = $mysqli->real_escape_string($data->email);
+    $email = $mysqli->real_escape_string($data->email ?? '');
     $perm_id = intval($data->permission_id);
+    $is_active = isset($data->is_active) ? intval($data->is_active) : 1;
+    $cargo = $mysqli->real_escape_string($data->cargo ?? '');
+    $turno_7x7 = isset($data->turno_7x7) && $data->turno_7x7 !== '' && $data->turno_7x7 !== null ? intval($data->turno_7x7) : null;
+    $turno_tipo = $mysqli->real_escape_string($data->turno_tipo ?? 'Día');
     
     // Check if password update is requested
     if (!empty($data->password)) {
         $pass = $data->password; 
-        $stmt = $mysqli->prepare("UPDATE users SET first_name=?, last_name=?, email=?, permission_id=?, password=? WHERE id=?");
-        $stmt->bind_param("sssisi", $fname, $lname, $email, $perm_id, $pass, $id);
+        $stmt = $mysqli->prepare("UPDATE users SET first_name=?, last_name=?, email=?, permission_id=?, password=?, is_active=?, cargo=?, turno_7x7=?, turno_tipo=? WHERE id=?");
+        $stmt->bind_param("sssisisisi", $fname, $lname, $email, $perm_id, $pass, $is_active, $cargo, $turno_7x7, $turno_tipo, $id);
     } else {
-        $stmt = $mysqli->prepare("UPDATE users SET first_name=?, last_name=?, email=?, permission_id=? WHERE id=?");
-        $stmt->bind_param("sssii", $fname, $lname, $email, $perm_id, $id);
+        $stmt = $mysqli->prepare("UPDATE users SET first_name=?, last_name=?, email=?, permission_id=?, is_active=?, cargo=?, turno_7x7=?, turno_tipo=? WHERE id=?");
+        $stmt->bind_param("sssiisisi", $fname, $lname, $email, $perm_id, $is_active, $cargo, $turno_7x7, $turno_tipo, $id);
     }
 
     if ($stmt->execute()) {

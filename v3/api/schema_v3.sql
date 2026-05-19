@@ -19,9 +19,27 @@ CREATE TABLE IF NOT EXISTS users (
   username VARCHAR(30) NOT NULL,
   password VARCHAR(255) NOT NULL, -- Increased size for hashing
   email VARCHAR(100) NOT NULL,
+  is_active TINYINT DEFAULT 1,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  cargo VARCHAR(100) DEFAULT NULL,
+  salesforce_user_id VARCHAR(18) DEFAULT NULL,
+  teams_webhook_url TEXT,
+  turno_7x7 TINYINT DEFAULT NULL,
+  turno_tipo VARCHAR(10) DEFAULT 'Día',
   FOREIGN KEY (permission_id) REFERENCES permissions(id)
 );
+
+-- Table: shift_config
+CREATE TABLE IF NOT EXISTS shift_config (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  active_shift TINYINT NOT NULL DEFAULT 1,
+  shift1_alias VARCHAR(100) DEFAULT 'Turno 1',
+  shift2_alias VARCHAR(100) DEFAULT 'Turno 2',
+  start_date DATE NOT NULL,
+  start_hour TIME DEFAULT '08:00:00',
+  end_hour TIME DEFAULT '20:00:00'
+);
+
 
 -- Table: sites (was faenas)
 CREATE TABLE IF NOT EXISTS sites (

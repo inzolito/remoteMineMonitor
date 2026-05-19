@@ -5,7 +5,8 @@ import {
     ShieldCheck, Server, Activity, Terminal,
     FileText, Plus, Trash2, Save, RefreshCw, Search,
     AlertCircle, ChevronRight, Settings, XOctagon, Network,
-    Users, Palette, LayoutGrid, Clock, Cpu
+    Users, Palette, LayoutGrid, Clock, Cpu, Mountain, Database, Ticket, ChevronDown, ChevronUp,
+    Eye, MessageSquare, ExternalLink
 } from 'lucide-react';
 import UsersManagementTab from './admin/UsersManagementTab';
 import MiningIconGallery from '../components/icons/MiningIconGallery';
@@ -68,6 +69,7 @@ const SuperAdmin = () => {
     const tabsByCategory: Record<string, any[]> = {
         infrastructure: [
             { id: 'bot_fms', label: 'BOT FMS', icon: Activity },
+            { id: 'bot_sf', label: 'BOT SF', icon: Mountain },
             { id: 'servers', label: 'Servidores', icon: Server },
             { id: 'metrics', label: 'Catálogo Métricas', icon: Activity },
             { id: 'commands', label: 'Comandos Fallback', icon: Terminal },
@@ -92,10 +94,24 @@ const SuperAdmin = () => {
     const [permissions, setPermissions] = useState<any[]>([]); // Roles
     const [modules, setModules] = useState<any[]>([]); // All Modules
     const [botStatus, setBotStatus] = useState<any>(null);
+    const [botSfStatus, setBotSfStatus] = useState<any>(null);
     const [botSites, setBotSites] = useState<any[]>([]);
     const [selectedLogSite, setSelectedLogSite] = useState<any>(null);
     const [botLogs, setBotLogs] = useState<string>('');
     const [liveUptime, setLiveUptime] = useState('--h --m --s');
+    const [liveSfUptime, setLiveSfUptime] = useState('--h --m --s');
+    
+    // Salesforce Bot Detailed States
+    const [sfUsers, setSfUsers] = useState<any[]>([]);
+    const [selectedSfUser, setSelectedSfUser] = useState<any>(null);
+    const [sfTickets, setSfTickets] = useState<any[]>([]);
+    const [sfSearchTerm, setSfSearchTerm] = useState('');
+    const [showInactiveSfUsers, setShowInactiveSfUsers] = useState(false);
+
+    // Salesforce Modal States
+    const [selectedSfTicket, setSelectedSfTicket] = useState<any>(null);
+    const [sfTicketComments, setSfTicketComments] = useState<any[]>([]);
+    const [isSfModalOpen, setIsSfModalOpen] = useState(false);
 
     // Selected items for editing
     const [selectedMetric, setSelectedMetric] = useState<any>(null);
@@ -206,6 +222,22 @@ const SuperAdmin = () => {
         }
     };
 
+    const formatTimeElapsed = (dateString: string) => {
+        if (!dateString) return '--';
+        const now = new Date();
+        const created = new Date(dateString);
+        const diffMs = now.getTime() - created.getTime();
+        const diffSec = Math.floor(diffMs / 1000);
+        const diffMin = Math.floor(diffSec / 60);
+        const diffHrs = Math.floor(diffMin / 60);
+        const diffDays = Math.floor(diffHrs / 24);
+
+        if (diffDays > 0) return `${diffDays}D`;
+        if (diffHrs > 0) return `${diffHrs}H`;
+        if (diffMin > 0) return `${diffMin}M`;
+        return 'NEW';
+    };
+
     useEffect(() => {
         const loadInitial = async () => {
             if (activeTab === 'servers') {
@@ -231,10 +263,22 @@ const SuperAdmin = () => {
                 const [s, st] = await Promise.all([fetchData('bot_status'), fetchData('bot_sites')]);
                 if (s) setBotStatus(s);
                 if (st) setBotSites(st);
+            } else if (activeTab === 'bot_sf') {
+                const [s, users] = await Promise.all([fetchData('bot_sf_status'), fetchData('bot_sf_users')]);
+                if (s) setBotSfStatus(s);
+                if (users) setSfUsers(users);
             }
         };
         loadInitial();
     }, [activeTab]);
+
+    useEffect(() => {
+        if (activeTab === 'bot_sf' && selectedSfUser) {
+            fetchData('bot_sf_user_tickets', `&user_id=${selectedSfUser.Id}`).then(t => {
+                if (t) setSfTickets(t);
+            });
+        }
+    }, [activeTab, selectedSfUser]);
 
     useEffect(() => {
         if (selectedMetric && activeTab === 'commands') {
@@ -248,7 +292,7 @@ const SuperAdmin = () => {
         }
     }, [selectedType, activeTab]);
 
-    // Polling for Bot Status and Logs
+    // Polling for Bot Status and Logs (FMS)
     useEffect(() => {
         if (activeTab !== 'bot_fms') return;
 
@@ -266,6 +310,20 @@ const SuperAdmin = () => {
         return () => clearInterval(interval);
     }, [activeTab, selectedLogSite]);
 
+    // Polling for Bot Status and Logs (SF)
+    useEffect(() => {
+        if (activeTab !== 'bot_sf') return;
+
+        const pollSfStatus = async () => {
+            const [s, users] = await Promise.all([fetchData('bot_sf_status'), fetchData('bot_sf_users')]);
+            if (s) setBotSfStatus(s);
+            if (users) setSfUsers(users);
+        };
+
+        const interval = setInterval(pollSfStatus, 10000);
+        return () => clearInterval(interval);
+    }, [activeTab]);
+
     // Real-time Uptime Timer
     useEffect(() => {
         if (activeTab !== 'bot_fms' || !botStatus?.since) return;
@@ -276,6 +334,17 @@ const SuperAdmin = () => {
 
         return () => clearInterval(timer);
     }, [activeTab, botStatus?.since]);
+
+    // Real-time Uptime Timer (SF)
+    useEffect(() => {
+        if (activeTab !== 'bot_sf' || !botSfStatus?.last_sync) return;
+
+        const timer = setInterval(() => {
+            setLiveSfUptime(formatUptime(botSfStatus.last_sync));
+        }, 1000);
+
+        return () => clearInterval(timer);
+    }, [activeTab, botSfStatus?.last_sync]);
 
     // Fetch logs immediately when site changes
     useEffect(() => {
@@ -542,6 +611,414 @@ const SuperAdmin = () => {
                             </div>
                         </div>
                     </div>
+                </div>
+            )}
+
+            {/* Tab: BOT SF */}
+            {activeTab === 'bot_sf' && (
+                <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500 h-[calc(100vh-250px)] flex flex-col">
+                    {/* TOP BAR: Salesforce Bot Status */}
+                    <div className="bg-card border rounded-2xl p-3 px-6 shadow-sm flex items-center justify-between">
+                        <div className="flex items-center gap-6">
+                            <div className="flex items-center gap-2.5">
+                                <div className={`w-2 h-2 rounded-full ${botSfStatus?.state === 'active' ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`}></div>
+                                <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">SF Daemon:</span>
+                                <span className={`text-[10px] font-black uppercase ${botSfStatus?.state === 'active' ? 'text-emerald-600' : 'text-red-600'}`}>{botSfStatus?.state || 'OFFLINE'}</span>
+                            </div>
+                            <div className="h-4 w-px bg-border"></div>
+                            <div className="flex items-center gap-2">
+                                <Database className="w-3.5 h-3.5 text-primary" />
+                                <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Última Sincronización:</span>
+                                <span className="text-[10px] font-black text-primary">{botSfStatus?.last_sync || 'Nunca'}</span>
+                            </div>
+                            <div className="h-4 w-px bg-border"></div>
+                            <div className="flex items-center gap-2">
+                                <Clock className="w-3.5 h-3.5 text-muted-foreground" />
+                                <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Time since last sync:</span>
+                                <span className="text-[10px] font-mono font-bold text-amber-600">{liveSfUptime}</span>
+                            </div>
+                            <div className="h-4 w-px bg-border"></div>
+                            <div className="flex items-center gap-2">
+                                <FileText className="w-3.5 h-3.5 text-muted-foreground" />
+                                <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Registros:</span>
+                                <span className="text-[10px] font-mono font-bold">{botSfStatus?.records_processed || 0}</span>
+                            </div>
+                        </div>
+                        <div className="flex gap-2">
+                            <button 
+                                onClick={async () => { 
+                                    if (confirm('¿Reiniciar Motor de Sincronización Salesforce?')) { 
+                                        await fetchData('bot_sf_restart'); 
+                                        const s = await fetchData('bot_sf_status'); 
+                                        if (s) setBotSfStatus(s); 
+                                    } 
+                                }} 
+                                className="text-[9px] font-black uppercase tracking-tighter px-4 py-1.5 bg-primary/10 text-primary border border-primary/20 rounded-lg hover:bg-primary hover:text-white transition-all flex items-center gap-2"
+                            >
+                                <RefreshCw className="w-3 h-3" /> Reiniciar Motor SF
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Main Content Area: Maestro-Detalle */}
+                    <div className="flex flex-col lg:flex-row gap-6 flex-1 overflow-hidden">
+                        {/* LEFT SIDEBAR: SF Users */}
+                        <div className="w-full lg:w-64 flex flex-col gap-4 overflow-hidden">
+                            <div className="bg-card border rounded-[1.5rem] p-4 shadow-xl shadow-primary/5 flex flex-col h-full">
+                                <div className="flex items-center gap-2 mb-4 px-2">
+                                    <Users className="w-4 h-4 text-primary" />
+                                    <h2 className="text-sm font-black uppercase tracking-tight">Usuarios Salesforce</h2>
+                                </div>
+                                
+                                {/* Search */}
+                                <div className="px-2 mb-4">
+                                    <div className="relative">
+                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                                        <input 
+                                            type="text" 
+                                            placeholder="Buscar usuario..." 
+                                            className="w-full bg-muted/50 border-none rounded-xl pl-9 pr-4 py-2 text-xs font-medium focus:ring-1 focus:ring-primary/30 transition-all"
+                                            value={sfSearchTerm}
+                                            onChange={(e) => setSfSearchTerm(e.target.value)}
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="flex-1 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
+                                    {/* Special Fixed Queue: South American Support Q */}
+                                    {(() => {
+                                        const sasQueue = sfUsers.find((u: any) => u.is_queue);
+                                        if (!sasQueue) return null;
+                                        return (
+                                            <div className="sticky top-0 z-20 bg-card pb-2">
+                                                <button 
+                                                    onClick={() => setSelectedSfUser(sasQueue)}
+                                                    className={`w-full flex items-center justify-between p-2.5 rounded-xl transition-all duration-200 ${selectedSfUser?.Id === sasQueue.Id 
+                                                        ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20' 
+                                                        : 'bg-primary/5 hover:bg-primary/10 text-primary'}`}
+                                                >
+                                                    <div className="flex items-center gap-2 overflow-hidden">
+                                                        <span className="text-[10px] font-black truncate uppercase tracking-tight">{sasQueue.Name}</span>
+                                                    </div>
+                                                    {sasQueue.ticket_count > 0 && (
+                                                        <div className="flex items-center gap-1">
+                                                            <span className="text-[9px] font-black">{sasQueue.ticket_count}</span>
+                                                            <span className="flex h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse"></span>
+                                                        </div>
+                                                    )}
+                                                </button>
+                                                <div className="h-px bg-border/50 mt-2 mx-1"></div>
+                                            </div>
+                                        );
+                                    })()}
+
+                                    {/* Active Users */}
+                                    {sfUsers
+                                        .filter(u => !u.is_queue && u.is_active_stats == 1 && u.Name.toLowerCase().includes(sfSearchTerm.toLowerCase()))
+                                        .map(user => (
+                                            <div key={user.Id} className="group relative">
+                                                <button
+                                                    onClick={() => setSelectedSfUser(user)}
+                                                    className={`w-full flex items-center justify-between p-2.5 rounded-xl transition-all duration-200 ${selectedSfUser?.Id === user.Id 
+                                                        ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20' 
+                                                        : 'hover:bg-muted/80 text-foreground/80'}`}
+                                                >
+                                                    <div className="flex items-center gap-2 overflow-hidden">
+                                                        <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-[10px] font-black group-hover:bg-primary/20 transition-colors">
+                                                            {user.Name?.split(' ').map((n:any) => n[0]).join('').slice(0, 2).toUpperCase() || 'U'}
+                                                        </div>
+                                                        <span className="text-[10px] font-black truncate uppercase tracking-tight">{user.Name}</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <button 
+                                                            onClick={async (e) => {
+                                                                e.stopPropagation();
+                                                                await fetchData('bot_sf_user_toggle', `&user_id=${user.Id}&status=0`);
+                                                                const users = await fetchData('bot_sf_users');
+                                                                if (users) setSfUsers(users);
+                                                            }}
+                                                            className={`p-1 rounded-md transition-all ${selectedSfUser?.Id === user.Id ? 'hover:bg-white/20' : 'hover:bg-red-500/10 text-red-500'}`}
+                                                            title="Desactivar"
+                                                        >
+                                                            <XOctagon className="w-3.5 h-3.5" />
+                                                        </button>
+                                                    </div>
+                                                </button>
+                                            </div>
+                                        ))
+                                    }
+
+                                    {/* Collapsed Inactive Users */}
+                                    <div className="mt-4 pt-4 border-t border-border/50">
+                                        <button 
+                                            onClick={() => setShowInactiveSfUsers(!showInactiveSfUsers)}
+                                            className="w-full flex items-center justify-between px-2 py-2 text-[10px] font-black uppercase tracking-widest text-muted-foreground hover:text-foreground transition-colors"
+                                        >
+                                            <span className="flex items-center gap-2">
+                                                <Users className="w-3 h-3 opacity-50" /> Usuarios Deshabilitados
+                                            </span>
+                                            {showInactiveSfUsers ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                                        </button>
+                                        
+                                        {showInactiveSfUsers && (
+                                            <div className="mt-2 space-y-1 animate-in fade-in slide-in-from-top-2">
+                                                {sfUsers
+                                                    .filter(u => u.is_active_stats == 0 && u.Name.toLowerCase().includes(sfSearchTerm.toLowerCase()))
+                                                    .map(user => (
+                                                        <div key={user.Id} className="opacity-50 hover:opacity-100 transition-opacity">
+                                                            <button
+                                                                onClick={() => setSelectedSfUser(user)}
+                                                                className={`w-full flex items-center justify-between p-2 rounded-xl text-foreground/60 hover:bg-muted/80`}
+                                                            >
+                                                                <span className="text-[10px] font-bold truncate uppercase tracking-tight">{user.Name}</span>
+                                                                <button 
+                                                                    onClick={async (e) => {
+                                                                        e.stopPropagation();
+                                                                        await fetchData('bot_sf_user_toggle', `&user_id=${user.Id}&status=1`);
+                                                                        const users = await fetchData('bot_sf_users');
+                                                                        if (users) setSfUsers(users);
+                                                                    }}
+                                                                    className="p-1 hover:bg-emerald-500/10 text-emerald-500 rounded-md"
+                                                                    title="Activar"
+                                                                >
+                                                                    <RefreshCw className="w-3.5 h-3.5" />
+                                                                </button>
+                                                            </button>
+                                                        </div>
+                                                    ))
+                                                }
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* RIGHT DASHBOARD: Tickets Table */}
+                        <div className="flex-1 flex flex-col gap-4 overflow-hidden">
+                            {/* User Header */}
+                            <div className="bg-card border rounded-[1.5rem] p-5 shadow-xl shadow-primary/5 flex items-center justify-between relative overflow-hidden">
+                                <div className="flex items-center gap-5 relative z-10">
+                                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center border-2 border-primary/20 bg-primary/5`}>
+                                        <Users className="w-7 h-7 text-primary" />
+                                    </div>
+                                    <div>
+                                        <h2 className="text-2xl font-black tracking-tighter uppercase leading-tight">
+                                            {selectedSfUser ? selectedSfUser.Name : 'Selecciona un usuario'}
+                                        </h2>
+                                        <div className="flex items-center gap-3 mt-0.5">
+                                            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Tickets Salesforce</span>
+                                            <div className="w-1 h-1 rounded-full bg-border"></div>
+                                            <span className={`text-[10px] font-black uppercase tracking-widest text-primary`}>
+                                                {sfTickets.length} registros encontrados
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
+                                    <Ticket className="w-24 h-24 text-primary" />
+                                </div>
+                            </div>
+
+                            {/* Tickets Table */}
+                            <div className="flex-1 bg-card border rounded-[1.5rem] shadow-xl overflow-hidden flex flex-col">
+                                <div className="overflow-x-auto h-full custom-scrollbar">
+                                    <table className="w-full text-left border-collapse min-w-[600px]">
+                                                <thead className="sticky top-0 bg-card z-10">
+                                            <tr className="border-b bg-muted/30">
+                                                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-muted-foreground"># Ticket</th>
+                                                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Faena</th>
+                                                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Asunto</th>
+                                                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Estado</th>
+                                                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Time</th>
+                                                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-muted-foreground text-center">Coments</th>
+                                                <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-muted-foreground text-right">Acciones</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-border/50">
+                                            {selectedSfUser ? (
+                                                sfTickets.length > 0 ? (
+                                                    sfTickets.map((ticket: any) => (
+                                                        <tr 
+                                                            key={ticket.CaseNumber} 
+                                                            className={`transition-colors group ${
+                                                                ticket.Status?.toLowerCase() === 'closed' 
+                                                                ? 'bg-muted/5 opacity-50 grayscale' 
+                                                                : ticket.Status?.toLowerCase() === 'working' 
+                                                                    ? 'bg-emerald-500/5 hover:bg-emerald-500/10' 
+                                                                    : 'hover:bg-muted/30'
+                                                            }`}
+                                                        >
+                                                            <td className="px-6 py-4">
+                                                                <a 
+                                                                    href={`https://usa1.lightning.force.com/lightning/r/Case/${ticket.Id}/view`}
+                                                                    target="_blank"
+                                                                    rel="noopener noreferrer"
+                                                                    className={`text-[10px] font-black px-2 py-1 rounded-md border transition-all flex items-center gap-1.5 w-fit ${
+                                                                        ticket.Status?.toLowerCase() === 'closed'
+                                                                        ? 'bg-slate-500/10 text-slate-500 border-slate-500/20 grayscale'
+                                                                        : 'bg-primary/5 text-primary border-primary/10 hover:bg-primary hover:text-white'
+                                                                    }`}
+                                                                >
+                                                                    {ticket.CaseNumber} <ExternalLink className="w-2.5 h-2.5 opacity-50" />
+                                                                </a>
+                                                            </td>
+                                                            <td className="px-6 py-4">
+                                                                <span className="text-[10px] font-black text-amber-600 bg-amber-500/5 px-2 py-1 rounded-md border border-amber-500/10 uppercase tracking-tighter">
+                                                                    {ticket.Faena || 'Global'}
+                                                                </span>
+                                                            </td>
+                                                            <td className="px-6 py-4 max-w-md">
+                                                                <p className="text-[11px] font-bold text-foreground/90 line-clamp-1 group-hover:line-clamp-none transition-all">
+                                                                    {ticket.Subject || '(Sin asunto)'}
+                                                                </p>
+                                                            </td>
+                                                            <td className="px-6 py-4">
+                                                                <div className="flex items-center gap-1.5">
+                                                                    <div className={`w-1.5 h-1.5 rounded-full ${
+                                                                        ticket.Status?.toLowerCase() === 'closed' ? 'bg-slate-400' : 'bg-emerald-500 animate-pulse'
+                                                                    }`}></div>
+                                                                    <span className="text-[10px] font-black uppercase tracking-tight text-foreground/70">{ticket.Status}</span>
+                                                                </div>
+                                                            </td>
+                                                            <td className="px-6 py-4">
+                                                                <div className="flex flex-col">
+                                                                    <span className="text-[11px] font-black text-foreground uppercase">
+                                                                        {formatTimeElapsed(ticket.CreatedDate)}
+                                                                    </span>
+                                                                    <span className="text-[9px] font-medium text-muted-foreground whitespace-nowrap opacity-70">
+                                                                        {new Date(ticket.CreatedDate).toLocaleDateString()} {new Date(ticket.CreatedDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                                    </span>
+                                                                </div>
+                                                            </td>
+                                                            <td className="px-6 py-4 text-center">
+                                                                <div className="inline-flex items-center gap-1.5 px-2 py-1 bg-muted/50 rounded-lg">
+                                                                    <MessageSquare className="w-3 h-3 text-primary opacity-50" />
+                                                                    <span className="text-[10px] font-black">{ticket.CommentCount}</span>
+                                                                </div>
+                                                            </td>
+                                                            <td className="px-6 py-4 text-right">
+                                                                <button 
+                                                                    onClick={async () => {
+                                                                        setSelectedSfTicket(ticket);
+                                                                        setIsSfModalOpen(true);
+                                                                        const comments = await fetchData('bot_sf_ticket_comments', `&case_id=${ticket.Id}`);
+                                                                        if (comments) setSfTicketComments(comments);
+                                                                    }}
+                                                                    className="p-2 hover:bg-primary/10 text-primary rounded-xl transition-all"
+                                                                    title="Ver Detalles"
+                                                                >
+                                                                    <Eye className="w-4 h-4" />
+                                                                </button>
+                                                            </td>
+                                                        </tr>
+                                                    ))
+                                                ) : (
+                                                    <tr>
+                                                        <td colSpan={7} className="py-20 text-center">
+                                                            <div className="flex flex-col items-center gap-4 opacity-30">
+                                                                <Ticket className="w-12 h-12 text-muted-foreground" />
+                                                                <p className="text-xs font-black uppercase tracking-widest">No se encontraron tickets para este usuario</p>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                )
+                                            ) : (
+                                                <tr>
+                                                    <td colSpan={7} className="py-20 text-center">
+                                                        <div className="flex flex-col items-center gap-4 opacity-30">
+                                                            <Search className="w-12 h-12 text-muted-foreground" />
+                                                            <p className="text-xs font-black uppercase tracking-widest">Selecciona un usuario para ver sus tickets</p>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Salesforce Ticket Modal */}
+                    {isSfModalOpen && selectedSfTicket && (
+                        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
+                            <div className="bg-card border rounded-[2rem] w-full max-w-4xl max-h-[85vh] shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
+                                <div className="p-6 border-b flex items-center justify-between bg-muted/30">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2 bg-primary/10 rounded-xl">
+                                            <Ticket className="w-5 h-5 text-primary" />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-lg font-black uppercase tracking-tight">Ticket #{selectedSfTicket.CaseNumber}</h3>
+                                            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{selectedSfTicket.Faena || 'Global'}</p>
+                                        </div>
+                                    </div>
+                                    <button 
+                                        onClick={() => setIsSfModalOpen(false)}
+                                        className="p-2 hover:bg-muted rounded-xl transition-colors"
+                                    >
+                                        <XOctagon className="w-5 h-5 text-muted-foreground" />
+                                    </button>
+                                </div>
+                                
+                                <div className="flex-1 overflow-y-auto p-8 space-y-8 custom-scrollbar">
+                                    {/* Description */}
+                                    <div className="space-y-3">
+                                        <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-primary flex items-center gap-2">
+                                            <FileText className="w-3.5 h-3.5" /> Descripción del Caso
+                                        </h4>
+                                        <div className="bg-muted/50 p-5 rounded-2xl border border-border/50">
+                                            <p className="text-xs leading-relaxed text-foreground/80 whitespace-pre-wrap">
+                                                {selectedSfTicket.Description || 'Sin descripción detallada.'}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    {/* Comments */}
+                                    <div className="space-y-4">
+                                        <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-primary flex items-center gap-2">
+                                            <MessageSquare className="w-3.5 h-3.5" /> Comentarios ({sfTicketComments.length})
+                                        </h4>
+                                        
+                                        <div className="space-y-3">
+                                            {sfTicketComments.length > 0 ? (
+                                                sfTicketComments.map((comment: any, idx: number) => (
+                                                    <div key={idx} className="bg-card border rounded-2xl p-4 shadow-sm relative overflow-hidden group">
+                                                        <div className="flex justify-between items-start mb-2">
+                                                            <span className="text-[10px] font-black text-primary uppercase tracking-tight">{comment.Author || 'Sistema'}</span>
+                                                            <span className="text-[9px] font-mono text-muted-foreground italic">{new Date(comment.CreatedDate).toLocaleString()}</span>
+                                                        </div>
+                                                        <p className="text-[11px] leading-relaxed text-foreground/70 whitespace-pre-wrap">
+                                                            {comment.CommentBody}
+                                                        </p>
+                                                        <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary/20 group-hover:bg-primary transition-colors"></div>
+                                                    </div>
+                                                ))
+                                            ) : (
+                                                <div className="py-10 text-center bg-muted/20 rounded-2xl border border-dashed border-border/50">
+                                                    <MessageSquare className="w-10 h-10 text-muted-foreground/20 mx-auto mb-3" />
+                                                    <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/50">No hay comentarios registrados</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="p-4 border-t bg-muted/10 flex justify-end gap-3">
+                                    <a 
+                                        href={`https://usa1.lightning.force.com/lightning/r/Case/${selectedSfTicket.Id}/view`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="flex items-center gap-2 px-6 py-2.5 bg-primary text-primary-foreground rounded-xl text-[10px] font-black uppercase tracking-widest hover:shadow-lg hover:shadow-primary/20 transition-all"
+                                    >
+                                        <ExternalLink className="w-3.5 h-3.5" /> Abrir en Salesforce
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
             {activeTab === 'servers' && (
