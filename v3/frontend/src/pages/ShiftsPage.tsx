@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Clock, Ticket, Calendar, AlertCircle, Eye, Loader2, X, Sun, Moon, ExternalLink, MessageSquare, Search, CheckCircle2, HelpCircle, Activity } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
+import { ShiftStatusEye } from '../components/ShiftStatusEye';
 
 interface ShiftMember {
     id: number;
@@ -199,6 +200,33 @@ const ShiftsPage = () => {
 
     const formatDate = (date: Date) => {
         return date.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'short' });
+    };
+
+    const isMemberWorking = (isActiveTurn: boolean, shiftType: string | null | undefined) => {
+        if (!isActiveTurn) return false;
+        
+        const now = new Date();
+        const currentHour = now.getHours();
+        
+        const startHourStr = config?.start_hour || '08:00:00';
+        const startHourVal = parseInt(startHourStr.split(':')[0], 10) || 8;
+        const nightStartHour = (startHourVal + 12) % 24;
+        
+        const isDayShift = shiftType === 'Día' || !shiftType;
+        
+        if (isDayShift) {
+            if (startHourVal < nightStartHour) {
+                return currentHour >= startHourVal && currentHour < nightStartHour;
+            } else {
+                return currentHour >= startHourVal || currentHour < nightStartHour;
+            }
+        } else {
+            if (nightStartHour < startHourVal) {
+                return currentHour >= nightStartHour && currentHour < startHourVal;
+            } else {
+                return currentHour >= nightStartHour || currentHour < startHourVal;
+            }
+        }
     };
 
     const formatTimeElapsed = (dateString: string) => {
@@ -468,11 +496,14 @@ const ShiftsPage = () => {
                                 </div>
                                 <div className="space-y-1.5">
                                     {activeMembers.filter((m: ShiftMember) => m.turno_tipo === 'Día' || !m.turno_tipo).map((m: ShiftMember) => (
-                                        <div key={m.id} className="flex items-center gap-1.5 min-w-0">
-                                            <div className="w-5 h-5 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white font-black text-[9px] uppercase shrink-0 shadow-sm">
-                                                {m.first_name.charAt(0)}{m.last_name.charAt(0)}
+                                        <div key={m.id} className="flex items-center justify-between gap-1.5 min-w-0 w-full">
+                                            <div className="flex items-center gap-1.5 min-w-0">
+                                                <div className="w-5 h-5 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white font-black text-[9px] uppercase shrink-0 shadow-sm">
+                                                    {m.first_name.charAt(0)}{m.last_name.charAt(0)}
+                                                </div>
+                                                <span className="font-bold text-foreground truncate">{m.first_name} {m.last_name.split(' ')[0]}</span>
                                             </div>
-                                            <span className="font-bold text-foreground truncate">{m.first_name} {m.last_name.split(' ')[0]}</span>
+                                            <ShiftStatusEye isWorking={isMemberWorking(true, 'Día')} />
                                         </div>
                                     ))}
                                     {activeMembers.filter((m: ShiftMember) => m.turno_tipo === 'Día' || !m.turno_tipo).length === 0 && (
@@ -488,11 +519,14 @@ const ShiftsPage = () => {
                                 </div>
                                 <div className="space-y-1.5">
                                     {activeMembers.filter((m: ShiftMember) => m.turno_tipo === 'Noche').map((m: ShiftMember) => (
-                                        <div key={m.id} className="flex items-center gap-1.5 min-w-0">
-                                            <div className="w-5 h-5 rounded-full bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center text-white font-black text-[9px] uppercase shrink-0 shadow-sm">
-                                                {m.first_name.charAt(0)}{m.last_name.charAt(0)}
+                                        <div key={m.id} className="flex items-center justify-between gap-1.5 min-w-0 w-full">
+                                            <div className="flex items-center gap-1.5 min-w-0">
+                                                <div className="w-5 h-5 rounded-full bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center text-white font-black text-[9px] uppercase shrink-0 shadow-sm">
+                                                    {m.first_name.charAt(0)}{m.last_name.charAt(0)}
+                                                </div>
+                                                <span className="font-bold text-foreground truncate">{m.first_name} {m.last_name.split(' ')[0]}</span>
                                             </div>
-                                            <span className="font-bold text-foreground truncate">{m.first_name} {m.last_name.split(' ')[0]}</span>
+                                            <ShiftStatusEye isWorking={isMemberWorking(true, 'Noche')} />
                                         </div>
                                     ))}
                                     {activeMembers.filter((m: ShiftMember) => m.turno_tipo === 'Noche').length === 0 && (
@@ -521,11 +555,14 @@ const ShiftsPage = () => {
                                 </div>
                                 <div className="space-y-1.5 opacity-80">
                                     {inactiveMembers.filter((m: ShiftMember) => m.turno_tipo === 'Día' || !m.turno_tipo).map((m: ShiftMember) => (
-                                        <div key={m.id} className="flex items-center gap-1.5 min-w-0">
-                                            <div className="w-5 h-5 rounded-full bg-gradient-to-br from-slate-400 to-slate-500 flex items-center justify-center text-white font-black text-[9px] uppercase shrink-0 shadow-sm">
-                                                {m.first_name.charAt(0)}{m.last_name.charAt(0)}
+                                        <div key={m.id} className="flex items-center justify-between gap-1.5 min-w-0 w-full">
+                                            <div className="flex items-center gap-1.5 min-w-0">
+                                                <div className="w-5 h-5 rounded-full bg-gradient-to-br from-slate-400 to-slate-500 flex items-center justify-center text-white font-black text-[9px] uppercase shrink-0 shadow-sm">
+                                                    {m.first_name.charAt(0)}{m.last_name.charAt(0)}
+                                                </div>
+                                                <span className="font-bold text-foreground truncate">{m.first_name} {m.last_name.split(' ')[0]}</span>
                                             </div>
-                                            <span className="font-bold text-foreground truncate">{m.first_name} {m.last_name.split(' ')[0]}</span>
+                                            <ShiftStatusEye isWorking={isMemberWorking(false, 'Día')} />
                                         </div>
                                     ))}
                                     {inactiveMembers.filter((m: ShiftMember) => m.turno_tipo === 'Día' || !m.turno_tipo).length === 0 && (
@@ -541,11 +578,14 @@ const ShiftsPage = () => {
                                 </div>
                                 <div className="space-y-1.5 opacity-80">
                                     {inactiveMembers.filter((m: ShiftMember) => m.turno_tipo === 'Noche').map((m: ShiftMember) => (
-                                        <div key={m.id} className="flex items-center gap-1.5 min-w-0">
-                                            <div className="w-5 h-5 rounded-full bg-gradient-to-br from-slate-400 to-slate-500 flex items-center justify-center text-white font-black text-[9px] uppercase shrink-0 shadow-sm">
-                                                {m.first_name.charAt(0)}{m.last_name.charAt(0)}
+                                        <div key={m.id} className="flex items-center justify-between gap-1.5 min-w-0 w-full">
+                                            <div className="flex items-center gap-1.5 min-w-0">
+                                                <div className="w-5 h-5 rounded-full bg-gradient-to-br from-slate-400 to-slate-500 flex items-center justify-center text-white font-black text-[9px] uppercase shrink-0 shadow-sm">
+                                                    {m.first_name.charAt(0)}{m.last_name.charAt(0)}
+                                                </div>
+                                                <span className="font-bold text-foreground truncate">{m.first_name} {m.last_name.split(' ')[0]}</span>
                                             </div>
-                                            <span className="font-bold text-foreground truncate">{m.first_name} {m.last_name.split(' ')[0]}</span>
+                                            <ShiftStatusEye isWorking={isMemberWorking(false, 'Noche')} />
                                         </div>
                                     ))}
                                     {inactiveMembers.filter((m: ShiftMember) => m.turno_tipo === 'Noche').length === 0 && (
