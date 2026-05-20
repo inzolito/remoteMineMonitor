@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Activity, Bell, Ticket, ExternalLink, Shield, Cloud, LayoutDashboard, Clock, X, Terminal, Search, ChevronLeft, ChevronRight, MessageSquare, Eye } from 'lucide-react';
+import { Activity, Bell, Ticket, ExternalLink, Shield, Cloud, LayoutDashboard, Clock, X, Terminal, Search, ChevronLeft, ChevronRight, MessageSquare, Eye, CheckCircle2 } from 'lucide-react';
 import { cn } from '../lib/utils'; // Assuming cn helper is available or used directly
 
 const fetchHomeMetrics = async () => {
@@ -617,7 +617,19 @@ const Home = () => {
                                     <Ticket className="w-5 h-5 text-primary" />
                                 </div>
                                 <div>
-                                    <h3 className="text-lg font-black uppercase tracking-tight text-foreground">Ticket #{selectedSfTicket.CaseNumber}</h3>
+                                    <div className="flex items-center gap-2">
+                                        <h3 className="text-lg font-black uppercase tracking-tight text-foreground">Ticket #{selectedSfTicket.CaseNumber}</h3>
+                                        <span className={cn(
+                                            "text-[9px] font-black uppercase px-2 py-0.5 rounded-full border",
+                                            selectedSfTicket.Status?.toLowerCase() === 'closed'
+                                                ? "bg-slate-100 text-slate-500 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700"
+                                                : (selectedSfTicket.OwnerName?.toLowerCase().includes('support q') || selectedSfTicket.OwnerName?.toLowerCase().includes('queue'))
+                                                    ? "bg-rose-500/10 text-rose-600 border-rose-500/20 dark:bg-rose-950/30 dark:text-rose-400 dark:border-rose-900/50 animate-pulse"
+                                                    : "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-900/50"
+                                        )}>
+                                            {selectedSfTicket.Status}
+                                        </span>
+                                    </div>
                                     <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{selectedSfTicket.Faena || selectedSfTicket.AccountName || 'Global'}</p>
                                 </div>
                             </div>
@@ -641,6 +653,20 @@ const Home = () => {
                                     </p>
                                 </div>
                             </div>
+
+                            {/* Resolution (Shown if ticket is closed) */}
+                            {selectedSfTicket.Status?.toLowerCase() === 'closed' && (
+                                <div className="space-y-3">
+                                    <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-400 flex items-center gap-2">
+                                        <CheckCircle2 className="w-3.5 h-3.5" /> Resolución del Caso
+                                    </h4>
+                                    <div className="bg-emerald-500/5 dark:bg-emerald-500/10 p-5 rounded-2xl border border-emerald-500/20 dark:border-emerald-500/30">
+                                        <p className="text-xs leading-relaxed text-foreground whitespace-pre-wrap">
+                                            {selectedSfTicket.Resolution || 'Sin resolución registrada.'}
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Comments */}
                             <div className="space-y-4">

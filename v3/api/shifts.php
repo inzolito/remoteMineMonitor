@@ -121,8 +121,9 @@ if ($method === 'GET') {
     }
 
     // Helper function to fetch tickets assigned to a specific shift group
-    $get_tickets_for_shift = function($shift_num) use ($mysqli) {
-        $query = "SELECT c.Id, c.CaseNumber, c.Subject, c.Status, c.Priority, c.CreatedDate, c.ClosedDate, c.Description,
+    $get_tickets_for_shift = function($shift_num, $only_open = false) use ($mysqli) {
+        $status_filter = $only_open ? "AND LOWER(c.Status) != 'closed'" : "";
+        $query = "SELECT c.Id, c.CaseNumber, c.Subject, c.Status, c.Priority, c.CreatedDate, c.ClosedDate, c.Description, c.Resolution,
                          a.internal_faena_alias as Faena, a.Name as AccountName, u.Name as OwnerName, c.OwnerId,
                          (SELECT COUNT(*) FROM rmmsalesforce.sf_case_comments cc WHERE cc.ParentId = c.Id) as CommentCount
                   FROM rmmsalesforce.sf_cases c
@@ -139,6 +140,7 @@ if ($method === 'GET') {
                           AND LOWER(c.Status) != 'closed'
                       )
                   ) AND c.IsDeleted = 0
+                  $status_filter
                   ORDER BY c.CreatedDate DESC
                   LIMIT 50";
                   
@@ -164,6 +166,7 @@ if ($method === 'GET') {
                 'CreatedDate' => $row['CreatedDate'],
                 'ClosedDate' => $row['ClosedDate'],
                 'Description' => $row['Description'] ?? '',
+                'Resolution' => $row['Resolution'] ?? '',
                 'Faena' => $row['Faena'] ?? '',
                 'AccountName' => $row['AccountName'] ?? 'N/A',
                 'OwnerName' => $ownerName ?? 'Mi Cuenta',
@@ -173,9 +176,9 @@ if ($method === 'GET') {
         return $tickets;
     };
 
-    $active_tickets = $get_tickets_for_shift($config['active_shift']);
+    $active_tickets = $get_tickets_for_shift($config['active_shift'], false);
     $inactive_shift_num = $config['active_shift'] === 1 ? 2 : 1;
-    $inactive_tickets = $get_tickets_for_shift($inactive_shift_num);
+    $inactive_tickets = $get_tickets_for_shift($inactive_shift_num, true);
 
     echo json_encode([
         'config' => [

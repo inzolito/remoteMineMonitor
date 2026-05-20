@@ -178,7 +178,7 @@ function get_active_alerts_v3($mysqli) {
  */
 function get_salesforce_tickets($mysqli, $salesforce_user_id, $is_7x7 = false, $limit = 100) {
     if ($is_7x7) {
-        $query = "SELECT c.Id, c.CaseNumber, c.Subject, c.Status, c.Priority, c.CreatedDate, c.Description,
+        $query = "SELECT c.Id, c.CaseNumber, c.Subject, c.Status, c.Priority, c.CreatedDate, c.Description, c.Resolution,
                          a.internal_faena_alias as Faena, a.Name as AccountName, u.Name as OwnerName, c.OwnerId,
                          (SELECT COUNT(*) FROM rmmsalesforce.sf_case_comments cc WHERE cc.ParentId = c.Id) as CommentCount
                   FROM rmmsalesforce.sf_cases c
@@ -202,7 +202,7 @@ function get_salesforce_tickets($mysqli, $salesforce_user_id, $is_7x7 = false, $
         }
         $stmt->bind_param("i", $limit);
     } else {
-        $query = "SELECT c.Id, c.CaseNumber, c.Subject, c.Status, c.Priority, c.CreatedDate, c.Description,
+        $query = "SELECT c.Id, c.CaseNumber, c.Subject, c.Status, c.Priority, c.CreatedDate, c.Description, c.Resolution,
                          a.internal_faena_alias as Faena, a.Name as AccountName, u.Name as OwnerName, c.OwnerId,
                          (SELECT COUNT(*) FROM rmmsalesforce.sf_case_comments cc WHERE cc.ParentId = c.Id) as CommentCount
                   FROM rmmsalesforce.sf_cases c
@@ -243,6 +243,7 @@ function get_salesforce_tickets($mysqli, $salesforce_user_id, $is_7x7 = false, $
                 'Priority' => $row['Priority'],
                 'CreatedDate' => $row['CreatedDate'],
                 'Description' => $row['Description'] ?? '',
+                'Resolution' => $row['Resolution'] ?? '',
                 'Faena' => $row['Faena'] ?? '',
                 'AccountName' => $row['AccountName'] ?? 'N/A',
                 'OwnerName' => $ownerName ?? 'Mi Cuenta',

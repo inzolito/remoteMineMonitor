@@ -26,6 +26,7 @@ interface SFCase {
     CreatedDate: string;
     ClosedDate?: string | null;
     Description: string;
+    Resolution?: string;
     Faena: string;
     AccountName: string;
     OwnerName: string;
@@ -843,12 +844,22 @@ const ShiftsPage = () => {
                                 {inactive_tickets.map((t) => (
                                     <div key={t.CaseId} className="p-3 hover:bg-muted/30 transition-colors flex items-center justify-between gap-3 opacity-90">
                                         <div className="min-w-0 space-y-0.5">
-                                            <div className="flex items-center gap-1.5">
+                                            <div className="flex items-center gap-1.5 flex-wrap">
                                                 <span className="text-[11px] font-black text-blue-600 hover:underline cursor-pointer" onClick={() => handleOpenTicketDetails(t)}>
                                                     #{t.CaseNumber}
                                                 </span>
                                                 <span className="text-[8px] font-black uppercase tracking-tight text-amber-600 bg-amber-500/5 px-1 py-0.2 rounded border border-amber-500/10">
                                                     {t.Faena || 'N/A'}
+                                                </span>
+                                                <span className={cn(
+                                                    "text-[8px] font-black uppercase tracking-tight px-1.5 py-0.2 rounded border",
+                                                    t.Status?.toLowerCase() === 'closed'
+                                                        ? "bg-slate-500/10 text-slate-500 border-slate-500/20"
+                                                        : (t.OwnerName?.toLowerCase().includes('support q') || t.OwnerName?.toLowerCase().includes('queue'))
+                                                            ? "bg-rose-500/10 text-rose-600 border-rose-500/20 animate-pulse"
+                                                            : "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
+                                                )}>
+                                                    {t.Status}
                                                 </span>
                                             </div>
                                             <p className="text-xs font-bold text-foreground truncate">{t.Subject}</p>
@@ -878,7 +889,19 @@ const ShiftsPage = () => {
                                     <Ticket className="w-5 h-5 text-primary" />
                                 </div>
                                 <div>
-                                    <h3 className="text-lg font-black uppercase tracking-tight text-foreground">Ticket #{selectedSfTicket.CaseNumber}</h3>
+                                    <div className="flex items-center gap-2">
+                                        <h3 className="text-lg font-black uppercase tracking-tight text-foreground">Ticket #{selectedSfTicket.CaseNumber}</h3>
+                                        <span className={cn(
+                                            "text-[9px] font-black uppercase px-2 py-0.5 rounded-full border",
+                                            selectedSfTicket.Status?.toLowerCase() === 'closed'
+                                                ? "bg-slate-100 text-slate-500 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700"
+                                                : (selectedSfTicket.OwnerName?.toLowerCase().includes('support q') || selectedSfTicket.OwnerName?.toLowerCase().includes('queue'))
+                                                    ? "bg-rose-500/10 text-rose-600 border-rose-500/20 dark:bg-rose-950/30 dark:text-rose-400 dark:border-rose-900/50 animate-pulse"
+                                                    : "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-900/50"
+                                        )}>
+                                            {selectedSfTicket.Status}
+                                        </span>
+                                    </div>
                                     <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{selectedSfTicket.Faena || selectedSfTicket.AccountName || 'Global'}</p>
                                 </div>
                             </div>
@@ -902,6 +925,20 @@ const ShiftsPage = () => {
                                     </p>
                                 </div>
                             </div>
+
+                            {/* Resolution (Shown if ticket is closed) */}
+                            {selectedSfTicket.Status?.toLowerCase() === 'closed' && (
+                                <div className="space-y-3">
+                                    <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-400 flex items-center gap-2">
+                                        <CheckCircle2 className="w-3.5 h-3.5" /> Resolución del Caso
+                                    </h4>
+                                    <div className="bg-emerald-500/5 dark:bg-emerald-500/10 p-5 rounded-2xl border border-emerald-500/20 dark:border-emerald-500/30">
+                                        <p className="text-xs leading-relaxed text-foreground/90 whitespace-pre-wrap">
+                                            {selectedSfTicket.Resolution || 'Sin resolución registrada.'}
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Comments */}
                             <div className="space-y-4">
