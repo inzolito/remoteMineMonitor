@@ -331,7 +331,7 @@ if ($method === 'POST') {
         echo json_encode($res);
     } elseif (isset($_GET['site_id'])) {
         $site_id = intval($_GET['site_id']);
-        $site_servers = $mysqli->query("SELECT s.*, ss.is_primary FROM servers s JOIN site_servers ss ON s.id = ss.server_id WHERE ss.site_id = $site_id AND s.is_deleted = 0 AND s.server_type_id IN (5, 6)");
+        $site_servers = $mysqli->query("SELECT s.*, (CASE WHEN s.server_type_id = 5 THEN 1 ELSE ss.is_primary END) AS is_primary FROM servers s JOIN site_servers ss ON s.id = ss.server_id WHERE ss.site_id = $site_id AND s.is_deleted = 0 AND s.server_type_id IN (5, 6) ORDER BY is_primary DESC");
         
         // [READ-TIME EVALUATOR]
         // Instantiate here to re-evaluate rules against current data on every read.
