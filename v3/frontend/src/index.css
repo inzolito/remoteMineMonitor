@@ -83,6 +83,22 @@
   body {
     @apply bg-background text-foreground transition-colors duration-300;
   }
+
+  /* =========================================================================
+   * AJUSTE PARA TELEVISIONES 4K (30" en adelante)
+   * -------------------------------------------------------------------------
+   * Esta regla hace "zoom" a todo el sistema (efecto Ctrl +) multiplicando el
+   * tamaño de fuente raíz. Como Tailwind usa 'rem', todo crece proporcionalmente.
+   * 
+   * PARA REVERTIR SI ALGO SALE MAL:
+   * Simplemente borra este bloque @media completo, o cambia el '32px' de 
+   * vuelta a '16px'.
+   * ========================================================================= */
+  @media (min-width: 3800px) {
+    html {
+      font-size: 72px; /* Escala extrema (450%) para TVs 4K a gran distancia */
+    }
+  }
 }
 
 /* Glassmorphism Utilities */

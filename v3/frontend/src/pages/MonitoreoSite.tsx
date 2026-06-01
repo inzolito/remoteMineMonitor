@@ -1225,14 +1225,14 @@ const MonitoreoSite = () => {
                         </div>
 
                         {/* Critical Services Status Grid */}
-                        <div className="grid grid-cols-4 gap-2">
+                        <div className="grid grid-cols-4 gap-3">
                             <div
                                 onClick={() => openTerminal('Scripts Activos', primaryServer?.app?.['app.fms.active_scripts']?.metric_value || 'No hay scripts activos', primaryServer?.info?.id, 'app.fms.active_scripts')}
-                                className="bg-[#f0fdf4] dark:bg-emerald-950/20 border border-[#dcfce7] dark:border-emerald-900/30 rounded-xl p-1.5 flex flex-col items-center justify-center text-center relative overflow-hidden group hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors h-[60px] cursor-pointer"
+                                className="bg-[#f0fdf4] dark:bg-emerald-950/20 border border-[#dcfce7] dark:border-emerald-900/30 rounded-xl p-2 flex flex-col items-center justify-center text-center relative overflow-hidden group hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors h-[100px] cursor-pointer"
                             >
-                                <div className="absolute -bottom-1 -right-1 opacity-5 text-emerald-900 group-hover:scale-110 transition-transform"><Activity size={30} /></div>
-                                <div className="text-[7px] font-black text-[#166534]/40 dark:text-emerald-400/30 uppercase tracking-widest leading-none z-10">SCRIPTS</div>
-                                <div className="text-xl font-black text-[#166534] dark:text-emerald-400 z-10">
+                                <div className="absolute -bottom-2 -right-2 opacity-5 text-emerald-900 group-hover:scale-110 transition-transform"><Activity size={48} /></div>
+                                <div className="text-[10px] md:text-xs font-black text-[#166534]/50 dark:text-emerald-400/50 uppercase tracking-widest leading-none z-10 mb-1">SCRIPTS</div>
+                                <div className="text-3xl font-black text-[#166534] dark:text-emerald-400 z-10">
                                     {(() => {
                                         const val = primaryServer?.app?.['app.fms.active_scripts']?.metric_value;
                                         if (!val) return '0';
@@ -1244,12 +1244,12 @@ const MonitoreoSite = () => {
 
                             <div
                                 onClick={() => openTerminal('Replica Log', primaryServer?.app?.['app.fms.replica']?.metric_value || 'No hay replicas activas', primaryServer?.info?.id, 'app.fms.replica')}
-                                className="bg-[#f0fdf4] dark:bg-emerald-950/20 border border-[#dcfce7] dark:border-emerald-900/30 rounded-xl p-1.5 flex flex-col items-center justify-center text-center relative overflow-hidden group hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors h-[60px] cursor-pointer"
+                                className="bg-[#f0fdf4] dark:bg-emerald-950/20 border border-[#dcfce7] dark:border-emerald-900/30 rounded-xl p-2 flex flex-col items-center justify-center text-center relative overflow-hidden group hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors h-[100px] cursor-pointer"
                             >
-                                <div className="absolute -bottom-1 -right-1 opacity-10 text-emerald-900 group-hover:scale-110 transition-transform"><Database size={30} /></div>
-                                <div className="text-[7px] font-black text-[#166534]/40 dark:text-emerald-400/30 uppercase tracking-widest leading-none z-10">REPLICAS</div>
+                                <div className="absolute -bottom-2 -right-2 opacity-10 text-emerald-900 group-hover:scale-110 transition-transform"><Database size={48} /></div>
+                                <div className="text-[10px] md:text-xs font-black text-[#166534]/50 dark:text-emerald-400/50 uppercase tracking-widest leading-none z-10 mb-1">REPLICAS</div>
                                 <div className={clsx(
-                                    "text-xl font-black z-10",
+                                    "text-3xl font-black z-10",
                                     primaryServer?.app?.['app.fms.replica']?.status === 'danger' ? 'text-red-600 animate-pulse' : 'text-[#166534] dark:text-emerald-400'
                                 )}>
                                     {(() => {
@@ -1262,12 +1262,12 @@ const MonitoreoSite = () => {
 
                             <div
                                 onClick={() => openTerminal('Reconciliador Log', primaryServer?.app?.['app.jams.reconcilie']?.metric_value || 'No Log Data', primaryServer?.info?.id, 'app.jams.reconcilie')}
-                                className="bg-[#f0fdf4] dark:bg-emerald-950/20 border border-[#dcfce7] dark:border-emerald-900/30 rounded-xl p-1.5 flex flex-col items-center justify-center text-center relative overflow-hidden group hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors h-[60px] cursor-pointer"
+                                className="bg-[#f0fdf4] dark:bg-emerald-950/20 border border-[#dcfce7] dark:border-emerald-900/30 rounded-xl p-2 flex flex-col items-center justify-center text-center relative overflow-hidden group hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors h-[100px] cursor-pointer"
                             >
-                                <div className="absolute -bottom-1 -right-1 opacity-10 text-emerald-900 group-hover:scale-110 transition-transform"><ShieldCheck size={30} /></div>
-                                <div className="text-[7px] font-black text-[#166534]/40 dark:text-emerald-400/30 uppercase tracking-widest leading-none z-10">RECON</div>
+                                <div className="absolute -bottom-2 -right-2 opacity-10 text-emerald-900 group-hover:scale-110 transition-transform"><ShieldCheck size={48} /></div>
+                                <div className="text-[10px] md:text-xs font-black text-[#166534]/50 dark:text-emerald-400/50 uppercase tracking-widest leading-none z-10 mb-1">RECONCILIE</div>
                                 <span className={clsx(
-                                    "text-[8px] font-black uppercase tracking-tighter z-10",
+                                    "text-sm md:text-base font-black uppercase tracking-tighter z-10",
                                     primaryServer?.app?.['app.jams.reconcilie']?.status === 'danger' ? 'text-red-600' :
                                         primaryServer?.app?.['app.jams.reconcilie']?.status === 'warning' ? 'text-yellow-600' :
                                             'text-emerald-600'
@@ -1278,10 +1278,10 @@ const MonitoreoSite = () => {
                                 </span>
                             </div>
 
-                            <div className="bg-[#f0fdf4] dark:bg-emerald-950/20 border border-[#dcfce7] dark:border-emerald-900/30 rounded-xl p-1.5 flex flex-col items-center justify-center text-center relative overflow-hidden group hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors h-[60px]">
-                                <div className="absolute -bottom-1 -right-1 opacity-10 text-emerald-900 group-hover:scale-110 transition-transform"><Clock size={30} /></div>
-                                <div className="text-[7px] font-black text-[#166534]/40 dark:text-emerald-400/30 uppercase tracking-widest leading-none z-10">NTP</div>
-                                <span className="text-[8px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-tighter z-10">
+                            <div className="bg-[#f0fdf4] dark:bg-emerald-950/20 border border-[#dcfce7] dark:border-emerald-900/30 rounded-xl p-2 flex flex-col items-center justify-center text-center relative overflow-hidden group hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors h-[100px]">
+                                <div className="absolute -bottom-2 -right-2 opacity-10 text-emerald-900 group-hover:scale-110 transition-transform"><Clock size={48} /></div>
+                                <div className="text-[10px] md:text-xs font-black text-[#166534]/50 dark:text-emerald-400/50 uppercase tracking-widest leading-none z-10 mb-1">NTP</div>
+                                <span className="text-sm md:text-base font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-tighter z-10">
                                     {(() => {
                                         const val = primaryServer?.app?.['system.ntp.status']?.metric_value || '';
                                         return val.toLowerCase().includes('ntpd') || val.trim().length > 20 ? 'Active' : (val || 'Active');
