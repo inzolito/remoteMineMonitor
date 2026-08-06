@@ -71,6 +71,11 @@ if ($method === 'GET') {
     $stmt->bind_param("sssssiisis", $fname, $lname, $user, $pass, $email, $perm_id, $is_active, $cargo, $turno_7x7, $turno_tipo);
 
     if ($stmt->execute()) {
+        $new_id = $mysqli->insert_id;
+        if ($turno_7x7 !== null) {
+            $mysqli->query("INSERT INTO shift_group_members (user_id, group_id, sub_shift) VALUES ($new_id, $turno_7x7, '$turno_tipo')");
+        }
+        
         http_response_code(201);
         echo json_encode(["message" => "User created successfully."]);
     } else {
@@ -123,6 +128,12 @@ if ($method === 'GET') {
     }
 
     if ($stmt->execute()) {
+        // Keep shift_group_members in sync
+        $mysqli->query("DELETE FROM shift_group_members WHERE user_id = $id");
+        if ($turno_7x7 !== null) {
+            $mysqli->query("INSERT INTO shift_group_members (user_id, group_id, sub_shift) VALUES ($id, $turno_7x7, '$turno_tipo')");
+        }
+
         echo json_encode(["message" => "User updated."]);
     } else {
         http_response_code(500);

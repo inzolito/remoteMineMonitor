@@ -446,13 +446,13 @@ const SiteDetails = () => {
                                 {server.description && (
                                     <div>
                                         <span className="text-[9px] uppercase font-bold text-muted-foreground tracking-wider block mb-0.5">Descripción</span>
-                                        <div className="text-foreground leading-snug">{server.description}</div>
+                                        <div className="text-foreground leading-snug whitespace-pre-wrap">{server.description.replace(/\\n/g, '\n')}</div>
                                     </div>
                                 )}
                                 {server.notes && (
                                     <div>
                                         <span className="text-[9px] uppercase font-bold text-amber-500/80 tracking-wider block mb-0.5">Notas</span>
-                                        <div className="text-muted-foreground italic leading-snug">{server.notes}</div>
+                                        <div className="text-muted-foreground italic leading-snug whitespace-pre overflow-x-auto font-mono text-[10px] bg-muted/40 p-2 rounded border border-border/60">{server.notes.replace(/\\n/g, '\n')}</div>
                                     </div>
                                 )}
                             </div>

@@ -15,4 +15,8 @@ INSERT INTO alert_rules (id, metric_pattern, rule_type, warning_threshold, dange
 (16, 'db.integrity.diff', 'threshold', '> 15', '> 100'),
 (17, '%information_Schema%', 'freshness', '4h', '6h'),
 (18, '%information_schema%', 'freshness', '4h', '6h'),
-(19, '%schemaInfo%', 'freshness', '4h', '6h');
+(19, '%schemaInfo%', 'freshness', '4h', '6h'),
+-- NEW: Shift Tables Max Diff (Virtual Metric computed in metrics.php Virtual Metric #9)
+(81, 'db.shifts.max_diff', 'threshold', '> 100', '> 1000'),
+-- NEW: Cluster inactivo/no detectado
+(80, 'app.fms.cluster', 'threshold', NULL, '= None');

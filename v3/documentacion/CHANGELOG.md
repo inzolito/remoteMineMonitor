@@ -1,5 +1,10 @@
 # Historial de Cambios - Monitoreo V3
 
+- **2026-07-24**: **Estandarización Visual de Estados de Alerta (Danger)**:
+    - **Estándar Visual Crítico**: Definición formal en la documentación (`PROCESOS_IMPORTANTES.md`) del estilo `danger`: fondo rojo sólido (`bg-red-600`), texto blanco puro (`text-white`), badging invertido y animación de parpadeo suave (`animate-pulse`).
+    - **Refactorización Componente JAMS**: Corrección en `MonitoreoSite.tsx` para hacer dinámico el bloque de Reinicios JAMS y aplicar el estilo `danger` sólido de forma coherente con la UI.
+    - **Optimización de Frescura por Métricas Clave**: Refinamiento en `api/metrics.php` para calcular la frescura (`system.freshness`) estrictamente basada en el timestamp de `system.cpu.load` con umbral de 2 minutos, previniendo falsos positivos por métricas virtuales.
+
 - **2026-02-04**: **Refactorización del Sistema de Alertas y Soporte para Secundarios**:
     - **Evaluación en Tiempo de Lectura**: Implementación de re-evaluación dinámica en `api/metrics.php` para que los colores del dashboard reflejen cambios en las reglas al instante.
     - **Soporte para Servidores Secundarios**: Corrección de bug que impedía el disparo de alertas en nodos secundarios mediante la resolución y paso explícito de IDs de métrica al evaluador.

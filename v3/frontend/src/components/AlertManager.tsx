@@ -247,7 +247,7 @@ const AlertManager: React.FC<{ initialDataLoaded?: boolean }> = ({ initialDataLo
                         <div className="w-16 h-1 bg-slate-100 mb-8 rounded-full" />
 
                         <p className="text-xl text-slate-600 font-medium mb-10 leading-relaxed max-w-lg">
-                            {currentAlert.description.split('] ').pop()}
+                            {currentAlert.description ? currentAlert.description.split('] ').pop() : 'Se detectó una anomalía en esta métrica que requiere atención inmediata.'}
                         </p>
 
                         <div className="bg-slate-50 rounded-xl p-6 w-full mb-10 text-left border border-slate-100 shadow-inner grid grid-cols-2 gap-6 relative overflow-hidden">
@@ -258,7 +258,11 @@ const AlertManager: React.FC<{ initialDataLoaded?: boolean }> = ({ initialDataLo
                             <div className="relative z-10">
                                 <span className="block text-slate-400 uppercase text-[9px] font-black tracking-widest mb-1">Servidor Originador</span>
                                 <span className="font-bold text-slate-800 text-lg block truncate">{currentAlert.server_name}</span>
-                                <span className="font-mono text-blue-600 text-xs font-bold">{currentAlert.description.match(/\[IP: (.*?)\]/)?.[1] || 'N/A'}</span>
+                                {currentAlert.description && currentAlert.description.match(/\[IP: (.*?)\]/) && (
+                                    <span className="font-mono text-blue-600 text-xs font-bold">
+                                        {currentAlert.description.match(/\[IP: (.*?)\]/)?.[1]}
+                                    </span>
+                                )}
                             </div>
 
                             <div className="relative z-10">

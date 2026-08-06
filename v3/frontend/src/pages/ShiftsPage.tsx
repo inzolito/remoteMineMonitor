@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Clock, Ticket, Calendar, AlertCircle, Eye, Loader2, X, Sun, Moon, ExternalLink, MessageSquare, Search, CheckCircle2, HelpCircle, Activity } from 'lucide-react';
+import { Clock, Ticket, Calendar, AlertCircle, Eye, Loader2, X, Sun, Moon, ExternalLink, MessageSquare, Search, CheckCircle2, HelpCircle, Activity, Home } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
 import { ShiftStatusEye } from '../components/ShiftStatusEye';
+import { SubShiftHandoff } from '../components/SubShiftHandoff';
 
 interface ShiftMember {
     id: number;
@@ -31,6 +32,8 @@ interface SFCase {
     AccountName: string;
     OwnerName: string;
     CommentCount: number;
+    Comments?: any[];
+    is_inherited?: boolean;
 }
 
 interface ShiftResponse {
@@ -148,7 +151,11 @@ const ShiftsPage = () => {
             t.Subject?.toLowerCase().includes(searchTerm.toLowerCase()) ||
             t.OwnerName?.toLowerCase().includes(searchTerm.toLowerCase())
         );
-        const matchesStatus = statusFilter === 'ALL' || t.Status === statusFilter;
+        const matchesStatus = statusFilter === 'ALL' 
+            ? true 
+            : statusFilter === 'ACTIVOS' 
+                ? t.Status?.toLowerCase() !== 'closed' 
+                : t.Status === statusFilter;
         return matchesSearch && matchesStatus;
     });
 
@@ -195,7 +202,7 @@ const ShiftsPage = () => {
     const inactiveMembers = config.active_shift === 1 ? shift2_members : shift1_members;
 
     // Calculate dates
-    const start = new Date(config.start_date);
+    const start = new Date(config.start_date + 'T00:00:00');
     const end = new Date(start);
     end.setDate(start.getDate() + 6); // Wednesday + 6 days = Tuesday
 
@@ -436,7 +443,7 @@ const ShiftsPage = () => {
                 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 relative z-10 items-stretch">
                     {/* Col 1: Ciclo y Progreso */}
-                    <div className="flex flex-col justify-between space-y-4">
+                    <div className="flex flex-col justify-between space-y-4 lg:border-r lg:border-border/40 lg:pr-6">
                         <div className="space-y-2">
                             <div className="flex items-center gap-2.5">
                                 <div className="bg-primary/10 p-2 rounded-xl border border-primary/20">
@@ -480,31 +487,58 @@ const ShiftsPage = () => {
                     </div>
 
                     {/* Col 2: Turno Activo */}
-                    <div className="bg-emerald-500/5 dark:bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-3.5 space-y-3 flex flex-col justify-between">
-                        <div className="flex items-center justify-between border-b border-emerald-500/20 pb-2">
+                    <div className="space-y-3.5 flex flex-col justify-between lg:border-r lg:border-border/40 lg:px-6">
+                        <div className="flex items-center justify-between border-b border-border/40 pb-2.5">
                             <div className="flex items-center gap-1.5">
-                                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-                                <span className="text-xs font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">{activeAlias}</span>
+                                <span className="relative flex h-2 w-2">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                                </span>
+                                <span className="text-xs font-black text-foreground uppercase tracking-wider">{activeAlias}</span>
                             </div>
-                            <span className="text-[9px] font-extrabold text-emerald-600 bg-emerald-500/10 px-1.5 py-0.5 rounded-full uppercase tracking-wider">Activo</span>
+                            <div className="flex items-center gap-2">
+                                <SubShiftHandoff
+                                    openTickets={active_tickets
+                                        .filter(t => t.Status?.toLowerCase() !== 'closed')
+                                        .map(t => ({
+                                            case_id:    t.CaseId,
+                                            case_number: t.CaseNumber,
+                                            status:     t.Status,
+                                            subject:    t.Subject,
+                                            faena:      t.Faena,
+                                            description: t.Description,
+                                            comment_count: t.CommentCount,
+                                            comments:   t.Comments || [],
+                                            created_date: t.CreatedDate,
+                                        }))}
+                                    isActiveGroup={true}
+                                    cycleDay={config.days_elapsed}
+                                    activeMembers={activeMembers}
+                                />
+                                <span className="text-[9px] font-black text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 dark:bg-emerald-500/20 px-2 py-0.5 rounded-md uppercase tracking-wider">Activo</span>
+                            </div>
                         </div>
                         
-                        <div className="grid grid-cols-2 gap-3 text-[11px] flex-1 pt-1">
+                        <div className="grid grid-cols-2 gap-4 text-[11px] flex-1 pt-1.5">
                             {/* ☀️ Día */}
-                            <div className="space-y-1.5 border-r border-emerald-500/10 pr-2">
-                                <div className="text-[8px] font-black uppercase text-amber-600 flex items-center gap-1">
+                            <div className="space-y-3 border-r border-border/20 pr-4">
+                                <div className="text-[8px] font-black uppercase text-amber-600 flex items-center gap-1 mb-1">
                                     <Sun className="w-3.5 h-3.5" /> Día
                                 </div>
-                                <div className="space-y-1.5">
+                                <div className="space-y-3">
                                     {activeMembers.filter((m: ShiftMember) => m.turno_tipo === 'Día' || !m.turno_tipo).map((m: ShiftMember) => (
-                                        <div key={m.id} className="flex items-center justify-between gap-1.5 min-w-0 w-full">
-                                            <div className="flex items-center gap-1.5 min-w-0">
-                                                <div className="w-5 h-5 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white font-black text-[9px] uppercase shrink-0 shadow-sm">
-                                                    {m.first_name.charAt(0)}{m.last_name.charAt(0)}
-                                                </div>
-                                                <span className="font-bold text-foreground truncate">{m.first_name} {m.last_name.split(' ')[0]}</span>
+                                        <div key={m.id} className="flex items-center gap-2.5 min-w-0 w-full">
+                                            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white font-black text-[10px] uppercase shrink-0 shadow-sm">
+                                                {m.first_name.charAt(0)}{m.last_name.charAt(0)}
                                             </div>
-                                            <ShiftStatusEye isWorking={isMemberWorking(true, 'Día')} />
+                                            <div className="flex flex-col min-w-0 items-start">
+                                                <span className="font-bold text-foreground truncate max-w-full text-[11px] leading-tight" title={`${m.first_name} ${m.last_name}`}>
+                                                    {m.first_name} {m.last_name}
+                                                </span>
+                                                <div className="mt-1 shrink-0">
+                                                    <ShiftStatusEye isWorking={isMemberWorking(true, 'Día')} />
+                                                </div>
+                                            </div>
                                         </div>
                                     ))}
                                     {activeMembers.filter((m: ShiftMember) => m.turno_tipo === 'Día' || !m.turno_tipo).length === 0 && (
@@ -514,20 +548,24 @@ const ShiftsPage = () => {
                             </div>
                             
                             {/* 🌙 Noche */}
-                            <div className="space-y-1.5 pl-1">
-                                <div className="text-[8px] font-black uppercase text-purple-600 flex items-center gap-1">
+                            <div className="space-y-3 pl-2">
+                                <div className="text-[8px] font-black uppercase text-purple-600 flex items-center gap-1 mb-1">
                                     <Moon className="w-3.5 h-3.5" /> Noche
                                 </div>
-                                <div className="space-y-1.5">
+                                <div className="space-y-3">
                                     {activeMembers.filter((m: ShiftMember) => m.turno_tipo === 'Noche').map((m: ShiftMember) => (
-                                        <div key={m.id} className="flex items-center justify-between gap-1.5 min-w-0 w-full">
-                                            <div className="flex items-center gap-1.5 min-w-0">
-                                                <div className="w-5 h-5 rounded-full bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center text-white font-black text-[9px] uppercase shrink-0 shadow-sm">
-                                                    {m.first_name.charAt(0)}{m.last_name.charAt(0)}
-                                                </div>
-                                                <span className="font-bold text-foreground truncate">{m.first_name} {m.last_name.split(' ')[0]}</span>
+                                        <div key={m.id} className="flex items-center gap-2.5 min-w-0 w-full">
+                                            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center text-white font-black text-[10px] uppercase shrink-0 shadow-sm">
+                                                {m.first_name.charAt(0)}{m.last_name.charAt(0)}
                                             </div>
-                                            <ShiftStatusEye isWorking={isMemberWorking(true, 'Noche')} />
+                                            <div className="flex flex-col min-w-0 items-start">
+                                                <span className="font-bold text-foreground truncate max-w-full text-[11px] leading-tight" title={`${m.first_name} ${m.last_name}`}>
+                                                    {m.first_name} {m.last_name}
+                                                </span>
+                                                <div className="mt-1 shrink-0">
+                                                    <ShiftStatusEye isWorking={isMemberWorking(true, 'Noche')} />
+                                                </div>
+                                            </div>
                                         </div>
                                     ))}
                                     {activeMembers.filter((m: ShiftMember) => m.turno_tipo === 'Noche').length === 0 && (
@@ -539,31 +577,36 @@ const ShiftsPage = () => {
                     </div>
 
                     {/* Col 3: Turno en Descanso */}
-                    <div className="bg-slate-500/5 dark:bg-slate-500/10 border border-slate-500/10 rounded-2xl p-3.5 space-y-3 flex flex-col justify-between opacity-85">
-                        <div className="flex items-center justify-between border-b border-slate-500/20 pb-2">
+                    <div className="space-y-3.5 flex flex-col justify-between lg:pl-6 opacity-75">
+                        <div className="flex items-center justify-between border-b border-border/40 pb-2.5">
                             <div className="flex items-center gap-1.5">
-                                <div className="w-2 h-2 rounded-full bg-slate-400"></div>
-                                <span className="text-xs font-black text-slate-600 dark:text-slate-400 uppercase tracking-wider">{inactiveAlias}</span>
+                                <span className="h-2 w-2 rounded-full bg-slate-400"></span>
+                                <span className="text-xs font-black text-muted-foreground uppercase tracking-wider">{inactiveAlias}</span>
                             </div>
-                            <span className="text-[9px] font-extrabold text-slate-500 bg-slate-500/10 px-1.5 py-0.5 rounded-full uppercase tracking-wider">Descanso</span>
+                            <span className="text-[9px] font-black text-muted-foreground bg-muted dark:bg-muted/20 px-2 py-0.5 rounded-md uppercase tracking-wider">Descanso</span>
                         </div>
                         
-                        <div className="grid grid-cols-2 gap-3 text-[11px] flex-1 pt-1">
+                        <div className="grid grid-cols-2 gap-4 text-[11px] flex-1 pt-1.5">
                             {/* ☀️ Día */}
-                            <div className="space-y-1.5 border-r border-slate-500/10 pr-2">
-                                <div className="text-[8px] font-black uppercase text-slate-400 flex items-center gap-1">
+                            <div className="space-y-3 border-r border-border/20 pr-4">
+                                <div className="text-[8px] font-black uppercase text-slate-400 flex items-center gap-1 mb-1">
                                     <Sun className="w-3.5 h-3.5 text-slate-400" /> Día
                                 </div>
-                                <div className="space-y-1.5 opacity-80">
+                                <div className="space-y-3">
                                     {inactiveMembers.filter((m: ShiftMember) => m.turno_tipo === 'Día' || !m.turno_tipo).map((m: ShiftMember) => (
-                                        <div key={m.id} className="flex items-center justify-between gap-1.5 min-w-0 w-full">
-                                            <div className="flex items-center gap-1.5 min-w-0">
-                                                <div className="w-5 h-5 rounded-full bg-gradient-to-br from-slate-400 to-slate-500 flex items-center justify-center text-white font-black text-[9px] uppercase shrink-0 shadow-sm">
-                                                    {m.first_name.charAt(0)}{m.last_name.charAt(0)}
-                                                </div>
-                                                <span className="font-bold text-foreground truncate">{m.first_name} {m.last_name.split(' ')[0]}</span>
+                                        <div key={m.id} className="flex items-center gap-2.5 min-w-0 w-full">
+                                            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-slate-400 to-slate-500 flex items-center justify-center text-white font-black text-[10px] uppercase shrink-0 shadow-sm">
+                                                {m.first_name.charAt(0)}{m.last_name.charAt(0)}
                                             </div>
-                                            <ShiftStatusEye isWorking={isMemberWorking(false, 'Día')} />
+                                            <div className="flex flex-col min-w-0 items-start">
+                                                <span className="font-bold text-foreground/80 truncate max-w-full text-[11px] leading-tight" title={`${m.first_name} ${m.last_name}`}>
+                                                    {m.first_name} {m.last_name}
+                                                </span>
+                                                <div className="flex items-center gap-1 text-slate-500 dark:text-slate-400 mt-1 shrink-0">
+                                                    <Home className="w-2.5 h-2.5" />
+                                                    <span className="text-[7.5px] font-bold uppercase tracking-wider whitespace-nowrap">Descanso Turno</span>
+                                                </div>
+                                            </div>
                                         </div>
                                     ))}
                                     {inactiveMembers.filter((m: ShiftMember) => m.turno_tipo === 'Día' || !m.turno_tipo).length === 0 && (
@@ -573,20 +616,25 @@ const ShiftsPage = () => {
                             </div>
                             
                             {/* 🌙 Noche */}
-                            <div className="space-y-1.5 pl-1">
-                                <div className="text-[8px] font-black uppercase text-slate-400 flex items-center gap-1">
+                            <div className="space-y-3 pl-2">
+                                <div className="text-[8px] font-black uppercase text-slate-400 flex items-center gap-1 mb-1">
                                     <Moon className="w-3.5 h-3.5 text-slate-400" /> Noche
                                 </div>
-                                <div className="space-y-1.5 opacity-80">
+                                <div className="space-y-3">
                                     {inactiveMembers.filter((m: ShiftMember) => m.turno_tipo === 'Noche').map((m: ShiftMember) => (
-                                        <div key={m.id} className="flex items-center justify-between gap-1.5 min-w-0 w-full">
-                                            <div className="flex items-center gap-1.5 min-w-0">
-                                                <div className="w-5 h-5 rounded-full bg-gradient-to-br from-slate-400 to-slate-500 flex items-center justify-center text-white font-black text-[9px] uppercase shrink-0 shadow-sm">
-                                                    {m.first_name.charAt(0)}{m.last_name.charAt(0)}
-                                                </div>
-                                                <span className="font-bold text-foreground truncate">{m.first_name} {m.last_name.split(' ')[0]}</span>
+                                        <div key={m.id} className="flex items-center gap-2.5 min-w-0 w-full">
+                                            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-slate-400 to-slate-500 flex items-center justify-center text-white font-black text-[10px] uppercase shrink-0 shadow-sm">
+                                                {m.first_name.charAt(0)}{m.last_name.charAt(0)}
                                             </div>
-                                            <ShiftStatusEye isWorking={isMemberWorking(false, 'Noche')} />
+                                            <div className="flex flex-col min-w-0 items-start">
+                                                <span className="font-bold text-foreground/80 truncate max-w-full text-[11px] leading-tight" title={`${m.first_name} ${m.last_name}`}>
+                                                    {m.first_name} {m.last_name}
+                                                </span>
+                                                <div className="flex items-center gap-1 text-slate-500 dark:text-slate-400 mt-1 shrink-0">
+                                                    <Home className="w-2.5 h-2.5" />
+                                                    <span className="text-[7.5px] font-bold uppercase tracking-wider whitespace-nowrap">Descanso Turno</span>
+                                                </div>
+                                            </div>
                                         </div>
                                     ))}
                                     {inactiveMembers.filter((m: ShiftMember) => m.turno_tipo === 'Noche').length === 0 && (
@@ -655,6 +703,7 @@ const ShiftsPage = () => {
                                     className="px-2 py-1.5 bg-background border border-border rounded-lg text-[11px] font-bold text-foreground/80 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all cursor-pointer hover:border-border-hover dark:bg-card"
                                 >
                                     <option value="ALL">Todos los Estados</option>
+                                    <option value="ACTIVOS">ACTIVOS (No Cerrados)</option>
                                     {Array.from(new Set(active_tickets.map((t: any) => t.Status).filter(Boolean)))
                                         .map((status: any) => (
                                             <option key={status} value={status}>

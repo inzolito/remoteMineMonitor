@@ -54,11 +54,8 @@ export const ShiftStatusEye: React.FC<ShiftStatusEyeProps> = ({ isWorking, class
             `}} />
 
             {isWorking ? (
-                // Active/Working: Open Blinking Eye with Green Indicator
-                <div className="flex items-center gap-1.5 bg-emerald-500/10 dark:bg-emerald-500/15 border border-emerald-500/20 px-2 py-0.5 rounded-full">
-                    {/* Pulsing indicator */}
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-status-pulse" />
-                    
+                // Active/Working: Open Blinking Eye
+                <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
                     {/* SVG Eye */}
                     <svg 
                         viewBox="0 0 24 24" 
@@ -67,7 +64,7 @@ export const ShiftStatusEye: React.FC<ShiftStatusEyeProps> = ({ isWorking, class
                         strokeWidth="2.5" 
                         strokeLinecap="round" 
                         strokeLinejoin="round" 
-                        className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400"
+                        className="w-3.5 h-3.5"
                     >
                         {/* Eye shape group with blink animation */}
                         <g className="animate-eye-blink">
@@ -80,11 +77,11 @@ export const ShiftStatusEye: React.FC<ShiftStatusEyeProps> = ({ isWorking, class
                         </g>
                     </svg>
                     
-                    <span className="text-[8px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">En Turno</span>
+                    <span className="text-[8px] font-black uppercase tracking-widest">En Turno</span>
                 </div>
             ) : (
                 // Resting/Sleeping: Closed Eye with breathing animation
-                <div className="flex items-center gap-1 bg-slate-500/5 dark:bg-slate-500/10 border border-slate-500/10 px-2 py-0.5 rounded-full opacity-70">
+                <div className="flex items-center gap-1 text-slate-500 dark:text-slate-400 opacity-70">
                     <svg 
                         viewBox="0 0 24 24" 
                         fill="none" 
@@ -92,7 +89,7 @@ export const ShiftStatusEye: React.FC<ShiftStatusEyeProps> = ({ isWorking, class
                         strokeWidth="2" 
                         strokeLinecap="round" 
                         strokeLinejoin="round" 
-                        className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400 animate-sleep-breath"
+                        className="w-3.5 h-3.5 animate-sleep-breath"
                     >
                         {/* Closed eyelid (U-shape curve) */}
                         <path d="M4 10c3 5 13 5 16 0" />
@@ -102,7 +99,7 @@ export const ShiftStatusEye: React.FC<ShiftStatusEyeProps> = ({ isWorking, class
                         <path d="M17 13.5l1.5 2.5" />
                     </svg>
                     
-                    <span className="text-[8px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Descanso</span>
+                    <span className="text-[8px] font-bold uppercase tracking-widest">Descanso</span>
                 </div>
             )}
         </div>

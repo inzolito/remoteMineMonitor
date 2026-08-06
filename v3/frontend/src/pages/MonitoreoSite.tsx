@@ -7,14 +7,14 @@ import {
     Activity,
     Database, Terminal, ShieldCheck, Clock, X,
     FolderOpen, FileText, ChevronDown, ChevronRight,
-    AlertTriangle, Layers, Copy, Trash2, WifiOff, Repeat
+    AlertTriangle, Layers, Copy, Trash2, WifiOff, Repeat, CheckCircle2
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { AreaChart, Area, ResponsiveContainer, CartesianGrid, XAxis, YAxis } from 'recharts';
 import { useRef } from 'react';
 import AlertManager from '../components/AlertManager';
-
+import StandardMetricCard from '../components/StandardMetricCard';
 function cn(...inputs: ClassValue[]) {
     return twMerge(clsx(inputs));
 }
@@ -144,17 +144,36 @@ const HighlightedContent = ({ content }: { content: string }) => {
                 let isDanger = false;
 
                 if (parts.length >= 3) {
-                    const timeStr = parts[2];
-                    const m = timeStr.match(/(?:(\d+):)?(\d+):(\d+)/);
-                    if (m) {
+                    let timeStr = parts[2];
+                    if (/^(\d+-)?\d+:\d{2}(:\d{2})?$/.test(timeStr)) {
                         durationPart = timeStr;
-                        const hours = m[3] ? parseInt(m[1]) : 0;
-                        const mins = m[3] ? parseInt(m[2]) : parseInt(m[1]);
-                        const secs = m[3] ? parseInt(m[3]) : parseInt(m[2]);
-                        const total = (hours * 3600) + (mins * 60) + secs;
+                        let days = 0;
+                        let hours = 0;
+                        let mins = 0;
+                        let secs = 0;
 
-                        if (total > 300) isWarning = true;
-                        if (total > 1800) isDanger = true;
+                        let timeOnly = timeStr;
+                        if (timeOnly.includes('-')) {
+                            const timeParts = timeOnly.split('-');
+                            days = parseInt(timeParts[0]);
+                            timeOnly = timeParts[1];
+                        }
+
+                        const timeChunks = timeOnly.split(':');
+                        if (timeChunks.length === 3) {
+                            hours = parseInt(timeChunks[0]);
+                            mins = parseInt(timeChunks[1]);
+                            secs = parseInt(timeChunks[2]);
+                        } else if (timeChunks.length === 2) {
+                            mins = parseInt(timeChunks[0]);
+                            secs = parseInt(timeChunks[1]);
+                        }
+
+                        const total = (days * 86400) + (hours * 3600) + (mins * 60) + secs;
+
+                        // Thresholds matching DB rules: 3 min (180s) Warning, 7 min (420s) Danger
+                        if (total > 180) isWarning = true;
+                        if (total > 420) isDanger = true;
                     }
                 }
 
@@ -371,16 +390,41 @@ const TerminalModal = ({ isOpen, onClose, title, content, serverId, metricKey, m
     let isSummarizer = metricKey === 'app.summarizer.log';
     let execContent = "";
     let logContent = "";
+    let processTableUI = null;
 
     if (metricsData && serverId && metricKey) {
         const srv = metricsData.servers.find((s: any) => s.info.id === serverId);
         if (srv && srv.app && srv.app[metricKey]) {
             if (isSummarizer) {
                 const rawExec = srv.app['app.summarizer.ejecution']?.metric_value || '';
-                const lines = rawExec.split('\n').filter((l: string) => l.trim().length > 0);
-                const count = Math.ceil(lines.length / 2);
+                const lines = rawExec.split('\n').filter((l: string) => l.trim().length > 0 && !l.includes('/bin/sh -c'));
+                const count = lines.length;
                 const formattedExec = lines.map((line: string) => line.trimEnd()).join('\n');
-                
+
+                const ws = srv.app['app.summarizer.ejecution']?.warning_start;
+                let timeStr = "";
+                if (ws) {
+                    const seconds = Math.floor(Date.now() / 1000) - ws;
+                    if (seconds < 60) {
+                        timeStr = `${seconds}s`;
+                    } else {
+                        const mins = Math.floor(seconds / 60);
+                        const secs = seconds % 60;
+                        timeStr = `${mins}m ${secs}s`;
+                    }
+                }
+
+                if (timeStr && count > 1) {
+                    processTableUI = (
+                        <div className="mb-4 bg-amber-500/10 border border-amber-500/30 text-amber-400 px-4 py-2 rounded-lg font-mono text-[11px] flex items-center justify-between shrink-0">
+                            <span>⚠️ MÚLTIPLES PROCESOS DETECTADOS</span>
+                            <span className="font-bold tracking-wider">TIEMPO CORRIENDO JUNTOS: {timeStr}</span>
+                        </div>
+                    );
+                } else {
+                    processTableUI = null;
+                }
+
                 execContent = `SUMMARIZER ACTIVE PROCESSES: ${count}\n\n${formattedExec}`;
                 logContent = srv.app['app.summarizer.log']?.metric_value || 'Cargando Log...';
             } else {
@@ -418,6 +462,7 @@ const TerminalModal = ({ isOpen, onClose, title, content, serverId, metricKey, m
                 <div className="flex-1 p-6 overflow-auto custom-scrollbar bg-[#0f172a]">
                     {isSummarizer ? (
                         <>
+                            {processTableUI}
                             <HighlightedContent content={execContent} />
                             <div className="text-slate-300 font-mono text-[11px] whitespace-pre-wrap leading-relaxed mt-6 border-t border-slate-800/50 pt-6">
                                 {logContent}
@@ -427,39 +472,44 @@ const TerminalModal = ({ isOpen, onClose, title, content, serverId, metricKey, m
                         <HighlightedContent content={liveContent} />
                     )}
 
-                    {/* Utility Footer for Idle Queries (KILL Commands) */}
-                    {metricKey === 'db.idle_queries' && liveContent && liveContent.length > 5 && (
-                        <div className="mt-8 border-t border-slate-800 pt-6">
-                            <h4 className="flex items-center gap-2 text-rose-400 font-bold mb-4 text-xs uppercase tracking-widest">
-                                <Trash2 size={14} />
-                                Comandos para Limpieza de Hilos (KILL)
-                            </h4>
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                                {liveContent.split('\n').filter((l: string) => l.includes('|')).map((line: string, idx: number) => {
-                                    const pid = line.split('|')[0]?.trim();
-                                    if (!pid || isNaN(Number(pid))) return null;
-                                    return (
-                                        <div key={idx} className="bg-slate-900 border border-slate-800 rounded-lg p-3 group hover:border-rose-500/50 transition-colors">
-                                            <div className="text-[10px] text-slate-500 font-mono mb-2 uppercase">PID: {pid}</div>
-                                            <div className="flex items-center justify-between gap-2">
-                                                <code className="text-[10px] text-rose-300 font-mono truncate bg-rose-500/5 px-1.5 rounded grayscale group-hover:grayscale-0">KILL {pid};</code>
-                                                <button
-                                                    onClick={() => {
-                                                        navigator.clipboard.writeText(`KILL ${pid};`);
-                                                        alert(`Copiado: KILL ${pid};`);
-                                                    }}
-                                                    className="p-1.5 bg-slate-800 hover:bg-rose-600 rounded text-slate-300 hover:text-white transition-colors"
-                                                    title="Copiar comando"
-                                                >
-                                                    <Copy size={12} />
-                                                </button>
-                                            </div>
-                                        </div>
-                                    );
-                                })}
+                    {/* Utility Footer for Idle Queries (pg_terminate_backend Commands) */}
+                    {metricKey === 'db.idle_queries' && liveContent && liveContent.length > 5 && (() => {
+                        const pids = liveContent.split('\n')
+                            .filter((l: string) => l.includes('|'))
+                            .map((l: string) => l.split('|')[0]?.trim())
+                            .filter((pid: string) => pid && !isNaN(Number(pid)));
+
+                        if (pids.length === 0) return null;
+
+                        const bulkCommand = `SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE pid IN (${pids.join(', ')});`;
+
+                        return (
+                            <div className="mt-8 border-t border-slate-800 pt-6">
+                                <h4 className="flex items-center gap-2 text-rose-400 font-bold mb-4 text-xs uppercase tracking-widest">
+                                    <Trash2 size={14} />
+                                    Comando Bulk para Limpieza de Hilos de Postgres ({pids.length} hilos)
+                                </h4>
+                                <div className="bg-slate-900 border border-slate-800 rounded-lg p-4 group hover:border-rose-500/50 transition-colors">
+                                    <div className="flex items-start justify-between gap-4">
+                                        <code className="text-xs text-rose-300 font-mono bg-rose-500/5 p-3 rounded block w-full whitespace-pre-wrap break-all border border-rose-900/30">
+                                            {bulkCommand}
+                                        </code>
+                                        <button
+                                            onClick={() => {
+                                                navigator.clipboard.writeText(bulkCommand);
+                                                alert(`Copiado comando bulk para ${pids.length} hilos.`);
+                                            }}
+                                            className="p-3 bg-rose-600/20 hover:bg-rose-600 rounded-lg text-rose-400 hover:text-white transition-colors flex-shrink-0 flex items-center gap-2 font-bold text-xs uppercase tracking-wider"
+                                            title="Copiar comando bulk"
+                                        >
+                                            <Copy size={16} />
+                                            Copiar Todo
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
-                        </div>
-                    )}
+                        );
+                    })()}
                 </div>
                 <div className="p-4 border-t border-slate-800 bg-slate-900/30 flex justify-between items-center">
                     <div className="text-[10px] text-slate-500 font-mono italic">
@@ -562,7 +612,7 @@ const MonitoreoSite = () => {
         enabled: !!siteId
     });
 
-    const primaryServer = metricsData?.servers.find((s: any) => s.info.is_primary === 1) || metricsData?.servers?.[0];
+    const primaryServer = metricsData?.servers.find((s: any) => Number(s.info.is_primary) === 1) || metricsData?.servers?.[0];
     const secondaryServer = metricsData?.servers.find((s: any) => s.info.id !== primaryServer?.info?.id);
 
     // Status logic for global effects
@@ -715,13 +765,13 @@ const MonitoreoSite = () => {
                     className={cn(
                         "p-3 rounded shadow-sm border border-slate-200 dark:border-slate-800 border-l-4 flex items-center gap-3 cursor-pointer hover:shadow-md transition-all",
                         primaryServer?.app?.['app.summarizer.status']?.metric_value === 'stopped' || primaryServer?.app?.['app.summarizer.log']?.status === 'danger' || primaryServer?.app?.['app.summarizer.ejecution']?.status === 'danger'
-                            ? "bg-red-600 border-red-700 text-white shadow-lg shadow-red-500/20" 
+                            ? "bg-red-600 border-red-700 text-white shadow-lg shadow-red-500/20"
                             : (primaryServer?.app?.['app.summarizer.status']?.metric_value === 'both_active' || primaryServer?.app?.['app.summarizer.log']?.status === 'warning' || primaryServer?.app?.['app.summarizer.ejecution']?.status === 'warning' ? "bg-white dark:bg-slate-900 border-l-amber-500" : "bg-white dark:bg-slate-900 border-l-emerald-500")
                     )}>
                     <div className={cn(
                         "p-2 rounded",
                         primaryServer?.app?.['app.summarizer.status']?.metric_value === 'stopped' || primaryServer?.app?.['app.summarizer.log']?.status === 'danger' || primaryServer?.app?.['app.summarizer.ejecution']?.status === 'danger'
-                            ? "bg-white/20 text-white" 
+                            ? "bg-white/20 text-white"
                             : (primaryServer?.app?.['app.summarizer.status']?.metric_value === 'both_active' || primaryServer?.app?.['app.summarizer.log']?.status === 'warning' || primaryServer?.app?.['app.summarizer.ejecution']?.status === 'warning' ? "bg-amber-50 dark:bg-amber-500/10 text-amber-500" : "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-500")
                     )}><Activity size={20} /></div>
                     <div>
@@ -735,20 +785,37 @@ const MonitoreoSite = () => {
                                 // Priority: ejecution alerts override service status display
                                 const ejecVal = primaryServer?.app?.['app.summarizer.ejecution']?.metric_value || '';
                                 const ejecStatus = primaryServer?.app?.['app.summarizer.ejecution']?.status;
-                                
-                                if (ejecStatus === 'danger') {
-                                    const lines = ejecVal.split('\n').filter((l: string) => l.trim().length > 0);
-                                    const count = Math.ceil(lines.length / 2);
-                                    return `${count} PROCESOS SIMULTANEOS`;
+
+                                if (ejecStatus === 'danger' || ejecStatus === 'warning') {
+                                    const lines = ejecVal.split('\n').filter((l: string) => l.trim().length > 0 && !l.includes('/bin/sh -c'));
+                                    const count = lines.length;
+                                    
+                                    const ws = (primaryServer?.app as any)?.['app.summarizer.ejecution']?.warning_start;
+                                    let timeStr = "";
+                                    if (ws) {
+                                        const seconds = Math.floor(Date.now() / 1000) - ws;
+                                        if (seconds < 60) {
+                                            timeStr = `(LLEVAN ${seconds}s)`;
+                                        } else {
+                                            const mins = Math.floor(seconds / 60);
+                                            const secs = seconds % 60;
+                                            timeStr = `(LLEVAN ${mins}m ${secs}s)`;
+                                        }
+                                    }
+                                    
+                                    if (ejecStatus === 'danger') {
+                                        return `${count} PROCESOS SIMULTANEOS ${timeStr}`;
+                                    } else {
+                                        return `${count} PROCESOS (EVALUANDO ${timeStr || '...'})`;
+                                    }
                                 }
-                                if (ejecStatus === 'warning') return 'PROCESS STOPPED';
 
                                 const aggr = primaryServer?.app?.['app.summarizer.status']?.metric_value;
                                 if (aggr === 'both_active') return 'SERVICE & CRON';
                                 if (aggr === 'service_active') return 'SERVICE ACTIVE';
                                 if (aggr === 'cron_active') return 'CRON ACTIVE';
                                 if (aggr === 'stopped') return 'STOPPED';
-                                
+
                                 // Fallback logic
                                 const hasService = !!primaryServer?.app?.['app.summarizer.service']?.metric_value && !primaryServer?.app?.['app.summarizer.service']?.metric_value.includes('stopped');
                                 const hasCrontab = !!primaryServer?.app?.['app.summarizer.crontab']?.metric_value && !primaryServer?.app?.['app.summarizer.crontab']?.metric_value.includes('stopped') && !primaryServer?.app?.['app.summarizer.crontab']?.metric_value.trim().startsWith('#');
@@ -766,8 +833,8 @@ const MonitoreoSite = () => {
                     onClick={() => openTerminal('Equipos Conectados', primaryServer?.app?.['app.repc']?.metric_value || 'No Data', primaryServer?.info?.id, 'app.repc')}
                     className={cn(
                         "p-3 rounded shadow-sm border border-slate-200 dark:border-slate-800 border-l-4 flex items-center gap-3 cursor-pointer hover:shadow-md transition-all",
-                        primaryServer?.app?.['app.repc']?.status === 'danger' 
-                            ? "bg-red-600 border-red-700 text-white shadow-lg shadow-red-500/20" 
+                        primaryServer?.app?.['app.repc']?.status === 'danger'
+                            ? "bg-red-600 border-red-700 text-white shadow-lg shadow-red-500/20"
                             : (primaryServer?.app?.['app.repc']?.status === 'warning' ? "bg-white dark:bg-slate-900 border-l-amber-500" : "bg-white dark:bg-slate-900 border-l-blue-500")
                     )}>
                     <div className={cn(
@@ -779,8 +846,8 @@ const MonitoreoSite = () => {
                         <div className={cn("font-bold text-sm", primaryServer?.app?.['app.repc']?.status === 'danger' ? "text-white" : (primaryServer?.app?.['app.repc']?.status === 'warning' ? "text-amber-500" : ""))}>
                             {(() => {
                                 const val = primaryServer?.app?.['app.repc']?.metric_value;
-                                if (!val) return '0';
-                                return val.split('\n').filter((x: string) => x.trim().length > 0).length;
+                                if (val == null) return '0';
+                                return String(val).split('\n').filter((x: string) => x.trim().length > 0).length;
                             })()}
                         </div>
                     </div>
@@ -791,8 +858,8 @@ const MonitoreoSite = () => {
                     onClick={() => openTerminal('Estación Base Ping', primaryServer?.app?.['app.station.ping']?.metric_value || 'No Data', primaryServer?.info?.id, 'app.station.ping')}
                     className={cn(
                         "p-3 rounded shadow-sm border border-slate-200 dark:border-slate-800 border-l-4 flex items-center gap-3 cursor-pointer hover:shadow-md transition-all",
-                        primaryServer?.app?.['app.station.ping']?.status === 'danger' 
-                            ? "bg-red-600 border-red-700 text-white shadow-lg shadow-red-500/20" 
+                        primaryServer?.app?.['app.station.ping']?.status === 'danger'
+                            ? "bg-red-600 border-red-700 text-white shadow-lg shadow-red-500/20"
                             : "bg-white dark:bg-slate-900 border-l-violet-500"
                     )}>
                     <div className={cn(
@@ -819,8 +886,8 @@ const MonitoreoSite = () => {
                     onClick={() => openTerminal('Daily Backup Log', secondaryServer?.app?.['backup.daily.log']?.metric_value || 'No Log Data', secondaryServer?.info?.id, 'backup.daily.log')}
                     className={cn(
                         "p-3 rounded shadow-sm border border-slate-200 dark:border-slate-800 border-l-4 flex items-center gap-3 cursor-pointer hover:shadow-md transition-all",
-                        secondaryServer?.app?.['backup.daily.status']?.status === 'danger' 
-                            ? "bg-red-600 border-red-700 text-white shadow-lg shadow-red-500/20" 
+                        secondaryServer?.app?.['backup.daily.status']?.status === 'danger'
+                            ? "bg-red-600 border-red-700 text-white shadow-lg shadow-red-500/20"
                             : (secondaryServer?.app?.['backup.daily.status']?.status === 'warning' ? "bg-white dark:bg-slate-900 border-l-amber-500" : "bg-white dark:bg-slate-900 border-l-sky-500")
                     )}>
                     <div className={cn(
@@ -855,8 +922,8 @@ const MonitoreoSite = () => {
                     onClick={() => openTerminal('Hourly Backup Log', secondaryServer?.app?.['backup.hourly.log']?.metric_value || 'No Log Data', secondaryServer?.info?.id, 'backup.hourly.log')}
                     className={cn(
                         "p-3 rounded shadow-sm border border-slate-200 dark:border-slate-800 border-l-4 flex items-center gap-3 cursor-pointer hover:shadow-md transition-all",
-                        secondaryServer?.app?.['backup.hourly.status']?.status === 'danger' 
-                            ? "bg-red-600 border-red-700 text-white shadow-lg shadow-red-500/20" 
+                        secondaryServer?.app?.['backup.hourly.status']?.status === 'danger'
+                            ? "bg-red-600 border-red-700 text-white shadow-lg shadow-red-500/20"
                             : (secondaryServer?.app?.['backup.hourly.status']?.status === 'warning' ? "bg-white dark:bg-slate-900 border-l-amber-500" : "bg-white dark:bg-slate-900 border-l-sky-500")
                     )}>
                     <div className={cn(
@@ -935,112 +1002,131 @@ const MonitoreoSite = () => {
                             </div>
                         </div>
 
-                    <div className="p-3 flex-1 flex flex-col gap-3">
-                        <div className="flex flex-col xl:flex-row gap-4 items-stretch">
-                            {/* Gauges Column - Increased width for harmony */}
-                            <div className="flex flex-row gap-4 items-start justify-center xl:justify-start px-0 flex-none w-[220px]">
-                                {/* DISK SECTION */}
-                                {(() => {
-                                    const pct = primaryServer?.system?.disk_percent ?? 0;
-                                    const status = primaryServer?.system?.disk_status;
-                                    const color = (status === 'danger' ? '#ef4444' : (status === 'warning' ? '#f59e0b' : '#10b981'));
-                                    return (
-                                        <CircularUsage
-                                            percentage={pct}
-                                            label="Disco"
-                                            sublabel={`${formatMetricValue(primaryServer?.system?.disk_used, 'G')} / ${formatMetricValue(primaryServer?.system?.disk_total, 'G')}`}
-                                            color={color}
-                                            buttonLabel="Particiones"
-                                            onClick={() => openTerminal('Particiones / Disco', primaryServer?.app?.['particionesDiscoDuro']?.metric_value || 'No Data', primaryServer?.info?.id, 'particionesDiscoDuro')}
-                                        />
-                                    );
-                                })()}
+                        <div className="p-3 flex-1 flex flex-col gap-3">
+                            <div className="flex flex-col xl:flex-row gap-4 items-stretch">
+                                {/* Gauges Column - Increased width for harmony */}
+                                <div className="flex flex-row gap-4 items-start justify-center xl:justify-start px-0 flex-none w-[220px]">
+                                    {/* DISK SECTION */}
+                                    {(() => {
+                                        const pct = primaryServer?.system?.disk_percent ?? 0;
+                                        const status = primaryServer?.system?.disk_status;
+                                        const color = (status === 'danger' ? '#ef4444' : (status === 'warning' ? '#f59e0b' : '#10b981'));
+                                        return (
+                                            <CircularUsage
+                                                percentage={pct}
+                                                label="Disco"
+                                                sublabel={`${formatMetricValue(primaryServer?.system?.disk_used, 'G')} / ${formatMetricValue(primaryServer?.system?.disk_total, 'G')}`}
+                                                color={color}
+                                                buttonLabel="Particiones"
+                                                onClick={() => openTerminal('Particiones / Disco', primaryServer?.app?.['particionesDiscoDuro']?.metric_value || 'No Data', primaryServer?.info?.id, 'particionesDiscoDuro')}
+                                            />
+                                        );
+                                    })()}
 
-                                {(() => {
-                                    const pct = primaryServer?.system?.ram_percent ?? 0;
-                                    const status = primaryServer?.system?.ram_status;
-                                    const color = (status === 'danger' ? '#ef4444' : (status === 'warning' ? '#f59e0b' : '#10b981'));
-                                    return (
-                                        <CircularUsage
-                                            percentage={pct}
-                                            label="RAM"
-                                            sublabel={`${formatMetricValue(primaryServer?.system?.ram_used, 'M')} / ${formatMetricValue(primaryServer?.system?.ram_total, 'G')}`}
-                                            color={color}
-                                            buttonLabel="Crontab"
-                                            onClick={() => openTerminal('Crontab', primaryServer?.app?.['crontab']?.metric_value || 'No Data', primaryServer?.info?.id, 'crontab')}
-                                        />
-                                    );
-                                })()}
-                            </div>
+                                    {(() => {
+                                        const pct = primaryServer?.system?.ram_percent ?? 0;
+                                        const status = primaryServer?.system?.ram_status;
+                                        const color = (status === 'danger' ? '#ef4444' : (status === 'warning' ? '#f59e0b' : '#10b981'));
+                                        return (
+                                            <CircularUsage
+                                                percentage={pct}
+                                                label="RAM"
+                                                sublabel={`${formatMetricValue(primaryServer?.system?.ram_used, 'M')} / ${formatMetricValue(primaryServer?.system?.ram_total, 'G')}`}
+                                                color={color}
+                                                buttonLabel="Crontab"
+                                                onClick={() => openTerminal('Crontab', primaryServer?.app?.['crontab']?.metric_value || 'No Data', primaryServer?.info?.id, 'crontab')}
+                                            />
+                                        );
+                                    })()}
+                                </div>
 
-                            {/* CPU History Graph Area */}
-                            <div className="flex-1 min-h-[180px] relative border border-slate-100 dark:border-slate-800 rounded-xl bg-slate-50/50 dark:bg-slate-800/30 overflow-hidden">
-                                <div className="absolute top-3 right-4 z-10 flex items-center gap-2">
-                                    <div className={cn(
-                                        "text-[10px] font-black px-2 py-1 rounded-full border shadow-sm transition-colors",
-                                        primaryServer?.system?.cpu_status === 'danger' ? "text-red-600 bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-900/30" :
-                                            (primaryServer?.system?.cpu_status === 'warning' ? "text-amber-600 bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-900/30" : "text-emerald-700 bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-900/30")
-                                    )}>
-                                        Load: {primaryServer?.system?.cpu_usage || '0.0'}
+                                {/* CPU History Graph Area */}
+                                <div className="flex-1 min-h-[180px] relative border border-slate-100 dark:border-slate-800 rounded-xl bg-slate-50/50 dark:bg-slate-800/30 overflow-hidden">
+                                    <div className="absolute top-3 right-4 z-10 flex items-center gap-2">
+                                        <div className={cn(
+                                            "text-[10px] font-black px-2 py-1 rounded-full border shadow-sm transition-colors",
+                                            primaryServer?.system?.cpu_status === 'danger' ? "text-red-600 bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-900/30" :
+                                                (primaryServer?.system?.cpu_status === 'warning' ? "text-amber-600 bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-900/30" : "text-emerald-700 bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-900/30")
+                                        )}>
+                                            Load: {primaryServer?.system?.cpu_usage || '0.0'}
+                                        </div>
+                                        <div className={cn(
+                                            "w-4 h-4 transition-colors",
+                                            primaryServer?.system?.cpu_status === 'danger' ? "text-red-400" :
+                                                (primaryServer?.system?.cpu_status === 'danger' ? "text-red-400" :
+                                                    (primaryServer?.system?.cpu_status === 'warning' ? "text-amber-400" : "text-emerald-400"))
+                                        )}>
+                                            <Activity size={14} />
+                                        </div>
                                     </div>
-                                    <div className={cn(
-                                        "w-4 h-4 transition-colors",
-                                        primaryServer?.system?.cpu_status === 'danger' ? "text-red-400" :
-                                        (primaryServer?.system?.cpu_status === 'danger' ? "text-red-400" :
-                                            (primaryServer?.system?.cpu_status === 'warning' ? "text-amber-400" : "text-emerald-400"))
-                                    )}>
-                                        <Activity size={14} />
+                                    {(() => {
+                                        const cpuStatus = primaryServer?.system?.cpu_status || 'ok';
+                                        const cpuColor = (cpuStatus === 'danger' ? '#ef4444' : (cpuStatus === 'warning' ? '#f59e0b' : '#10b981'));
+                                        return (
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <AreaChart data={livePrimaryHistory} margin={{ top: 20, right: 10, left: -20, bottom: 5 }}>
+                                                    <defs>
+                                                        <linearGradient id="colorCpuP" x1="0" y1="0" x2="0" y2="1">
+                                                            <stop offset="5%" stopColor={cpuColor} stopOpacity={0.4} />
+                                                            <stop offset="95%" stopColor={cpuColor} stopOpacity={0} />
+                                                        </linearGradient>
+                                                    </defs>
+                                                    <CartesianGrid strokeDasharray="3 3" vertical={true} stroke="#e2e8f0" strokeOpacity={0.1} />
+                                                    <XAxis dataKey="created_at" hide />
+                                                    <YAxis stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} />
+                                                    <Area type="monotone" dataKey="cpu_usage" stroke={cpuColor} strokeWidth={2.5} fill="url(#colorCpuP)" isAnimationActive={false} />
+                                                </AreaChart>
+                                            </ResponsiveContainer>
+                                        );
+                                    })()}
+                                </div>
+                            </div>
+
+                            {/* Footer Details: Restored 4-Column Grid */}
+                            <div className="border-t border-slate-100 dark:border-slate-800 pt-3 grid grid-cols-4 gap-2 items-center">
+                                <div className="p-1.5 border border-transparent">
+                                    <div className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-tight mb-0.5">Server</div>
+                                    <div className="text-[11px] font-bold text-slate-700 dark:text-slate-200 truncate" title={primaryServer?.app?.['system.name']?.metric_value || primaryServer?.app?.['system.hostname']?.metric_value || primaryServer?.app?.['hostname']?.metric_value || primaryServer?.info?.name}>
+                                        {primaryServer?.app?.['system.name']?.metric_value || primaryServer?.app?.['system.hostname']?.metric_value || primaryServer?.app?.['hostname']?.metric_value || primaryServer?.info?.name}
+                                    </div>
+                                </div>
+                                <div className="p-1.5 border border-transparent">
+                                    <div className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-tight mb-0.5">IP</div>
+                                    <div className="text-[11px] font-bold text-slate-600 dark:text-slate-300 tracking-tight">{primaryServer?.info?.ip_address}</div>
+                                </div>
+                                <div className="p-1.5 border border-transparent">
+                                    <div className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-tight mb-0.5">Status</div>
+                                    <div className="text-[11px] font-black text-emerald-600 dark:text-emerald-500 uppercase tracking-tighter">
+                                        {primaryServer?.app?.['app.jams.status']?.metric_value || 'ACTIVE'}
                                     </div>
                                 </div>
                                 {(() => {
-                                    const cpuStatus = primaryServer?.system?.cpu_status || 'ok';
-                                    const cpuColor = (cpuStatus === 'danger' ? '#ef4444' : (cpuStatus === 'warning' ? '#f59e0b' : '#10b981'));
+                                    const clusterMetric = primaryServer?.app?.['app.fms.cluster'];
+                                    const val = clusterMetric?.metric_value || 'None';
+                                    const isDanger = clusterMetric?.status === 'danger' || val === 'None';
                                     return (
-                                        <ResponsiveContainer width="100%" height="100%">
-                                            <AreaChart data={livePrimaryHistory} margin={{ top: 20, right: 10, left: -20, bottom: 5 }}>
-                                                <defs>
-                                                    <linearGradient id="colorCpuP" x1="0" y1="0" x2="0" y2="1">
-                                                        <stop offset="5%" stopColor={cpuColor} stopOpacity={0.4} />
-                                                        <stop offset="95%" stopColor={cpuColor} stopOpacity={0} />
-                                                    </linearGradient>
-                                                </defs>
-                                                <CartesianGrid strokeDasharray="3 3" vertical={true} stroke="#e2e8f0" strokeOpacity={0.1} />
-                                                <XAxis dataKey="created_at" hide />
-                                                <YAxis stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} />
-                                                <Area type="monotone" dataKey="cpu_usage" stroke={cpuColor} strokeWidth={2.5} fill="url(#colorCpuP)" isAnimationActive={false} />
-                                            </AreaChart>
-                                        </ResponsiveContainer>
+                                        <div className={cn(
+                                            "p-1.5 rounded-lg transition-all",
+                                            isDanger ? "bg-red-600 border border-red-700 animate-pulse shadow-md shadow-red-600/30" : "border border-transparent"
+                                        )}>
+                                            <div className={cn(
+                                                "text-[9px] font-black uppercase tracking-widest mb-0.5",
+                                                isDanger ? "text-white/70" : "text-slate-400 dark:text-slate-500"
+                                            )}>Cluster</div>
+                                            <div className={cn(
+                                                "text-[11px] font-black truncate flex items-center gap-1",
+                                                isDanger ? "text-white" : "text-slate-700 dark:text-slate-200"
+                                            )}>
+                                                {isDanger && <AlertTriangle size={12} className="text-white animate-pulse shrink-0" />}
+                                                {val}
+                                            </div>
+                                        </div>
                                     );
                                 })()}
-                            </div>
-                        </div>
-
-                        {/* Footer Details: Restored 4-Column Grid */}
-                        <div className="border-t border-slate-100 dark:border-slate-800 pt-3 grid grid-cols-4 gap-2">
-                            <div>
-                                <div className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-tight mb-0.5">Server</div>
-                                <div className="text-[11px] font-bold text-slate-700 dark:text-slate-200 truncate" title={primaryServer?.app?.['system.name']?.metric_value || primaryServer?.app?.['system.hostname']?.metric_value || primaryServer?.app?.['hostname']?.metric_value || primaryServer?.info?.name}>
-                                    {primaryServer?.app?.['system.name']?.metric_value || primaryServer?.app?.['system.hostname']?.metric_value || primaryServer?.app?.['hostname']?.metric_value || primaryServer?.info?.name}
-                                </div>
-                            </div>
-                            <div>
-                                <div className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-tight mb-0.5">IP</div>
-                                <div className="text-[11px] font-bold text-slate-600 dark:text-slate-300 tracking-tight">{primaryServer?.info?.ip_address}</div>
-                            </div>
-                            <div>
-                                <div className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-tight mb-0.5">Status</div>
-                                <div className="text-[11px] font-black text-emerald-600 dark:text-emerald-500 uppercase tracking-tighter">
-                                    {primaryServer?.app?.['app.jams.status']?.metric_value || 'ACTIVE'}
-                                </div>
-                            </div>
-                            <div>
-                                <div className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-tight mb-0.5">Cluster</div>
-                                <div className="text-[11px] font-bold text-slate-700 dark:text-slate-200 truncate">{primaryServer?.app?.['app.fms.cluster']?.metric_value || 'None'}</div>
                             </div>
                         </div>
                     </div>
                 </div>
-            </div>
 
                 {/* Secondary Server */}
                 <div className="bg-white dark:bg-slate-900 rounded-xl shadow-lg overflow-hidden border border-slate-200 dark:border-slate-800 flex flex-col relative">
@@ -1068,116 +1154,135 @@ const MonitoreoSite = () => {
                             </div>
                         </div>
 
-                    <div className={cn("p-3 flex-1 flex flex-col gap-3", !secondaryServer && "opacity-50 grayscale")}>
-                        {secondaryServer ? (
-                            <>
-                                <div className="flex flex-col xl:flex-row gap-4 items-stretch">
-                                    <div className="flex flex-row gap-4 items-start justify-center xl:justify-start px-0 flex-none w-[220px]">
-                                        {(() => {
-                                            const pct = secondaryServer?.system?.disk_percent ?? 0;
-                                            const status = secondaryServer?.system?.disk_status;
-                                            const color = (status === 'danger' ? '#ef4444' : (status === 'warning' ? '#f59e0b' : '#10b981'));
-                                            return (
-                                                <CircularUsage
-                                                    percentage={pct}
-                                                    label="Disco"
-                                                    sublabel={`${formatMetricValue(secondaryServer?.system?.disk_used, 'G')} / ${formatMetricValue(secondaryServer?.system?.disk_total, 'G')}`}
-                                                    color={color}
-                                                    buttonLabel="Particiones"
-                                                    onClick={() => openTerminal('Particiones / Disco', secondaryServer?.app?.['particionesDiscoDuro']?.metric_value || 'No Data', secondaryServer?.info?.id, 'particionesDiscoDuro')}
-                                                />
-                                            );
-                                        })()}
+                        <div className={cn("p-3 flex-1 flex flex-col gap-3", !secondaryServer && "opacity-50 grayscale")}>
+                            {secondaryServer ? (
+                                <>
+                                    <div className="flex flex-col xl:flex-row gap-4 items-stretch">
+                                        <div className="flex flex-row gap-4 items-start justify-center xl:justify-start px-0 flex-none w-[220px]">
+                                            {(() => {
+                                                const pct = secondaryServer?.system?.disk_percent ?? 0;
+                                                const status = secondaryServer?.system?.disk_status;
+                                                const color = (status === 'danger' ? '#ef4444' : (status === 'warning' ? '#f59e0b' : '#10b981'));
+                                                return (
+                                                    <CircularUsage
+                                                        percentage={pct}
+                                                        label="Disco"
+                                                        sublabel={`${formatMetricValue(secondaryServer?.system?.disk_used, 'G')} / ${formatMetricValue(secondaryServer?.system?.disk_total, 'G')}`}
+                                                        color={color}
+                                                        buttonLabel="Particiones"
+                                                        onClick={() => openTerminal('Particiones / Disco', secondaryServer?.app?.['particionesDiscoDuro']?.metric_value || 'No Data', secondaryServer?.info?.id, 'particionesDiscoDuro')}
+                                                    />
+                                                );
+                                            })()}
 
-                                        {(() => {
-                                            const pct = secondaryServer?.system?.ram_percent ?? 0;
-                                            const status = secondaryServer?.system?.ram_status;
-                                            const color = (status === 'danger' ? '#ef4444' : (status === 'warning' ? '#f59e0b' : '#10b981'));
-                                            return (
-                                                <CircularUsage
-                                                    percentage={pct}
-                                                    label="RAM"
-                                                    sublabel={`${formatMetricValue(secondaryServer?.system?.ram_used, 'M')} / ${formatMetricValue(secondaryServer?.system?.ram_total, 'G')}`}
-                                                    color={color}
-                                                    buttonLabel="Crontab"
-                                                    onClick={() => openTerminal('Crontab', secondaryServer?.app?.['crontab']?.metric_value || 'No Data', secondaryServer?.info?.id, 'crontab')}
-                                                />
-                                            );
-                                        })()}
-                                    </div>
+                                            {(() => {
+                                                const pct = secondaryServer?.system?.ram_percent ?? 0;
+                                                const status = secondaryServer?.system?.ram_status;
+                                                const color = (status === 'danger' ? '#ef4444' : (status === 'warning' ? '#f59e0b' : '#10b981'));
+                                                return (
+                                                    <CircularUsage
+                                                        percentage={pct}
+                                                        label="RAM"
+                                                        sublabel={`${formatMetricValue(secondaryServer?.system?.ram_used, 'M')} / ${formatMetricValue(secondaryServer?.system?.ram_total, 'G')}`}
+                                                        color={color}
+                                                        buttonLabel="Crontab"
+                                                        onClick={() => openTerminal('Crontab', secondaryServer?.app?.['crontab']?.metric_value || 'No Data', secondaryServer?.info?.id, 'crontab')}
+                                                    />
+                                                );
+                                            })()}
+                                        </div>
 
-                                    <div className="flex-1 min-h-[180px] relative border border-slate-100 dark:border-slate-800 rounded-xl bg-slate-50/50 dark:bg-slate-800/30 overflow-hidden">
-                                        <div className="absolute top-3 right-4 z-10 flex items-center gap-2">
-                                            <div className={cn(
-                                                "text-[10px] font-black px-2 py-1 rounded-full border shadow-sm transition-colors",
-                                                secondaryServer?.system?.cpu_status === 'danger' ? "text-red-600 bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-900/30" :
-                                                    (secondaryServer?.system?.cpu_status === 'warning' ? "text-amber-600 bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-900/30" : "text-emerald-700 bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-900/30")
-                                            )}>
-                                                Load: {secondaryServer?.system?.cpu_usage || '0.0'}
+                                        <div className="flex-1 min-h-[180px] relative border border-slate-100 dark:border-slate-800 rounded-xl bg-slate-50/50 dark:bg-slate-800/30 overflow-hidden">
+                                            <div className="absolute top-3 right-4 z-10 flex items-center gap-2">
+                                                <div className={cn(
+                                                    "text-[10px] font-black px-2 py-1 rounded-full border shadow-sm transition-colors",
+                                                    secondaryServer?.system?.cpu_status === 'danger' ? "text-red-600 bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-900/30" :
+                                                        (secondaryServer?.system?.cpu_status === 'warning' ? "text-amber-600 bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-900/30" : "text-emerald-700 bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-900/30")
+                                                )}>
+                                                    Load: {secondaryServer?.system?.cpu_usage || '0.0'}
+                                                </div>
+                                                <div className={cn(
+                                                    "w-4 h-4 transition-colors",
+                                                    secondaryServer?.system?.cpu_status === 'danger' ? "text-red-400" :
+                                                        (secondaryServer?.system?.cpu_status === 'warning' ? "text-amber-400" : "text-emerald-400")
+                                                )}>
+                                                    <Activity size={14} />
+                                                </div>
                                             </div>
-                                            <div className={cn(
-                                                "w-4 h-4 transition-colors",
-                                                secondaryServer?.system?.cpu_status === 'danger' ? "text-red-400" :
-                                                    (secondaryServer?.system?.cpu_status === 'warning' ? "text-amber-400" : "text-emerald-400")
-                                            )}>
-                                                <Activity size={14} />
+                                            {(() => {
+                                                const cpuStatus = secondaryServer?.system?.cpu_status || 'ok';
+                                                const cpuColor = (cpuStatus === 'danger' ? '#ef4444' : (cpuStatus === 'warning' ? '#f59e0b' : '#10b981'));
+                                                return (
+                                                    <ResponsiveContainer width="100%" height="100%">
+                                                        <AreaChart data={liveSecondaryHistory} margin={{ top: 20, right: 10, left: -20, bottom: 5 }}>
+                                                            <defs>
+                                                                <linearGradient id="colorCpuS" x1="0" y1="0" x2="0" y2="1">
+                                                                    <stop offset="5%" stopColor={cpuColor} stopOpacity={0.4} />
+                                                                    <stop offset="95%" stopColor={cpuColor} stopOpacity={0} />
+                                                                </linearGradient>
+                                                            </defs>
+                                                            <CartesianGrid strokeDasharray="3 3" vertical={true} stroke="#e2e8f0" strokeOpacity={0.1} />
+                                                            <XAxis dataKey="created_at" hide />
+                                                            <YAxis stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} />
+                                                            <Area type="monotone" dataKey="cpu_usage" stroke={cpuColor} strokeWidth={2.5} fill="url(#colorCpuS)" isAnimationActive={false} />
+                                                        </AreaChart>
+                                                    </ResponsiveContainer>
+                                                );
+                                            })()}
+                                        </div>
+                                    </div>
+
+                                    <div className="border-t border-slate-100 dark:border-slate-800 pt-3 grid grid-cols-4 gap-2 items-center">
+                                        <div className="p-1.5 border border-transparent">
+                                            <div className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-tight mb-0.5">Server</div>
+                                            <div className="text-[11px] font-bold text-slate-700 dark:text-slate-200 truncate" title={secondaryServer?.app?.['system.name']?.metric_value || secondaryServer?.app?.['system.hostname']?.metric_value || secondaryServer?.app?.['hostname']?.metric_value || secondaryServer?.info?.name}>
+                                                {secondaryServer?.app?.['system.name']?.metric_value || secondaryServer?.app?.['system.hostname']?.metric_value || secondaryServer?.app?.['hostname']?.metric_value || secondaryServer?.info?.name}
+                                            </div>
+                                        </div>
+                                        <div className="p-1.5 border border-transparent">
+                                            <div className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-tight mb-0.5">IP</div>
+                                            <div className="text-[11px] font-bold text-slate-600 dark:text-slate-300 tracking-tight">{secondaryServer?.info?.ip_address}</div>
+                                        </div>
+                                        <div className="p-1.5 border border-transparent">
+                                            <div className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-tight mb-0.5">Status</div>
+                                            <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-tighter">
+                                                {secondaryServer?.app?.['app.jams.status']?.metric_value || 'BACKUP'}
                                             </div>
                                         </div>
                                         {(() => {
-                                            const cpuStatus = secondaryServer?.system?.cpu_status || 'ok';
-                                            const cpuColor = (cpuStatus === 'danger' ? '#ef4444' : (cpuStatus === 'warning' ? '#f59e0b' : '#10b981'));
+                                            const clusterMetric = secondaryServer?.app?.['app.fms.cluster'];
+                                            const val = clusterMetric?.metric_value || 'None';
+                                            const isDanger = clusterMetric?.status === 'danger' || val === 'None';
                                             return (
-                                                <ResponsiveContainer width="100%" height="100%">
-                                                    <AreaChart data={liveSecondaryHistory} margin={{ top: 20, right: 10, left: -20, bottom: 5 }}>
-                                                        <defs>
-                                                            <linearGradient id="colorCpuS" x1="0" y1="0" x2="0" y2="1">
-                                                                <stop offset="5%" stopColor={cpuColor} stopOpacity={0.4} />
-                                                                <stop offset="95%" stopColor={cpuColor} stopOpacity={0} />
-                                                            </linearGradient>
-                                                        </defs>
-                                                        <CartesianGrid strokeDasharray="3 3" vertical={true} stroke="#e2e8f0" strokeOpacity={0.1} />
-                                                        <XAxis dataKey="created_at" hide />
-                                                        <YAxis stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} />
-                                                        <Area type="monotone" dataKey="cpu_usage" stroke={cpuColor} strokeWidth={2.5} fill="url(#colorCpuS)" isAnimationActive={false} />
-                                                    </AreaChart>
-                                                </ResponsiveContainer>
+                                                <div className={cn(
+                                                    "p-1.5 rounded-lg transition-all",
+                                                    isDanger ? "bg-red-600 border border-red-700 animate-pulse shadow-md shadow-red-600/30" : "border border-transparent"
+                                                )}>
+                                                    <div className={cn(
+                                                        "text-[9px] font-black uppercase tracking-widest mb-0.5",
+                                                        isDanger ? "text-white/70" : "text-slate-400 dark:text-slate-500"
+                                                    )}>Cluster</div>
+                                                    <div className={cn(
+                                                        "text-[11px] font-black truncate flex items-center gap-1",
+                                                        isDanger ? "text-white" : "text-slate-700 dark:text-slate-200"
+                                                    )}>
+                                                        {isDanger && <AlertTriangle size={12} className="text-white animate-pulse shrink-0" />}
+                                                        {val}
+                                                    </div>
+                                                </div>
                                             );
                                         })()}
                                     </div>
+                                </>
+                            ) : (
+                                <div className="flex-1 flex flex-col items-center justify-center text-slate-400 gap-2">
+                                    <Activity className="w-12 h-12 opacity-20" />
+                                    <div className="font-bold text-sm">Esperando conexión de servidor secundario...</div>
                                 </div>
-
-                                <div className="border-t border-slate-100 dark:border-slate-800 pt-3 grid grid-cols-4 gap-2">
-                                    <div>
-                                        <div className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-tight mb-0.5">Server</div>
-                                        <div className="text-[11px] font-bold text-slate-700 dark:text-slate-200 truncate" title={secondaryServer?.app?.['system.name']?.metric_value || secondaryServer?.app?.['system.hostname']?.metric_value || secondaryServer?.app?.['hostname']?.metric_value || secondaryServer?.info?.name}>
-                                            {secondaryServer?.app?.['system.name']?.metric_value || secondaryServer?.app?.['system.hostname']?.metric_value || secondaryServer?.app?.['hostname']?.metric_value || secondaryServer?.info?.name}
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <div className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-tight mb-0.5">IP</div>
-                                        <div className="text-[11px] font-bold text-slate-600 dark:text-slate-300 tracking-tight">{secondaryServer?.info?.ip_address}</div>
-                                    </div>
-                                    <div>
-                                        <div className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-tight mb-0.5">Status</div>
-                                        <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-tighter">
-                                            {secondaryServer?.app?.['app.jams.status']?.metric_value || 'BACKUP'}
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <div className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-tight mb-0.5">Cluster</div>
-                                        <div className="text-[11px] font-bold text-slate-700 dark:text-slate-200 truncate">{secondaryServer?.app?.['app.fms.cluster']?.metric_value || 'None'}</div>
-                                    </div>
-                                </div>
-                            </>
-                        ) : (
-                            <div className="flex-1 flex flex-col items-center justify-center text-slate-400 gap-2">
-                                <Activity className="w-12 h-12 opacity-20" />
-                                <div className="font-bold text-sm">Esperando conexión de servidor secundario...</div>
-                            </div>
-                        )}
+                            )}
+                        </div>
                     </div>
                 </div>
-            </div>
 
                 {/* Servicios y Scripts Section */}
                 <div className={cn("bg-white dark:bg-slate-900 rounded-xl shadow-lg border border-slate-200 dark:border-slate-800 flex flex-col transition-all duration-1000", isFullSiteOffline && "grayscale opacity-40")}>
@@ -1188,28 +1293,61 @@ const MonitoreoSite = () => {
                     <div className="p-4 flex-1 flex flex-col gap-4">
                         {/* JAMS Cluster Health Row */}
                         <div className="grid grid-cols-2 gap-3">
-                            <div
-                                onClick={() => openTerminal('JAMS Service Status', primaryServer?.app?.['app.jams.service']?.metric_value || 'No Data', primaryServer?.info?.id, 'app.jams.service')}
-                                className="cursor-pointer group bg-[#f0fdf4] dark:bg-emerald-950/20 border border-[#dcfce7] dark:border-emerald-900/30 rounded-xl p-3 transition-all hover:bg-emerald-50 dark:hover:bg-emerald-900/30 hover:shadow-md flex flex-col justify-between h-[110px]"
-                            >
-                                <div>
-                                    <div className="text-[#15803d] dark:text-emerald-400 font-black text-[10px] uppercase truncate mb-0.5">
-                                        JAMS {primaryServer?.app?.['system.name']?.metric_value || primaryServer?.app?.['system.hostname']?.metric_value || primaryServer?.app?.['hostname']?.metric_value || primaryServer?.info?.name}
+                            {(() => {
+                                const jamsStatus = primaryServer?.app?.['app.jams.restarts_log']?.status || 'ok';
+                                const isDanger = jamsStatus === 'danger';
+                                const isWarning = jamsStatus === 'warning';
+                                
+                                return (
+                                    <div
+                                        onClick={() => openTerminal('JAMS Service Status', primaryServer?.app?.['app.jams.service']?.metric_value || 'No Data', primaryServer?.info?.id, 'app.jams.service')}
+                                        className={cn(
+                                            "cursor-pointer group border rounded-xl p-3 transition-all hover:shadow-md flex flex-col justify-between h-[110px]",
+                                            isDanger ? "bg-red-600 dark:bg-red-700 border-red-700 dark:border-red-800 hover:bg-red-700 dark:hover:bg-red-800 animate-pulse" :
+                                            isWarning ? "bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-900/30 hover:bg-amber-100 dark:hover:bg-amber-900/30" :
+                                            "bg-[#f0fdf4] dark:bg-emerald-950/20 border-[#dcfce7] dark:border-emerald-900/30 hover:bg-emerald-50 dark:hover:bg-emerald-900/30"
+                                        )}
+                                    >
+                                        <div>
+                                            <div className={cn(
+                                                "font-black text-[10px] uppercase truncate mb-0.5",
+                                                isDanger ? "text-white" :
+                                                isWarning ? "text-amber-700 dark:text-amber-400" :
+                                                "text-[#15803d] dark:text-emerald-400"
+                                            )}>
+                                                JAMS {primaryServer?.app?.['system.name']?.metric_value || primaryServer?.app?.['system.hostname']?.metric_value || primaryServer?.app?.['hostname']?.metric_value || primaryServer?.info?.name}
+                                            </div>
+                                            <div className={cn(
+                                                "text-[9px] font-bold uppercase tracking-wider",
+                                                isDanger ? "text-red-100" :
+                                                isWarning ? "text-amber-600 dark:text-amber-500" :
+                                                "text-emerald-600 dark:text-emerald-500"
+                                            )}>Active</div>
+                                        </div>
+                                        <div className={cn(
+                                            "text-[9px] font-black opacity-80 uppercase tracking-tighter pt-1.5 border-t flex justify-between items-center",
+                                            isDanger ? "text-white border-red-500" :
+                                            isWarning ? "text-amber-800 dark:text-amber-500/80 border-amber-200 dark:border-amber-900/30" :
+                                            "text-[#166534] dark:text-emerald-600/80 border-emerald-100 dark:border-emerald-900/30"
+                                        )}>
+                                            <span>Reinicios (24h):</span>
+                                            <span className={cn(
+                                                "px-1.5 rounded-full font-bold",
+                                                isDanger ? "text-red-700 bg-white" :
+                                                isWarning ? "text-amber-700 bg-amber-200/50" :
+                                                "text-emerald-700 bg-emerald-200/50"
+                                            )}>
+                                                {(() => {
+                                                    const val = primaryServer?.app?.['app.jams.restarts_log']?.metric_value ||
+                                                        primaryServer?.app?.['app.jams.restart']?.metric_value;
+                                                    if (val == null) return '0';
+                                                    return String(val).split('\n').filter((l: string) => l.trim().length > 0).length;
+                                                })()}
+                                            </span>
+                                        </div>
                                     </div>
-                                    <div className="text-emerald-600 dark:text-emerald-500 text-[9px] font-bold uppercase tracking-wider">Active</div>
-                                </div>
-                                <div className="text-[#166534] dark:text-emerald-600/80 text-[9px] font-black opacity-80 uppercase tracking-tighter pt-1.5 border-t border-emerald-100 dark:border-emerald-900/30 flex justify-between items-center">
-                                    <span>Reinicios (24h):</span>
-                                    <span className="text-emerald-700 bg-emerald-200/50 px-1.5 rounded-full font-bold">
-                                        {(() => {
-                                            const val = primaryServer?.app?.['app.jams.restarts_log']?.metric_value ||
-                                                primaryServer?.app?.['app.jams.restart']?.metric_value;
-                                            if (!val) return '0';
-                                            return val.split('\n').filter((l: string) => l.trim().length > 0).length;
-                                        })()}
-                                    </span>
-                                </div>
-                            </div>
+                                );
+                            })()}
 
                             <div
                                 onClick={() => openTerminal('JAMS Service Status', secondaryServer?.app?.['app.jams.service']?.metric_value || 'No Data', secondaryServer?.info?.id, 'app.jams.service')}
@@ -1226,68 +1364,57 @@ const MonitoreoSite = () => {
 
                         {/* Critical Services Status Grid */}
                         <div className="grid grid-cols-4 gap-3">
-                            <div
+                            <StandardMetricCard
+                                title="SCRIPTS"
+                                icon={Activity}
+                                statusColor={primaryServer?.app?.['app.fms.active_scripts']?.status === 'danger' ? 'danger' : primaryServer?.app?.['app.fms.active_scripts']?.status === 'warning' ? 'warning' : 'success'}
+                                pulse={primaryServer?.app?.['app.fms.active_scripts']?.status === 'danger'}
+                                value={(() => {
+                                    const val = primaryServer?.app?.['app.fms.active_scripts']?.metric_value;
+                                    if (!val) return <CheckCircle2 size={28} className="text-emerald-500" />;
+                                    const numVal = !isNaN(Number(val)) ? Number(val) : val.split('\n').filter((l: string) => l.trim().length > 0 && l.includes('/')).length;
+                                    return numVal === 0 ? <CheckCircle2 size={28} className="text-emerald-500" /> : numVal;
+                                })()}
                                 onClick={() => openTerminal('Scripts Activos', primaryServer?.app?.['app.fms.active_scripts']?.metric_value || 'No hay scripts activos', primaryServer?.info?.id, 'app.fms.active_scripts')}
-                                className="bg-[#f0fdf4] dark:bg-emerald-950/20 border border-[#dcfce7] dark:border-emerald-900/30 rounded-xl p-2 flex flex-col items-center justify-center text-center relative overflow-hidden group hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors h-[100px] cursor-pointer"
-                            >
-                                <div className="absolute -bottom-2 -right-2 opacity-5 text-emerald-900 group-hover:scale-110 transition-transform"><Activity size={48} /></div>
-                                <div className="text-[10px] md:text-xs font-black text-[#166534]/50 dark:text-emerald-400/50 uppercase tracking-widest leading-none z-10 mb-1">SCRIPTS</div>
-                                <div className="text-3xl font-black text-[#166534] dark:text-emerald-400 z-10">
-                                    {(() => {
-                                        const val = primaryServer?.app?.['app.fms.active_scripts']?.metric_value;
-                                        if (!val) return '0';
-                                        if (!isNaN(Number(val))) return val;
-                                        return val.split('\n').filter((l: string) => l.trim().length > 0 && l.includes('/')).length;
-                                    })()}
-                                </div>
-                            </div>
+                            />
 
-                            <div
+                            <StandardMetricCard
+                                title="REPLICAS"
+                                icon={Database}
+                                statusColor={primaryServer?.app?.['app.fms.replica']?.status === 'danger' ? 'danger' : primaryServer?.app?.['app.fms.replica']?.status === 'warning' ? 'warning' : 'success'}
+                                pulse={primaryServer?.app?.['app.fms.replica']?.status === 'danger'}
+                                value={(() => {
+                                    const val = primaryServer?.app?.['app.fms.replica']?.metric_value;
+                                    if (val == null) return <CheckCircle2 size={28} className="text-emerald-500" />;
+                                    const numVal = String(val).split('\n').filter((l: string) => l.trim().length > 0).length;
+                                    return numVal === 0 ? <CheckCircle2 size={28} className="text-emerald-500" /> : numVal;
+                                })()}
                                 onClick={() => openTerminal('Replica Log', primaryServer?.app?.['app.fms.replica']?.metric_value || 'No hay replicas activas', primaryServer?.info?.id, 'app.fms.replica')}
-                                className="bg-[#f0fdf4] dark:bg-emerald-950/20 border border-[#dcfce7] dark:border-emerald-900/30 rounded-xl p-2 flex flex-col items-center justify-center text-center relative overflow-hidden group hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors h-[100px] cursor-pointer"
-                            >
-                                <div className="absolute -bottom-2 -right-2 opacity-10 text-emerald-900 group-hover:scale-110 transition-transform"><Database size={48} /></div>
-                                <div className="text-[10px] md:text-xs font-black text-[#166534]/50 dark:text-emerald-400/50 uppercase tracking-widest leading-none z-10 mb-1">REPLICAS</div>
-                                <div className={clsx(
-                                    "text-3xl font-black z-10",
-                                    primaryServer?.app?.['app.fms.replica']?.status === 'danger' ? 'text-red-600 animate-pulse' : 'text-[#166534] dark:text-emerald-400'
-                                )}>
-                                    {(() => {
-                                        const val = primaryServer?.app?.['app.fms.replica']?.metric_value;
-                                        if (!val) return '0';
-                                        return val.split('\n').filter((l: string) => l.trim().length > 0).length;
-                                    })()}
-                                </div>
-                            </div>
+                            />
 
-                            <div
+                            <StandardMetricCard
+                                title="RECONCILIE"
+                                icon={ShieldCheck}
+                                statusColor={primaryServer?.app?.['app.jams.reconcilie']?.status === 'danger' ? 'danger' : primaryServer?.app?.['app.jams.reconcilie']?.status === 'warning' ? 'warning' : 'success'}
+                                value={(() => {
+                                    const status = primaryServer?.app?.['app.jams.reconcilie']?.status;
+                                    if (status === 'danger') return 'Error';
+                                    if (status === 'warning') return 'Warning';
+                                    return <CheckCircle2 size={28} className="text-emerald-500" />;
+                                })()}
                                 onClick={() => openTerminal('Reconciliador Log', primaryServer?.app?.['app.jams.reconcilie']?.metric_value || 'No Log Data', primaryServer?.info?.id, 'app.jams.reconcilie')}
-                                className="bg-[#f0fdf4] dark:bg-emerald-950/20 border border-[#dcfce7] dark:border-emerald-900/30 rounded-xl p-2 flex flex-col items-center justify-center text-center relative overflow-hidden group hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors h-[100px] cursor-pointer"
-                            >
-                                <div className="absolute -bottom-2 -right-2 opacity-10 text-emerald-900 group-hover:scale-110 transition-transform"><ShieldCheck size={48} /></div>
-                                <div className="text-[10px] md:text-xs font-black text-[#166534]/50 dark:text-emerald-400/50 uppercase tracking-widest leading-none z-10 mb-1">RECONCILIE</div>
-                                <span className={clsx(
-                                    "text-sm md:text-base font-black uppercase tracking-tighter z-10",
-                                    primaryServer?.app?.['app.jams.reconcilie']?.status === 'danger' ? 'text-red-600' :
-                                        primaryServer?.app?.['app.jams.reconcilie']?.status === 'warning' ? 'text-yellow-600' :
-                                            'text-emerald-600'
-                                )}>
-                                    {primaryServer?.app?.['app.jams.reconcilie']?.status === 'danger' ? 'Error' :
-                                        primaryServer?.app?.['app.jams.reconcilie']?.status === 'warning' ? 'Warning' :
-                                            (primaryServer?.app?.['app.jams.reconcilie']?.status || 'Active')}
-                                </span>
-                            </div>
+                            />
 
-                            <div className="bg-[#f0fdf4] dark:bg-emerald-950/20 border border-[#dcfce7] dark:border-emerald-900/30 rounded-xl p-2 flex flex-col items-center justify-center text-center relative overflow-hidden group hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors h-[100px]">
-                                <div className="absolute -bottom-2 -right-2 opacity-10 text-emerald-900 group-hover:scale-110 transition-transform"><Clock size={48} /></div>
-                                <div className="text-[10px] md:text-xs font-black text-[#166534]/50 dark:text-emerald-400/50 uppercase tracking-widest leading-none z-10 mb-1">NTP</div>
-                                <span className="text-sm md:text-base font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-tighter z-10">
-                                    {(() => {
-                                        const val = primaryServer?.app?.['system.ntp.status']?.metric_value || '';
-                                        return val.toLowerCase().includes('ntpd') || val.trim().length > 20 ? 'Active' : (val || 'Active');
-                                    })()}
-                                </span>
-                            </div>
+                            <StandardMetricCard
+                                title="NTP"
+                                icon={Clock}
+                                statusColor="success"
+                                value={(() => {
+                                    const val = primaryServer?.app?.['system.ntp.status']?.metric_value || '';
+                                    const isActive = val.toLowerCase().includes('ntpd') || val.trim().length > 20 || val === 'Active';
+                                    return isActive ? <CheckCircle2 size={28} className="text-emerald-500" /> : (val || <CheckCircle2 size={28} className="text-emerald-500" />);
+                                })()}
+                            />
                         </div>
                     </div>
                 </div>
@@ -1309,7 +1436,7 @@ const MonitoreoSite = () => {
                 </div>
 
                 {/* 2. Database Intelligence */}
-                <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col h-full min-h-[500px]">
+                <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col h-full">
                     <div className="bg-[#0284c7] dark:bg-[#0c2d48] text-white px-5 py-2.5 flex justify-between items-center shadow-sm">
                         <div className="flex items-center gap-2">
                             <Database size={18} className="text-white/80" />
@@ -1417,10 +1544,11 @@ const MonitoreoSite = () => {
                             {(() => {
                                 const idleVal = (() => {
                                     const val = primaryServer?.app?.['db.idle_queries']?.metric_value || '';
-                                    return val.split('\n').filter((l: string) => l.includes('|')).length;
+                                    return String(val).split('\n').filter((l: string) => l.includes('|')).length;
                                 })();
-                                const isDanger = idleVal > 20;
-                                const isWarning = idleVal > 10;
+                                const status = primaryServer?.app?.['db.idle_queries']?.status || 'success';
+                                const isDanger = status === 'danger';
+                                const isWarning = status === 'warning';
 
                                 return (
                                     <DBHealthCard
@@ -1440,8 +1568,8 @@ const MonitoreoSite = () => {
                                 label="Tabla mas pesada"
                                 value={(() => {
                                     const val = primaryServer?.app?.['db.top_ten_tables']?.metric_value;
-                                    if (!val) return '-';
-                                    const lines = val.split(/\r?\n/).filter((l: string) => l.trim().length > 0);
+                                    if (val == null) return '-';
+                                    const lines = String(val).split(/\r?\n/).filter((l: string) => l.trim().length > 0);
                                     if (!lines[0]) return '-';
 
                                     // Handle pipe or space
@@ -1450,8 +1578,8 @@ const MonitoreoSite = () => {
                                 })()}
                                 sublabel={(() => {
                                     const val = primaryServer?.app?.['db.top_ten_tables']?.metric_value;
-                                    if (!val) return '0.00 GB';
-                                    const lines = val.split(/\r?\n/).filter((l: string) => l.trim().length > 0);
+                                    if (val == null) return '0.00 GB';
+                                    const lines = String(val).split(/\r?\n/).filter((l: string) => l.trim().length > 0);
                                     if (!lines[0]) return '0.00 GB';
 
                                     let count = 0;
@@ -1492,19 +1620,24 @@ const MonitoreoSite = () => {
                                     }
                                 });
 
-                                const isDanger = maxDiff > 30;
-                                const isWarning = maxDiff > 10;
+                                // Prefer backend-evaluated status (db.shifts.max_diff) so the
+                                // same evaluation that creates the alert drives the card color.
+                                const backendStatus = primaryServer?.app?.['db.shifts.max_diff']?.status;
+                                const isDanger = backendStatus === 'danger' || (!backendStatus && maxDiff > 1000);
+                                const isWarning = backendStatus === 'warning' || (!backendStatus && !isDanger && maxDiff > 100);
 
                                 return (
-                                    <DBHealthCard
-                                        label="Max Diff"
-                                        value={maxTab}
-                                        sublabel={maxDiff.toLocaleString() + " diff"}
-                                        color={isDanger ? { bg: 'bg-red-600', text: 'text-white' } :
-                                            isWarning ? { bg: 'bg-amber-400', text: 'text-amber-950' } :
-                                                { bg: 'bg-blue-50', text: 'text-blue-600' }}
-                                        icon={AlertTriangle}
-                                    />
+                                    <div className={cn(isDanger && "animate-pulse")}>
+                                        <DBHealthCard
+                                            label="Max Diff"
+                                            value={maxTab}
+                                            sublabel={maxDiff.toLocaleString() + " diff"}
+                                            color={isDanger ? { bg: 'bg-red-600', text: 'text-white' } :
+                                                isWarning ? { bg: 'bg-amber-400', text: 'text-amber-950' } :
+                                                    { bg: 'bg-blue-50', text: 'text-blue-600' }}
+                                            icon={AlertTriangle}
+                                        />
+                                    </div>
                                 );
                             })()}
                         </div>
@@ -1595,9 +1728,9 @@ const MonitoreoSite = () => {
                                         <tbody className="text-[10px] tabular-nums">
                                             {(() => {
                                                 const val = primaryServer?.app?.['db.top_ten_tables']?.metric_value;
-                                                if (!val) return <tr><td colSpan={2} className="text-center py-2 text-xs text-slate-400 italic">Sin datos</td></tr>;
+                                                if (val == null) return <tr><td colSpan={2} className="text-center py-2 text-xs text-slate-400 italic">Sin datos</td></tr>;
 
-                                                const lines = val.split(/\r?\n/).filter((l: string) => l.trim().length > 0);
+                                                const lines = String(val).split(/\r?\n/).filter((l: string) => l.trim().length > 0);
                                                 return lines.slice(0, 10).map((line: string) => {
                                                     let table = "Unknown";
                                                     let count = "0";

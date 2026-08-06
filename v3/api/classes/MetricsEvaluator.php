@@ -63,11 +63,59 @@ class MetricsEvaluator {
         if ($key === 'app.summarizer.ejecution') {
             $lines = array_filter(explode("\n", trim($value)), function($l) {
                 $l = trim($l);
-                return !empty($l);
+                return !empty($l) && strpos($l, '/bin/sh -c') === false; // Ignore shell wrappers
             });
-            // Each 2 lines is one process (parent + child)
-            // Odd line = manual summarization, still counts as a process
-            return ceil(count($lines) / 2);
+            // Every remaining line is an actual Summarizer process
+            return count($lines);
+        }
+
+        // 6. JAMS Restarts Count (Numeric string or multiline log parsing)
+        if ($key === 'app.jams.restarts_log') {
+            $strVal = trim((string)$value);
+            if (is_numeric($strVal)) {
+                return intval($strVal);
+            }
+            $lines = array_filter(explode("\n", $strVal), function($l) {
+                return !empty(trim($l));
+            });
+            return count($lines);
+        }
+
+        // 7. Active Scripts and Replicas Execution Time (Multiline parsing)
+        // Returns the MAXIMUM execution time in seconds
+        if (($key === 'app.fms.active_scripts' || $key === 'app.fms.replica') && is_string($value)) {
+            $lines = explode("\n", trim($value));
+            $maxSecs = 0;
+            foreach ($lines as $line) {
+                $parts = preg_split('/\s+/', trim($line));
+                if (count($parts) >= 3) {
+                    $timeStr = $parts[2];
+                    
+                    $days = 0; $hours = 0; $mins = 0; $secs = 0;
+                    
+                    if (strpos($timeStr, '-') !== false) {
+                        $timeParts = explode('-', $timeStr);
+                        $days = intval($timeParts[0]);
+                        $timeStr = $timeParts[1] ?? '00:00';
+                    }
+                    
+                    $timeChunks = explode(':', $timeStr);
+                    if (count($timeChunks) === 3) {
+                        $hours = intval($timeChunks[0]);
+                        $mins = intval($timeChunks[1]);
+                        $secs = intval($timeChunks[2]);
+                    } elseif (count($timeChunks) === 2) {
+                        $mins = intval($timeChunks[0]);
+                        $secs = intval($timeChunks[1]);
+                    }
+                    
+                    $totalSecs = ($days * 86400) + ($hours * 3600) + ($mins * 60) + $secs;
+                    if ($totalSecs > $maxSecs) {
+                        $maxSecs = $totalSecs;
+                    }
+                }
+            }
+            return $maxSecs;
         }
 
         return $value;
@@ -113,8 +161,56 @@ class MetricsEvaluator {
             }
         }
 
+        // --- CUSTOM OVERRIDE: app.summarizer.ejecution ---
+        // Rules:
+        // 1. Only alert if summarizer is actually running (service_active, cron_active, both_active)
+        // 2. "both_active" mode gets +1 extra process margin (danger threshold = 3 instead of 2)
+        // 3. Must stay elevated for 2 minutes before escalating to danger
+        if ($key === 'app.summarizer.ejecution' && $serverId && $metricId) {
+            $currentCount = intval($value); // already normalized to process count
+
+            // Get summarizer run mode
+            $statusRes = $this->mysqli->query(
+                "SELECT metric_value FROM server_app_metrics WHERE server_id = $serverId AND metric_key = 'app.summarizer.status' LIMIT 1"
+            );
+            $summarizerMode = ($statusRes && $statusRes->num_rows > 0)
+                ? trim($statusRes->fetch_assoc()['metric_value'])
+                : '';
+
+            if ($currentCount === 0) {
+                $status = 'ok';
+            } else {
+                // both_active gets +1 margin: danger at >3 processes; single mode: danger at >2
+                $dangerThreshold = ($summarizerMode === 'both_active') ? 3 : 2;
+
+                if ($currentCount <= 1) {
+                    $status = 'ok';
+                    $this->mysqli->query("DELETE FROM server_app_metrics WHERE server_id = $serverId AND metric_key = 'app.summarizer.ejecution.warning_start'");
+                } elseif ($currentCount < $dangerThreshold) {
+                    $status = 'warning';
+                    $this->mysqli->query("DELETE FROM server_app_metrics WHERE server_id = $serverId AND metric_key = 'app.summarizer.ejecution.warning_start'");
+                } else {
+                    // Enforce 2-minute delay by checking a custom state in server_app_metrics
+                    $stateRes = $this->mysqli->query("SELECT metric_value FROM server_app_metrics WHERE server_id = $serverId AND metric_key = 'app.summarizer.ejecution.warning_start'");
+                    if ($stateRes && $stateRes->num_rows > 0) {
+                        $warningStart = (int)$stateRes->fetch_assoc()['metric_value'];
+                    } else {
+                        $warningStart = time();
+                        $this->mysqli->query("INSERT INTO server_app_metrics (server_id, metric_key, metric_value, status, last_updated) VALUES ($serverId, 'app.summarizer.ejecution.warning_start', '$warningStart', 'ok', NOW()) ON DUPLICATE KEY UPDATE metric_value = '$warningStart', last_updated = NOW()");
+                    }
+
+                    if ((time() - $warningStart) < 120) {
+                        $status = 'warning'; // Within 2-minute grace period
+                    } else {
+                        $status = 'danger';  // 2 minutes exceeded → fire alert
+                    }
+                }
+            }
+        }
+        // --- END CUSTOM OVERRIDE ---
+
         if ($serverId) {
-            $this->manageAlerts($serverId, $key, $status, $matchedRule);
+            $this->manageAlerts($serverId, $key, $status, $matchedRule, $value, $metricId);
         }
 
         return $status;
@@ -199,35 +295,36 @@ class MetricsEvaluator {
         return intval($str); 
     }
 
-    public function manageAlerts($serverId, $key, $status, $rule = null) {
+    public function manageAlerts($serverId, $key, $status, $rule = null, $metricValue = null, $metricId = null) {
         $isDangerStatus = $this->isWorse($status, 'warning');
 
+        if (!isset($this->contextCache[$serverId])) {
+            $ctxStmt = $this->mysqli->prepare("SELECT s.server_type, s.ip as ip_address, si.name as site_name, s.name as server_name, s.is_deleted FROM servers s LEFT JOIN site_servers ss ON s.id = ss.server_id LEFT JOIN sites si ON ss.site_id = si.id WHERE s.id = ?");
+            if ($ctxStmt) {
+                $ctxStmt->bind_param("i", $serverId);
+                $ctxStmt->execute();
+                $this->contextCache[$serverId] = $ctxStmt->get_result()->fetch_assoc();
+            } else {
+                 $this->contextCache[$serverId] = null;
+            }
+        }
+        
+        $ctx = $this->contextCache[$serverId];
+        
+        // Do not alert if server is deleted
+        if ($ctx && isset($ctx['is_deleted']) && (int)$ctx['is_deleted'] === 1) {
+            return;
+        }
+
         if ($isDangerStatus) {
-            if (!isset($this->contextCache[$serverId])) {
-                $ctxStmt = $this->mysqli->prepare("SELECT s.server_type, s.ip as ip_address, si.name as site_name, s.name as server_name, s.is_deleted FROM servers s JOIN site_servers ss ON s.id = ss.server_id JOIN sites si ON ss.site_id = si.id WHERE s.id = ?");
-                if ($ctxStmt) {
-                    $ctxStmt->bind_param("i", $serverId);
-                    $ctxStmt->execute();
-                    $this->contextCache[$serverId] = $ctxStmt->get_result()->fetch_assoc();
-                } else {
-                     $this->contextCache[$serverId] = null;
-                }
-            }
-            
-            $ctx = $this->contextCache[$serverId];
-            
-            // Do not alert if server is deleted
-            if ($ctx && isset($ctx['is_deleted']) && (int)$ctx['is_deleted'] === 1) {
-                return;
-            }
-            
             $stmt = $this->mysqli->prepare("SELECT id FROM alerts WHERE server_id = ? AND metric_key = ? AND status IN ('active', 'acknowledged') LIMIT 1");
             $stmt->bind_param("is", $serverId, $key);
             $stmt->execute();
-            if (!$stmt->get_result()->fetch_assoc()) {
-                $siteName = $ctx['site_name'] ?? 'Unknown Site';
-                $serverType = $ctx['server_type'] ?? 'Server';
-                $serverIp = $ctx['ip_address'] ?? '0.0.0.0';
+            $existing = $stmt->get_result()->fetch_assoc();
+
+            if (!$existing) {
+                $siteName = $ctx['site_name'] ?? '';
+                $serverType = $ctx['server_type'] ?? 'Servidor Desconocido';
 
                 $roleMap = [
                     'Active' => 'FMS Activo',
@@ -243,34 +340,74 @@ class MetricsEvaluator {
                 ];
                 $translatedRole = $roleMap[$serverType] ?? $serverType;
 
-                $title = "Alerta en el servidor $translatedRole de $siteName";
+                $title = "Alerta en el servidor $translatedRole" . ($siteName ? " de $siteName" : "");
                 $desc = $rule['description'] ?? "Se ha detectado una anomalía ($status)";
                 $desc = str_ireplace(['Alerta Detector:', 'Alerta Detector', 'Crítico:', 'Crítica:'], '', $desc);
                 $desc = trim($desc);
-                $fullDesc = "[IP: $serverIp] " . $desc;
                 
-                $ins = $this->mysqli->prepare("INSERT INTO alerts (server_id, metric_key, title, description, status, created_at) VALUES (?, ?, ?, ?, 'active', NOW())");
-                $ins->bind_param("isss", $serverId, $key, $title, $fullDesc);
+                $valStr = $metricValue !== null ? (string)$metricValue : null;
+                if ($valStr !== null && strlen($valStr) > 255) {
+                    $valStr = substr($valStr, 0, 252) . '...';
+                }
+                $ins = $this->mysqli->prepare("INSERT INTO alerts (server_id, metric_key, title, description, status, created_at, metric_value) VALUES (?, ?, ?, ?, 'active', NOW(), ?)");
+                $ins->bind_param("issss", $serverId, $key, $title, $desc, $valStr);
                 $ins->execute();
+            } else {
+                // Clear any pending cooldown because danger is back
+                $upd = $this->mysqli->prepare("UPDATE alerts SET ok_since = NULL WHERE id = ?");
+                $upd->bind_param("i", $existing['id']);
+                $upd->execute();
             }
         } else {
-            $stmt = $this->mysqli->prepare("UPDATE alerts SET status = 'solved', solved_at = NOW() WHERE server_id = ? AND metric_key = ? AND status IN ('active', 'acknowledged')");
+            $stmt = $this->mysqli->prepare("SELECT id, ok_since FROM alerts WHERE server_id = ? AND metric_key = ? AND status IN ('active', 'acknowledged') LIMIT 1");
             $stmt->bind_param("is", $serverId, $key);
             $stmt->execute();
+            $existing = $stmt->get_result()->fetch_assoc();
+
+            if ($existing) {
+                // Find cooldown config for this metric
+                $cooldownSecs = 5; // Default 5 seconds
+                foreach ($this->rules as $r) {
+                    $isMatch = false;
+                    if ($metricId !== null && $r['metric_id'] !== null && (int)$r['metric_id'] === (int)$metricId) {
+                        $isMatch = true;
+                    } elseif (!empty($r['metric_pattern'])) {
+                        $pattern = '/^' . str_replace(['%', '.'], ['.*', '\.'], $r['metric_pattern']) . '$/';
+                        if (preg_match($pattern, $key)) $isMatch = true;
+                    }
+                    if ($isMatch && isset($r['cooldown_seconds'])) {
+                        $cooldownSecs = (int)$r['cooldown_seconds'];
+                        break;
+                    }
+                }
+
+                if ($cooldownSecs <= 0) {
+                    // Instant resolve
+                    $upd = $this->mysqli->prepare("UPDATE alerts SET status = 'solved', solved_at = NOW(), ok_since = NULL WHERE id = ?");
+                    $upd->bind_param("i", $existing['id']);
+                    $upd->execute();
+                } else {
+                    if (empty($existing['ok_since'])) {
+                        $upd = $this->mysqli->prepare("UPDATE alerts SET ok_since = NOW() WHERE id = ?");
+                        $upd->bind_param("i", $existing['id']);
+                        $upd->execute();
+                    } else {
+                        $okTime = strtotime($existing['ok_since']);
+                        if ((time() - $okTime) >= $cooldownSecs) {
+                            $upd = $this->mysqli->prepare("UPDATE alerts SET status = 'solved', solved_at = NOW(), ok_since = NULL WHERE id = ?");
+                            $upd->bind_param("i", $existing['id']);
+                            $upd->execute();
+                        }
+                    }
+                }
+            }
         }
     }
 
     private function isWorse($new, $current) {
-        $levels = [
-            'ok' => 0, 
-            'warning' => 1, 
-            'danger' => 2,
-            'critical' => 3,
-            'fatal' => 4,
-            'error' => 2
-        ];
-        $n = $levels[strtolower($new)] ?? 1;
-        $c = $levels[strtolower($current)] ?? 0;
+        $weights = ['ok' => 0, 'warning' => 1, 'error' => 2, 'danger' => 2, 'critical' => 3];
+        $n = isset($weights[$new]) ? $weights[$new] : -1;
+        $c = isset($weights[$current]) ? $weights[$current] : -1;
         return $n > $c;
     }
 }

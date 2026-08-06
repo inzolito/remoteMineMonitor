@@ -59,7 +59,14 @@ const SuperAdmin = () => {
     const [activeCategory, setActiveCategory] = useState('infrastructure');
     const [activeTab, setActiveTab] = useState('bot_fms');
     const [, setLoading] = useState(false);
-    const [, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+    const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+
+    useEffect(() => {
+        if (message) {
+            const timer = setTimeout(() => setMessage(null), 5000);
+            return () => clearTimeout(timer);
+        }
+    }, [message]);
 
     const categories = [
         { id: 'infrastructure', label: 'Infraestructura', icon: LayoutGrid, description: 'Servidores, Métricas y Monitoreo' },
@@ -69,6 +76,7 @@ const SuperAdmin = () => {
     const tabsByCategory: Record<string, any[]> = {
         infrastructure: [
             { id: 'bot_fms', label: 'BOT FMS', icon: Activity },
+            { id: 'bot_fms_codelco', label: 'BOT FMS CODELCO', icon: Activity },
             { id: 'bot_sf', label: 'BOT SF', icon: Mountain },
             { id: 'servers', label: 'Servidores', icon: Server },
             { id: 'metrics', label: 'Catálogo Métricas', icon: Activity },
@@ -94,11 +102,13 @@ const SuperAdmin = () => {
     const [permissions, setPermissions] = useState<any[]>([]); // Roles
     const [modules, setModules] = useState<any[]>([]); // All Modules
     const [botStatus, setBotStatus] = useState<any>(null);
+    const [botCodelcoStatus, setBotCodelcoStatus] = useState<any>(null);
     const [botSfStatus, setBotSfStatus] = useState<any>(null);
     const [botSites, setBotSites] = useState<any[]>([]);
     const [selectedLogSite, setSelectedLogSite] = useState<any>(null);
     const [botLogs, setBotLogs] = useState<string>('');
     const [liveUptime, setLiveUptime] = useState('--h --m --s');
+    const [liveCodelcoUptime, setLiveCodelcoUptime] = useState('--h --m --s');
     const [liveSfUptime, setLiveSfUptime] = useState('--h --m --s');
     
     // Salesforce Bot Detailed States
@@ -263,6 +273,10 @@ const SuperAdmin = () => {
                 const [s, st] = await Promise.all([fetchData('bot_status'), fetchData('bot_sites')]);
                 if (s) setBotStatus(s);
                 if (st) setBotSites(st);
+            } else if (activeTab === 'bot_fms_codelco') {
+                const [s, st] = await Promise.all([fetchData('bot_status_v2'), fetchData('bot_sites')]);
+                if (s) setBotCodelcoStatus(s);
+                if (st) setBotSites(st);
             } else if (activeTab === 'bot_sf') {
                 const [s, users] = await Promise.all([fetchData('bot_sf_status'), fetchData('bot_sf_users')]);
                 if (s) setBotSfStatus(s);
@@ -282,6 +296,7 @@ const SuperAdmin = () => {
 
     useEffect(() => {
         if (selectedMetric && activeTab === 'commands') {
+            setCommands([]);
             fetchData('commands', `&metric_id=${selectedMetric.id}`).then(c => setCommands(c || []));
         }
     }, [selectedMetric, activeTab]);
@@ -309,6 +324,42 @@ const SuperAdmin = () => {
         const interval = setInterval(pollStatus, 10000);
         return () => clearInterval(interval);
     }, [activeTab, selectedLogSite]);
+
+    // Polling for Bot Status and Logs (Codelco V2)
+    useEffect(() => {
+        if (activeTab !== 'bot_fms_codelco') return;
+
+        const pollCodelcoStatus = async () => {
+            const s = await fetchData('bot_status_v2');
+            if (s) setBotCodelcoStatus(s);
+            
+            const l = await fetchData('bot_logs_v2');
+            if (l && l.logs) setBotLogs(l.logs);
+        };
+
+        const interval = setInterval(pollCodelcoStatus, 10000);
+        return () => clearInterval(interval);
+    }, [activeTab]);
+
+    // Real-time Uptime Timer (Codelco V2)
+    useEffect(() => {
+        if (activeTab !== 'bot_fms_codelco' || !botCodelcoStatus?.since) return;
+
+        const timer = setInterval(() => {
+            setLiveCodelcoUptime(formatUptime(botCodelcoStatus.since));
+        }, 1000);
+
+        return () => clearInterval(timer);
+    }, [activeTab, botCodelcoStatus?.since]);
+
+    // Fetch Codelco logs immediately when tab loads
+    useEffect(() => {
+        if (activeTab === 'bot_fms_codelco') {
+            fetchData('bot_logs_v2').then(l => {
+                if (l && l.logs) setBotLogs(l.logs);
+            });
+        }
+    }, [activeTab]);
 
     // Polling for Bot Status and Logs (SF)
     useEffect(() => {
@@ -357,6 +408,16 @@ const SuperAdmin = () => {
 
     return (
         <div className="p-8 max-w-7xl mx-auto space-y-6">
+            {message && (
+                <div className={`fixed bottom-6 right-6 z-50 p-4 rounded-2xl shadow-2xl border backdrop-blur-md animate-in slide-in-from-bottom-5 duration-300 ${message.type === 'success' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500' : 'bg-red-500/10 border-red-500/20 text-red-500'}`}>
+                    <div className="flex items-center gap-3">
+                        {message.type === 'success' ? <ShieldCheck className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
+                        <span className="font-bold text-sm">{message.text}</span>
+                        <button onClick={() => setMessage(null)} className="ml-4 p-1 hover:bg-black/10 rounded-lg transition-colors"><XOctagon className="w-4 h-4" /></button>
+                    </div>
+                </div>
+            )}
+
             {/* Header with Categories */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-6">
                 <div className="flex items-center gap-3">
@@ -609,6 +670,190 @@ const SuperAdmin = () => {
                                     </div>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Tab: BOT FMS CODELCO */}
+            {activeTab === 'bot_fms_codelco' && (
+                <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500 h-[calc(100vh-250px)] flex flex-col">
+                    {/* TOP BAR: Status + Tunnels + Restart */}
+                    <div className="bg-card border rounded-2xl p-3 px-5 shadow-sm flex items-center justify-between flex-wrap gap-3">
+                        <div className="flex items-center gap-5 flex-wrap">
+                            {/* Master status */}
+                            <div className="flex items-center gap-2">
+                                <div className={`w-2 h-2 rounded-full ${botCodelcoStatus?.state === 'active' ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`}></div>
+                                <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Master:</span>
+                                <span className={`text-[10px] font-black uppercase ${botCodelcoStatus?.state === 'active' ? 'text-emerald-600' : 'text-red-600'}`}>{botCodelcoStatus?.state || 'OFFLINE'}</span>
+                            </div>
+                            <div className="h-4 w-px bg-border"></div>
+                            {/* Uptime */}
+                            <div className="flex items-center gap-2">
+                                <Clock className="w-3.5 h-3.5 text-muted-foreground" />
+                                <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Uptime:</span>
+                                <span className="text-[10px] font-mono font-bold">{liveCodelcoUptime}</span>
+                            </div>
+                            <div className="h-4 w-px bg-border"></div>
+                            {/* SSH Tunnel chips inline */}
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <Network className="w-3.5 h-3.5 text-primary flex-shrink-0" />
+                                <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Túneles BT:</span>
+                                {botCodelcoStatus?.sockets && botCodelcoStatus.sockets.length > 0 ? (
+                                    botCodelcoStatus.sockets.map((sock: string, idx: number) => (
+                                        <div key={idx} className="flex items-center gap-1 px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/20 rounded-full">
+                                            <div className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse"></div>
+                                            <span className="text-[9px] font-mono font-bold text-emerald-600 max-w-[140px] truncate" title={sock}>{sock}</span>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <span className="text-[9px] font-bold text-slate-400 italic">Sin túneles activos</span>
+                                )}
+                            </div>
+                        </div>
+                        <button onClick={async () => { if (confirm('⚠️ ¿Reiniciar Agente Codelco?')) { await sendData('bot_restart_v2', 'POST', {}); const s = await fetchData('bot_status_v2'); if (s) setBotCodelcoStatus(s); } }} className="text-[9px] font-black uppercase tracking-tighter px-3 py-1.5 bg-red-500/10 text-red-600 border border-red-500/20 rounded-lg hover:bg-red-500 hover:text-white transition-all flex-shrink-0">Reiniciar Servicio</button>
+                    </div>
+
+                    <div className="flex flex-col lg:flex-row gap-4 flex-1 min-h-0 overflow-hidden">
+                        {/* LEFT SIDEBAR: Codelco Faenas */}
+                        <div className="w-full lg:w-64 flex flex-col gap-4 overflow-hidden flex-shrink-0">
+                            <div className="bg-card border rounded-[1.5rem] p-4 shadow-xl shadow-primary/5 flex flex-col h-full">
+                                <div className="flex items-center gap-2 mb-4 px-2">
+                                    <LayoutGrid className="w-4 h-4 text-primary" />
+                                    <h2 className="text-sm font-black uppercase tracking-tight">Faenas Codelco</h2>
+                                </div>
+                                
+                                <div className="flex-1 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
+                                    {botSites.filter((site: any) => site.conglomerate === 'CODELCO').map((site: any) => (
+                                        <button
+                                            key={site.id}
+                                            onClick={() => setSelectedLogSite(site)}
+                                            className={`w-full flex items-center justify-between p-2.5 rounded-xl transition-all duration-200 group ${selectedLogSite?.id === site.id 
+                                                ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20 scale-[1.02]' 
+                                                : 'hover:bg-muted/80 text-foreground/80'}`}
+                                        >
+                                            <div className="flex items-center gap-2 overflow-hidden">
+                                                <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${site.is_monitored == 1 ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-slate-400 opacity-30'}`}></div>
+                                                <span className="text-[10px] font-black truncate uppercase tracking-tight">{site.name}</span>
+                                            </div>
+                                            {site.is_monitored == 1 ? (
+                                                <span className={`text-[8px] font-bold px-1 rounded ${selectedLogSite?.id === site.id ? 'bg-white/20' : 'bg-emerald-500/10 text-emerald-600'}`}>ON</span>
+                                            ) : (
+                                                <span className="text-[8px] font-bold opacity-30">PAUSA</span>
+                                            )}
+                                        </button>
+                                    ))}
+                                    {botSites.filter((site: any) => site.conglomerate === 'CODELCO').length === 0 && (
+                                        <div className="text-[10px] text-muted-foreground p-4 text-center">No hay faenas de Codelco configuradas</div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* RIGHT: Faena header + Full-width terminal */}
+                        <div className="flex-1 flex flex-col gap-4 overflow-hidden min-w-0">
+                            {/* Faena header row with toggle */}
+                            <div className="bg-card border rounded-2xl px-5 py-3 flex items-center justify-between relative overflow-hidden flex-shrink-0">
+                                <div className="flex items-center gap-4 relative z-10">
+                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center border ${selectedLogSite?.is_monitored == 1 ? 'border-emerald-500/20 bg-emerald-500/5' : 'border-slate-500/20 bg-slate-500/5'}`}>
+                                        <Activity className={`w-5 h-5 ${selectedLogSite?.is_monitored == 1 ? 'text-emerald-500' : 'text-slate-400'}`} />
+                                    </div>
+                                    <div>
+                                        <h2 className="text-base font-black tracking-tighter uppercase leading-tight">
+                                            {selectedLogSite ? selectedLogSite.name : 'Selecciona una faena'}
+                                        </h2>
+                                        <div className="flex items-center gap-2 mt-0.5">
+                                            <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">{selectedLogSite?.conglomerate || 'CODELCO'}</span>
+                                            <div className="w-1 h-1 rounded-full bg-border"></div>
+                                            <span className={`text-[9px] font-black uppercase tracking-widest ${selectedLogSite?.is_monitored == 1 ? 'text-emerald-500' : 'text-slate-400'}`}>
+                                                {selectedLogSite ? (selectedLogSite?.is_monitored == 1 ? 'Monitoreo Activo' : 'En Pausa') : '—'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="flex gap-4 items-center relative z-10">
+                                    {selectedLogSite && (
+                                        <div className="flex items-center gap-3 px-3 py-1.5 bg-muted/30 rounded-xl border">
+                                            <span className={`text-[9px] font-black uppercase tracking-widest ${selectedLogSite.is_monitored == 1 ? 'text-emerald-500' : 'text-muted-foreground opacity-50'}`}>
+                                                {selectedLogSite.is_monitored == 1 ? 'Encendida' : 'Apagada'}
+                                            </span>
+                                            <button 
+                                                onClick={async () => {
+                                                    const newStatus = selectedLogSite.is_monitored == 1 ? 0 : 1;
+                                                    await fetchData('bot_site_toggle', `&site_id=${selectedLogSite.id}&status=${newStatus}`);
+                                                    const updatedSites = await fetchData('bot_sites');
+                                                    if (updatedSites) {
+                                                        setBotSites(updatedSites);
+                                                        const fresh = updatedSites.find((s: any) => s.id === selectedLogSite.id);
+                                                        if (fresh) setSelectedLogSite(fresh);
+                                                    }
+                                                }}
+                                                className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors focus:outline-none ${selectedLogSite.is_monitored == 1 ? 'bg-emerald-500' : 'bg-slate-300'}`}
+                                            >
+                                                <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform duration-200 ${selectedLogSite.is_monitored == 1 ? 'translate-x-[22px]' : 'translate-x-1'}`} />
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="absolute top-0 right-0 p-3 opacity-5 pointer-events-none">
+                                    <Activity className="w-16 h-16 text-primary" />
+                                </div>
+                            </div>
+
+                            {/* Full-width Terminal — filtered by faena */}
+                            {(() => {
+                                const connIds: number[] = selectedLogSite?.conn_ids || [];
+                                const isFiltered = connIds.length > 0;
+                                const patterns = connIds.map((id: number) => `CONN-${id}`);
+                                const filteredLog = isFiltered && botLogs
+                                    ? botLogs.split('\n').filter((line: string) =>
+                                        patterns.some((p: string) => line.includes(p))
+                                    ).join('\n') || `(No hay líneas de log para ${selectedLogSite?.name || 'esta faena'} aún)`
+                                    : botLogs;
+                                return (
+                                    <div className="flex-1 bg-[#0b0e14] rounded-[1.5rem] border border-slate-800 shadow-2xl overflow-hidden flex flex-col relative group min-h-0">
+                                        <div className="flex items-center justify-between px-5 py-3 border-b border-slate-800/50 bg-slate-900/30 flex-shrink-0">
+                                            <div className="flex items-center gap-3">
+                                                <div className="flex gap-1.5">
+                                                    <div className="w-2.5 h-2.5 rounded-full bg-[#ff5f56]"></div>
+                                                    <div className="w-2.5 h-2.5 rounded-full bg-[#ffbd2e]"></div>
+                                                    <div className="w-2.5 h-2.5 rounded-full bg-[#27c93f]"></div>
+                                                </div>
+                                                <span className="ml-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                                                    Terminal — {isFiltered ? `Filtrado: ${selectedLogSite?.name}` : 'Agente Consolidado'}
+                                                </span>
+                                            </div>
+                                            <div className="flex items-center gap-3">
+                                                {isFiltered ? (
+                                                    <div className="flex items-center gap-1.5 px-2 py-1 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                                                        <div className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0"></div>
+                                                        <span className="text-[9px] font-bold text-blue-400 uppercase tracking-widest">Filtrado · CONN-{connIds.join(', CONN-')}</span>
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex items-center gap-1.5 px-2 py-1 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+                                                        <AlertCircle className="w-3 h-3 text-amber-500 flex-shrink-0" />
+                                                        <span className="text-[9px] font-bold text-amber-500 uppercase tracking-widest">Sin filtro — selecciona una faena</span>
+                                                    </div>
+                                                )}
+                                                <div className="flex items-center gap-1.5 px-2 py-1 bg-emerald-500/10 rounded-lg">
+                                                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></div>
+                                                    <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest">Live (Last 200)</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div 
+                                            className="flex-1 p-5 overflow-y-auto font-mono text-[11px] text-slate-300 custom-scrollbar leading-relaxed"
+                                            ref={(el) => { 
+                                                if (el) el.scrollTop = el.scrollHeight;
+                                            }}
+                                        >
+                                            <pre className="whitespace-pre-wrap break-words">
+                                                {filteredLog || 'Cargando logs...'}
+                                            </pre>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
                         </div>
                     </div>
                 </div>
@@ -1053,7 +1298,7 @@ const SuperAdmin = () => {
                                     {Object.entries(
                                         servers
                                             .filter(s =>
-                                                s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                                (s.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                                                 (s.ip_address || '').includes(searchTerm) ||
                                                 (s.site_name || '').toLowerCase().includes(searchTerm.toLowerCase())
                                             )
@@ -1197,7 +1442,8 @@ const SuperAdmin = () => {
                                 e.preventDefault();
                                 if (await sendData('metrics', 'POST', selectedMetric)) {
                                     const m = await fetchData('metrics');
-                                    setMetrics(m);
+                                    if (m) setMetrics(m);
+                                    setSelectedMetric(null);
                                 }
                             }}>
                                 <div className="space-y-1.5">
@@ -1329,7 +1575,12 @@ const SuperAdmin = () => {
                                                 />
                                             </div>
                                             <div className="col-span-2 flex gap-1">
-                                                <button onClick={() => sendData('commands', 'POST', cmd)} className="p-2.5 bg-green-100 text-green-700 rounded-lg hover:bg-green-200"><Save className="w-5 h-5" /></button>
+                                                <button onClick={async () => {
+                                                    if (await sendData('commands', 'POST', cmd)) {
+                                                        const c = await fetchData('commands', `&metric_id=${selectedMetric.id}`);
+                                                        setCommands(c || []);
+                                                    }
+                                                }} className="p-2.5 bg-green-100 text-green-700 rounded-lg hover:bg-green-200"><Save className="w-5 h-5" /></button>
                                                 <button onClick={async () => {
                                                     if (cmd.id && await deleteItem('commands', cmd.id)) {
                                                         setCommands(commands.filter((_, i) => i !== idx));

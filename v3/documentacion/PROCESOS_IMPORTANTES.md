@@ -61,4 +61,41 @@ Identificar de forma robusta cuando un servidor deja de reportar datos (se queda
 
 ---
 
+---
+
+## 3. Estándar Visual de UI para Estados de Alerta (Danger / Warning / OK)
+
+### Objetivo
+Garantizar una experiencia visual consistente e inconfundible en todo el Dashboard cuando un componente entra en estado crítico o de advertencia.
+
+### Reglas de Estilo por Estado
+
+#### 1. Estado Crítico (`danger`)
+*   **Fondo**: Rojo sólido prioritario (`bg-red-600` en tema claro, `dark:bg-red-700` en tema oscuro).
+*   **Texto**: Texto principal y etiquetas secundarias en blanco puro o rojo extremadamente claro (`text-white`, `text-red-100`).
+*   **Badges / Píldoras de Conteo**: Fondo blanco con texto en rojo oscuro (`bg-white text-red-700`).
+*   **Animación**: Efecto de parpadeo suave activo (`animate-pulse`).
+*   **Bordes**: Tono rojo sólido acorde (`border-red-700` / `dark:border-red-800`).
+
+#### 2. Estado Advertencia (`warning`)
+*   **Fondo**: Tono ámbar/amarillo suave (`bg-amber-50` / `dark:bg-amber-950/20`).
+*   **Texto y Bordes**: Tono ámbar/naranja legibles (`text-amber-700`, `border-amber-200`).
+
+#### 3. Estado Normal (`ok` / `success`)
+*   **Fondo**: Esmeralda/Verde relajado (`bg-[#f0fdf4]` / `dark:bg-emerald-950/20`).
+*   **Texto y Bordes**: Verde corporativo (`text-[#15803d]`, `border-[#dcfce7]`).
+
+---
+
+## 4. Gestión de Traspasos de Sub-Turno
+
+> [!IMPORTANT]
+> **REGLA DE SEGURIDAD: BOTÓN "CONFIRMAR TRASPASO"**
+> El botón de "Confirmar Traspaso" en el modal de traspaso de sub-turno (`SubShiftHandoff.tsx`) debe permanecer **inhabilitado**.
+> El agente de IA **JAMÁS** debe habilitar o modificar este botón ni su lógica asociada en la base de datos sin preguntar previamente al usuario y recibir una **confirmación explícita por escrito**.
+
+---
+
 *(Más procesos se agregarán aquí en el futuro)*
+
+

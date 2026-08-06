@@ -255,8 +255,25 @@ if ($method === 'GET') {
         $res = mysqli_query($mysqli, $query);
         $data = [];
         while ($row = mysqli_fetch_assoc($res)) {
-            $data[] = $row;
+            $row['conn_ids'] = [];
+            $data[$row['id']] = $row;
         }
+        // Enrich each site with connection IDs for log filtering
+        $conn_query = "SELECT st.id as site_id, c.id as conn_id
+                       FROM sites st
+                       JOIN site_servers ss ON st.id = ss.site_id
+                       JOIN servers srv ON ss.server_id = srv.id
+                       JOIN connections c ON srv.id = c.server_id
+                       WHERE srv.server_type_id IN (5, 6)
+                       GROUP BY st.id, c.id";
+        $conn_res = mysqli_query($mysqli, $conn_query);
+        while ($crow = mysqli_fetch_assoc($conn_res)) {
+            $sid = $crow['site_id'];
+            if (isset($data[$sid])) {
+                $data[$sid]['conn_ids'][] = (int)$crow['conn_id'];
+            }
+        }
+        $data = array_values($data);
     } elseif ($action === 'bot_site_toggle') {
         $site_id = intval($_GET['site_id'] ?? 0);
         $new_status = intval($_GET['status'] ?? 0);
@@ -273,10 +290,51 @@ if ($method === 'GET') {
         }
     } elseif ($action === 'bot_site_restart') {
         $site_id = intval($_GET['site_id'] ?? 0);
-        // pkill -f only for this site worker
-        $cmd = "pkill -f 'RMMEyeCatLaboratory_v3.py $site_id fms' 2>&1";
-        $output = shell_exec($cmd);
-        $data = ["success" => true, "message" => "Comando enviado", "output" => $output];
+        
+        // The worker runs using conn_id, not site_id. Fetch connection IDs for this site
+        $query = "SELECT c.id FROM connections c 
+                  JOIN servers srv ON c.server_id = srv.id 
+                  JOIN site_servers ss ON srv.id = ss.server_id 
+                  WHERE ss.site_id = $site_id AND srv.server_type_id IN (5, 6)";
+        $res = mysqli_query($mysqli, $query);
+        
+        $outputs = [];
+        if ($res) {
+            while ($row = mysqli_fetch_assoc($res)) {
+                $conn_id = $row['id'];
+                $cmd = "sudo pkill -f 'RMMEyeCatLaboratory_v3.py $conn_id fms' 2>&1";
+                $outputs[] = shell_exec($cmd);
+            }
+        }
+        
+        $data = ["success" => true, "message" => "Comando enviado", "output" => implode("\n", $outputs)];
+    } elseif ($action === 'bot_status_v2') {
+        $output = shell_exec('/var/www/monitoreoLaboratorio/v3/scripts/bot-codelco-control.sh status 2>&1');
+        $data = json_decode($output, true) ?: ["state" => "unknown", "since" => ""];
+        
+        $sockets = [];
+        $socketDir = '/var/www/monitoreoLaboratorio/v3/sockets';
+        if (is_dir($socketDir)) {
+            $files = scandir($socketDir);
+            foreach ($files as $file) {
+                if ($file !== '.' && $file !== '..' && strpos($file, 'rmmcod_') === 0 && substr($file, -5) === '.sock') {
+                    $alias = substr($file, 7, -5);
+                    $sockets[] = $alias;
+                }
+            }
+        }
+        $data['sockets'] = $sockets;
+    } elseif ($action === 'bot_logs_v2') {
+        $logPath = "/var/log/rmmcod_agent.log";
+        if (file_exists($logPath)) {
+            $output = shell_exec("tail -n 200 " . escapeshellarg($logPath));
+            $data = ["logs" => $output ?: "Archivo de log vacío", "path" => $logPath];
+        } else {
+            $data = ["logs" => "Archivo de log no encontrado", "path" => $logPath];
+        }
+    } elseif ($action === 'bot_restart_v2') {
+        $output = shell_exec('sudo /var/www/monitoreoLaboratorio/v3/scripts/bot-codelco-control.sh restart-service 2>&1');
+        $data = ["success" => true, "message" => "Restart initiated", "output" => $output];
     } elseif ($action === 'bot_sf_status') {
         $output = shell_exec(__DIR__ . "/../scripts/bot-sf-control.sh status");
         $data = json_decode($output, true) ?: ["state" => "unknown"];
@@ -511,6 +569,10 @@ if ($method === 'GET') {
     } elseif ($action === 'bot_restart_subs') {
         $output = shell_exec('sudo /var/www/monitoreoLaboratorio/v3/scripts/bot-control.sh restart-subs 2>&1');
         echo json_encode(["message" => "Subprocesses killed", "output" => $output]);
+        exit();
+    } elseif ($action === 'bot_restart_v2') {
+        $output = shell_exec('sudo /var/www/monitoreoLaboratorio/v3/scripts/bot-codelco-control.sh restart-service 2>&1');
+        echo json_encode(["message" => "Restart initiated", "output" => $output]);
         exit();
     }
 

@@ -1,0 +1,13 @@
+# Node / Frontend Build
+frontend/node_modules/
+frontend/dist/
+frontend/dist_backup_old/
+frontend/build.log
+frontend/build_output.log
+
+# Temporary and Debug files
+api/api_out.json
+debug_api_response.json
+query_test.php
+scratch/
+*.log

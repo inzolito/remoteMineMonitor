@@ -12,10 +12,14 @@ import MonitoreoPage from './pages/MonitoreoPage';
 import MonitoreoSite from './pages/MonitoreoSite';
 import Home from './pages/Home';
 import AlertManager from './components/AlertManager';
+import SalesforceAlertManager from './components/SalesforceAlertManager';
 import SuperAdmin from './pages/SuperAdmin';
 import Profile from './pages/Profile';
 
 import ShiftsPage from './pages/ShiftsPage';
+import HistorialPage from './pages/HistorialPage';
+
+import ErrorBoundary from './components/ErrorBoundary';
 
 // Placeholder for Site Monitoring (Will create next) - This local definition is now replaced by MonitoreoSite for the route.
 // If SiteMonitoringPlaceholder is needed as a fallback or for other purposes, it should be imported from a file or redefined.
@@ -24,10 +28,12 @@ const queryClient = new QueryClient();
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
       <ThemeProvider defaultTheme="light" storageKey="vite-ui-theme">
         <AuthProvider>
           <AlertManager />
+          <SalesforceAlertManager />
           <BrowserRouter basename="/monitoreoLaboratorio/v3/frontend/dist">
             <Routes>
               <Route path="/login" element={<Login />} />
@@ -46,6 +52,7 @@ function App() {
                   {/* Placeholder routes for others */}
                   <Route path="/tickets" element={<div className="p-8 text-center text-muted-foreground">Módulo Tickets en construcción</div>} />
                   <Route path="/shifts" element={<ShiftsPage />} />
+                  <Route path="/historial" element={<HistorialPage />} />
                 </Route>
               </Route>
 
@@ -55,6 +62,7 @@ function App() {
         </AuthProvider>
       </ThemeProvider>
     </QueryClientProvider>
+    </ErrorBoundary>
   );
 }
 

@@ -34,6 +34,7 @@ const ServerModal = ({ isOpen, onClose, onSave, initialData }: ServerModalProps)
     const [os, setOs] = useState('Linux');
     const [type, setType] = useState('Generic');
     const [description, setDescription] = useState('');
+    const [notes, setNotes] = useState('');
 
     // Auth Fields
     const [sshUser, setSshUser] = useState('');
@@ -55,7 +56,8 @@ const ServerModal = ({ isOpen, onClose, onSave, initialData }: ServerModalProps)
             setIp(initialData.ip_address);
             setOs(initialData.os);
             setType(initialData.server_type);
-            setDescription(initialData.description);
+            setDescription((initialData.description || '').replace(/\\n/g, '\n'));
+            setNotes((initialData.notes || '').replace(/\\n/g, '\n'));
             setSshUser(initialData.ssh_user || '');
             setSshPassword(initialData.ssh_password || '');
             setDbUser(initialData.db_user || '');
@@ -75,6 +77,7 @@ const ServerModal = ({ isOpen, onClose, onSave, initialData }: ServerModalProps)
         setOs('Linux');
         setType('Generic');
         setDescription('');
+        setNotes('');
         setSshUser('');
         setSshPassword('');
         setDbUser('');
@@ -111,6 +114,7 @@ const ServerModal = ({ isOpen, onClose, onSave, initialData }: ServerModalProps)
                 os,
                 server_type: type,
                 description,
+                notes,
                 ssh_user: sshUser,
                 ssh_password: sshPassword,
                 db_user: dbUser,
@@ -366,14 +370,25 @@ const ServerModal = ({ isOpen, onClose, onSave, initialData }: ServerModalProps)
                             </div>
                         </div>
 
-                        <div>
-                            <label className="block text-sm font-medium text-foreground mb-1.5">Descripción / Notas</label>
-                            <textarea
-                                value={description}
-                                onChange={(e) => setDescription(e.target.value)}
-                                className="w-full px-4 py-2 bg-muted/30 border border-input rounded-xl focus:ring-2 focus:ring-primary outline-none text-foreground h-20 resize-none transition-all"
-                                placeholder="Detalles adicionales..."
-                            />
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                            <div>
+                                <label className="block text-sm font-medium text-foreground mb-1.5">Descripción</label>
+                                <textarea
+                                    value={description}
+                                    onChange={(e) => setDescription(e.target.value)}
+                                    className="w-full px-4 py-2 bg-muted/30 border border-input rounded-xl focus:ring-2 focus:ring-primary outline-none text-foreground h-28 transition-all"
+                                    placeholder="Descripción general del servidor..."
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-foreground mb-1.5">Notas</label>
+                                <textarea
+                                    value={notes}
+                                    onChange={(e) => setNotes(e.target.value)}
+                                    className="w-full px-4 py-2 bg-muted/30 border border-input rounded-xl focus:ring-2 focus:ring-primary outline-none text-foreground h-28 transition-all font-mono text-xs"
+                                    placeholder="Notas de mantenimiento, advertencias, etc..."
+                                />
+                            </div>
                         </div>
                     </form>
                 </div>

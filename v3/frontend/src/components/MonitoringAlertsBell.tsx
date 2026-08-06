@@ -26,6 +26,24 @@ const getAlertIcon = (key: string, className: string) => {
     return <AlertCircle className={className} />;
 };
 
+const formatAlertDate = (dateString: string) => {
+    const d = new Date(dateString);
+    const now = new Date();
+    
+    const dDate = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    
+    const diffTime = nowDate.getTime() - dDate.getTime();
+    const diffDays = Math.round(diffTime / (1000 * 3600 * 24));
+    
+    const timeStr = d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+    
+    if (diffDays === 0) return `Hoy, ${timeStr}`;
+    if (diffDays === 1) return `Ayer, ${timeStr}`;
+    
+    return d.toLocaleString('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+};
+
 export const MonitoringAlertsBell: React.FC = () => {
     const [open, setOpen] = useState(false);
     const [alerts, setAlerts] = useState<Alert[]>([]);
@@ -102,14 +120,20 @@ export const MonitoringAlertsBell: React.FC = () => {
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <h4 className={cn("text-sm font-medium leading-none mb-1", alert.status === 'active' ? 'text-amber-600 dark:text-amber-400' : '')}>{alert.title}</h4>
-                                            <p className="text-xs text-muted-foreground line-clamp-2 mb-2">{alert.description.split('] ').pop()}</p>
+                                            <p className="text-xs text-muted-foreground line-clamp-2 mb-2">
+                                                {alert.description ? alert.description.split('] ').pop() : 'No se registraron detalles adicionales.'}
+                                            </p>
                                             <div className="flex justify-between items-center text-[10px] text-muted-foreground mr-2">
                                                 <div className="flex gap-1 items-center">
-                                                    <span className="font-mono bg-muted px-1 rounded text-blue-600 font-bold dark:text-blue-400">{alert.description.match(/\[IP: (.*?)\]/)?.[1] || 'N/A'}</span>
+                                                    {alert.description && alert.description.match(/\[IP: (.*?)\]/) && (
+                                                        <span className="font-mono bg-muted px-1 rounded text-blue-600 font-bold dark:text-blue-400">
+                                                            {alert.description.match(/\[IP: (.*?)\]/)?.[1]}
+                                                        </span>
+                                                    )}
                                                     <span className="font-mono bg-muted px-1 rounded">{alert.server_name}</span>
                                                 </div>
-                                                <div className="flex gap-2 items-center">
-                                                    <span>{new Date(alert.created_at).toLocaleTimeString()}</span>
+                                                <div className="flex gap-2 items-center shrink-0">
+                                                    <span>{formatAlertDate(alert.created_at)}</span>
                                                     {alert.status !== 'solved' && (
                                                         <button
                                                             onClick={async (e) => {

@@ -1,0 +1,1 @@
+<?php function require_auth($mysqli) { return ["username" => "maik"]; } ?>

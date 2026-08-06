@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Users, Activity, Ticket, Clock, Menu, Briefcase, ShieldCheck } from 'lucide-react';
+import { LayoutDashboard, Users, Activity, Ticket, Clock, Menu, Briefcase, ShieldCheck, History } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { api } from '../services/authService';
@@ -41,6 +41,7 @@ const Sidebar = () => {
             case 'Clock': return Clock;
             case 'Users': return Users;
             case 'ShieldCheck': return ShieldCheck;
+            case 'History': return History;
             default: return LayoutDashboard;
         }
     };

@@ -216,6 +216,7 @@ const UsersPage = () => {
 
     const handleRemoveMember = async (userId: number) => {
         if (!shiftData) return;
+        if (!window.confirm('\u00bfEstas seguro de remover este integrante del turno?')) return;
         const s1 = shiftData.shift1_members.map((u: any) => ({ id: u.id, tipo: u.turno_tipo })).filter((m: any) => m.id !== userId);
         const s2 = shiftData.shift2_members.map((u: any) => ({ id: u.id, tipo: u.turno_tipo })).filter((m: any) => m.id !== userId);
         await saveMembersMutation(s1, s2);
@@ -242,7 +243,13 @@ const UsersPage = () => {
         return `${start.toLocaleDateString('es-ES', options)} - ${end.toLocaleDateString('es-ES', options)}`;
     };
 
-    const availableUsers = users?.filter((u) => u.turno_7x7 === null || u.turno_7x7 === undefined) || [];
+    // Build available users list from shift roster data (source of truth),
+    // not from the legacy users.turno_7x7 field which can get out of sync.
+    const assignedUserIds = new Set([
+        ...(shiftData?.shift1_members?.map((m: any) => m.id) ?? []),
+        ...(shiftData?.shift2_members?.map((m: any) => m.id) ?? []),
+    ]);
+    const availableUsers = users?.filter((u) => !assignedUserIds.has(u.id)) ?? [];
 
     if (usersLoading || permsLoading) {
         return <div className="flex items-center justify-center h-96"><Loader2 className="w-10 h-10 text-primary animate-spin" /></div>;

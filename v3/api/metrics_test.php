@@ -35,7 +35,7 @@ $evaluator = new MetricsEvaluator($mysqli);
  * Strictly moves virtual metric logic here to keep Evaluator PURE.
  */
 function processMetric($mysqli, $evaluator, $server_id, $site_id, $key, $val) {
-    file_put_contents(__DIR__ . '/metric_keys.log', date('Y-m-d H:i:s') . " SID:$server_id KEY:$key\n", FILE_APPEND);
+    file_put_contents(__DIR__ . '/metric_keys_test.log', date('Y-m-d H:i:s') . " SID:$server_id KEY:$key\n", FILE_APPEND);
     if (is_array($val) || is_object($val)) $val = json_encode($val);
     
     // Normalize metric names (mapping legacy or inconsistent keys to V3 standard)
@@ -48,8 +48,7 @@ function processMetric($mysqli, $evaluator, $server_id, $site_id, $key, $val) {
         'jams_restart' => 'app.jams.restarts_log',
         'ramPercent' => 'system.ram.percent',
         'porcentajeCpu' => 'system.cpu.load',
-        'reiniciosJAMS' => 'app.jams.restarts_log',
-        'summarizerService' => 'app.summarizer.service'
+        'reiniciosJAMS' => 'app.jams.restarts_log'
     ];
     if (isset($mapping[$key])) $key = $mapping[$key];
 
@@ -92,102 +91,55 @@ function processMetric($mysqli, $evaluator, $server_id, $site_id, $key, $val) {
         }
     }
 
-    // La lógica de alertas de Active Scripts se maneja ahora globalmente en MetricsEvaluator::normalizeValue
+    // 6. Alert Logic: Active Scripts Duration (Alert if > 5 minutes)
+    if ($key === 'app.fms.active_scripts' && is_string($val)) {
+        $lines = explode("\n", trim($val));
+        $hasLongRunning = false;
+        foreach ($lines as $line) {
+            $parts = preg_split('/\s+/', trim($line));
+            if (count($parts) >= 3) {
+                $timeStr = $parts[2]; // 3rd column: MM:SS or HH:MM:SS
+                if (preg_match('/(?:(\d+):)?(\d+):(\d+)/', $timeStr, $m)) {
+                    // $m[1] is HH, $m[2] is MM, $m[3] is SS (if HH exists)
+                    // if only MM:SS, $m[1] is empty, $m[2] is MM, $m[3] is SS? NO.
+                    // preg_match('/(?:(\d+):)?(\d+):(\d+)/', "05:10") -> $m[1] is undefined, $m[2] is 05, $m[3] is 10.
+                    // Actually let's just count groups.
+                    if (isset($m[3]) && $m[1] !== "") {
+                        $hours = intval($m[1]);
+                        $mins = intval($m[2]);
+                        $secs = intval($m[3]);
+                    } else {
+                        $hours = 0;
+                        $mins = intval($m[2]);
+                        $secs = intval($m[3]);
+                    }
+                    $totalSecs = ($hours * 3600) + ($mins * 60) + $secs;
+                    if ($totalSecs > 300) $hasLongRunning = true;
+                }
+            }
+        }
+        if ($hasLongRunning) $status = 'danger';
+    }
 
     // 7. Summarizer Aggregate Alert (Check both service and crontab)
     if ($key === 'app.summarizer.service' || $key === 'app.summarizer.crontab') {
         $otherKey = ($key === 'app.summarizer.service') ? 'app.summarizer.crontab' : 'app.summarizer.service';
         $otherVal = $mysqli->query("SELECT metric_value FROM server_app_metrics WHERE server_id = $server_id AND metric_key = '$otherKey' LIMIT 1")->fetch_assoc()['metric_value'] ?? 'stopped';
         
-        $isStopped = function($v) { 
-            return empty($v) || 
-                   stripos($v, 'stopped') !== false || 
-                   stripos($v, 'failed') !== false || 
-                   stripos($v, 'error') !== false || 
-                   (is_string($v) && strlen(trim($v)) > 0 && trim($v)[0] === '#'); 
-        };
-        
-        $currentInactive = $isStopped($val);
-        $otherInactive = $isStopped($otherVal);
-        
         $aggrStatus = 'ok';
-        if ($currentInactive && $otherInactive) {
+        // If BOTH are stopped/empty/error, trigger aggregate danger
+        $isStopped = function($v) { return empty($v) || stripos($v, 'stopped') !== false || stripos($v, 'failed') !== false || stripos($v, 'error') !== false; };
+        
+        if ($isStopped($val) && $isStopped($otherVal)) {
             $aggrStatus = 'stopped';
-        } else {
-            // Determine combined state for the frontend
-            $svcVal = ($key === 'app.summarizer.service') ? $val : $otherVal;
-            $cronVal = ($key === 'app.summarizer.crontab') ? $val : $otherVal;
-            
-            $svcActive = !$isStopped($svcVal);
-            $cronActive = !$isStopped($cronVal);
-            
-            if ($svcActive && $cronActive) {
-                $aggrStatus = 'both_active';
-            } elseif ($svcActive) {
-                $aggrStatus = 'service_active';
-            } else {
-                $aggrStatus = 'cron_active';
-            }
         }
         
         // This triggers the 'app.summarizer.status' rule in DB
-        // We also persist this aggregated status so frontend can read it easily
         $evaluator->evaluate('app.summarizer.status', $aggrStatus, $server_id);
-        
-        $stmt_aggr = $mysqli->prepare("INSERT INTO server_app_metrics (server_id, metric_key, metric_value, status, last_updated) VALUES (?, 'app.summarizer.status', ?, 'ok', NOW()) ON DUPLICATE KEY UPDATE metric_value = VALUES(metric_value), last_updated = NOW()");
-        $stmt_aggr->bind_param("is", $server_id, $aggrStatus);
-        $stmt_aggr->execute();
     }
 
     // 8. Backup Latency
     // [MOVED TO MetricsEvaluator::normalizeValue]
-
-    // 9. Virtual Metric: Shift Tables Max Diff (Primary vs Secondary)
-    // Triggered when any server sends db.tables.shifts. Finds sibling server, calculates the max
-    // row-count difference across all shift tables, and persists it as db.shifts.max_diff
-    // so MetricsEvaluator can evaluate it against alert_rules and create a real alert.
-    if ($key === 'db.tables.shifts' && $site_id && is_string($val) && strlen(trim($val)) > 0) {
-        $parseShiftMap = function($v) {
-            $res = [];
-            // Handles both space-separated and newline-separated "TableName|Count" pairs
-            if (preg_match_all('/([a-zA-Z0-9_]+)\|(\d+)/', (string)$v, $m, PREG_SET_ORDER)) {
-                foreach ($m as $match) {
-                    $res[$match[1]] = (int)$match[2];
-                }
-            }
-            return $res;
-        };
-
-        $pMap = $parseShiftMap($val);
-
-        if (!empty($pMap)) {
-            $otherRes = $mysqli->query(
-                "SELECT metric_value FROM server_app_metrics
-                 WHERE server_id IN (
-                     SELECT server_id FROM site_servers
-                     WHERE site_id = $site_id AND server_id != $server_id
-                 )
-                 AND metric_key = 'db.tables.shifts'
-                 ORDER BY last_updated DESC
-                 LIMIT 1"
-            );
-            if ($otherRow = $otherRes->fetch_assoc()) {
-                $sMap = $parseShiftMap($otherRow['metric_value']);
-                $maxDiff = 0;
-                $maxTable = '';
-                foreach ($pMap as $table => $count) {
-                    $diff = abs($count - ($sMap[$table] ?? 0));
-                    if ($diff > $maxDiff) {
-                        $maxDiff = $diff;
-                        $maxTable = $table;
-                    }
-                }
-                // Persist and evaluate: db.shifts.max_diff holds the numeric diff value
-                // The DB rule (> 10 = warning, > 30 = danger) will fire the alert naturally
-                processMetric($mysqli, $evaluator, $server_id, $site_id, 'db.shifts.max_diff', $maxDiff);
-            }
-        }
-    }
 
     // Auto-discovery / Get Metric ID: If metric is not in catalogue, add it.
     // We do this BEFORE evaluate so we can pass the ID to the evaluator for explicit rules
@@ -350,7 +302,7 @@ if ($method === 'POST') {
         echo json_encode($res);
     } elseif (isset($_GET['site_id'])) {
         $site_id = intval($_GET['site_id']);
-        $site_servers = $mysqli->query("SELECT s.*, (CASE WHEN s.server_type_id = 5 THEN 1 ELSE ss.is_primary END) AS is_primary FROM servers s JOIN site_servers ss ON s.id = ss.server_id WHERE ss.site_id = $site_id AND s.is_deleted = 0 AND s.server_type_id IN (5, 6) ORDER BY is_primary DESC");
+        $site_servers = $mysqli->query("SELECT s.*, ss.is_primary FROM servers s JOIN site_servers ss ON s.id = ss.server_id WHERE ss.site_id = $site_id AND s.is_deleted = 0 AND s.server_type_id IN (5, 6)");
         
         // [READ-TIME EVALUATOR]
         // Instantiate here to re-evaluate rules against current data on every read.
@@ -360,7 +312,7 @@ if ($method === 'POST') {
         // Resolve IDs once to ensure ID-based rules match against the evaluator
         // Done BEFORE the loop to avoid any interference with the main query result set
         $metricIds = [];
-        $keysToResolve = ["'system.cpu.load'", "'system.ram.percent'", "'system.disk.percent'", "'app.repc'", "'backup.daily.status'", "'backup.hourly.status'", "'app.jams.service'", "'app.jams.restarts_log'", "'app.fms.active_scripts'", "'app.summarizer.log'", "'app.summarizer.ejecution'"];
+        $keysToResolve = ["'system.cpu.load'", "'system.ram.percent'", "'system.disk.percent'", "'app.repc'", "'backup.daily.status'", "'backup.hourly.status'", "'app.jams.service'", "'app.fms.active_scripts'", "'app.summarizer.log'"];
         $mIdsRes = $mysqli->query("SELECT id, name FROM metrics WHERE name IN (" . implode(',', $keysToResolve) . ")");
         if ($mIdsRes) {
             while($mr = $mIdsRes->fetch_assoc()) {
@@ -405,7 +357,6 @@ if ($method === 'POST') {
             $injectMetric($mysqli, $server_id, $app, 'app.summarizer.service', true);
             $injectMetric($mysqli, $server_id, $app, 'app.summarizer.crontab', true);
             $injectMetric($mysqli, $server_id, $app, 'app.summarizer.log', true);
-            $injectMetric($mysqli, $server_id, $app, 'app.summarizer.ejecution', true);
             $injectMetric($mysqli, $server_id, $app, 'system.ntp.status', true);
             $injectMetric($mysqli, $server_id, $app, 'backup.daily.log', true);
             $injectMetric($mysqli, $server_id, $app, 'backup.hourly.log', true);
@@ -504,41 +455,10 @@ if ($method === 'POST') {
             }
 
             // [NEW] Dynamic evaluation for JAMS Service
-            $jamsSvcVal = $app['app.jams.service']['metric_value'] ?? null;
-            if ($jamsSvcVal !== null) {
-                $jamsSvcStatus = $rtEvaluator->evaluate('app.jams.service', $jamsSvcVal, $server_id, $metricIds['app.jams.service'] ?? null);
-                $app['app.jams.service']['status'] = $jamsSvcStatus;
-            }
-
-            // [NEW] Dynamic evaluation for JAMS Restarts Log
-            $jamsRestartsVal = $app['app.jams.restarts_log']['metric_value'] ?? $app['app.jams.restart']['metric_value'] ?? null;
-            if ($jamsRestartsVal !== null) {
-                $jamsRestartsStatus = $rtEvaluator->evaluate('app.jams.restarts_log', $jamsRestartsVal, $server_id, $metricIds['app.jams.restarts_log'] ?? null);
-                if (isset($app['app.jams.restarts_log'])) {
-                    $app['app.jams.restarts_log']['status'] = $jamsRestartsStatus;
-                }
-                if (isset($app['app.jams.restart'])) {
-                    $app['app.jams.restart']['status'] = $jamsRestartsStatus;
-                }
-            }
-
-            // [NEW] Dynamic evaluation for JAMS Status (Failover Detection)
-            $jamsStatusVal = $app['app.jams.status']['metric_value'] ?? null;
-            if ($jamsStatusVal !== null) {
-                // Default db rule evaluation
-                $jamsRoleStatus = $rtEvaluator->evaluate('app.jams.status', $jamsStatusVal, $server_id, $metricIds['app.jams.status'] ?? null);
-                
-                // Cross-validation with is_primary
-                $isPrimary = $server['is_primary'] == 1;
-                $isActive = stripos($jamsStatusVal, 'activ') !== false;
-
-                if ($isPrimary && !$isActive) {
-                    $jamsRoleStatus = 'danger'; // Primary should be active!
-                } elseif (!$isPrimary && $isActive) {
-                    $jamsRoleStatus = 'warning'; // Secondary should NOT be active!
-                }
-
-                $app['app.jams.status']['status'] = $jamsRoleStatus;
+            $jamsVal = $app['app.jams.service']['metric_value'] ?? null;
+            if ($jamsVal !== null) {
+                $jamsStatus = $rtEvaluator->evaluate('app.jams.service', $jamsVal, $server_id, $metricIds['app.jams.service'] ?? null);
+                $app['app.jams.service']['status'] = $jamsStatus;
             }
 
             // [NEW] Dynamic evaluation for Active Scripts
@@ -548,20 +468,6 @@ if ($method === 'POST') {
                 $app['app.fms.active_scripts']['status'] = $scriptsStatus;
             }
 
-            // [NEW] Dynamic evaluation for Replicas
-            $replicaVal = $app['app.fms.replica']['metric_value'] ?? null;
-            if ($replicaVal !== null) {
-                $replicaStatus = $rtEvaluator->evaluate('app.fms.replica', $replicaVal, $server_id, $metricIds['app.fms.replica'] ?? null);
-                $app['app.fms.replica']['status'] = $replicaStatus;
-            }
-
-            // [NEW] Dynamic evaluation for Idle Queries
-            $idleVal = $app['db.idle_queries']['metric_value'] ?? null;
-            if ($idleVal !== null) {
-                $idleStatus = $rtEvaluator->evaluate('db.idle_queries', $idleVal, $server_id, $metricIds['db.idle_queries'] ?? null);
-                $app['db.idle_queries']['status'] = $idleStatus;
-            }
-
             // [NEW] Dynamic evaluation for Summarizer Log
             $logVal = $app['app.summarizer.log']['metric_value'] ?? null;
             if ($logVal !== null) {
@@ -569,69 +475,13 @@ if ($method === 'POST') {
                 $app['app.summarizer.log']['status'] = $logStatus;
             }
 
-            // [NEW] Compute Summarizer Status dynamically for Python agents before execution eval
-            $svcVal = $app['app.summarizer.service']['metric_value'] ?? '';
-            $cronVal = $app['app.summarizer.crontab']['metric_value'] ?? '';
-            
-            $isStopped = function($v) { 
-                return empty($v) || 
-                       stripos($v, 'stopped') !== false || 
-                       stripos($v, 'failed') !== false || 
-                       stripos($v, 'error') !== false || 
-                       (is_string($v) && strlen(trim($v)) > 0 && trim($v)[0] === '#'); 
-            };
-            
-            $svcActive = !$isStopped($svcVal);
-            $cronActive = !$isStopped($cronVal);
-            
-            if (!$svcActive && !$cronActive) {
-                $aggrStatus = 'stopped';
-            } elseif ($svcActive && $cronActive) {
-                $aggrStatus = 'both_active';
-            } elseif ($svcActive) {
-                $aggrStatus = 'service_active';
-            } else {
-                $aggrStatus = 'cron_active';
-            }
-            
-            // Persist the status so MetricsEvaluator can read it
-            $stmt_aggr = $mysqli->prepare("INSERT INTO server_app_metrics (server_id, metric_key, metric_value, status, last_updated) VALUES (?, 'app.summarizer.status', ?, 'ok', NOW()) ON DUPLICATE KEY UPDATE metric_value = VALUES(metric_value), last_updated = NOW()");
-            if ($stmt_aggr) {
-                $stmt_aggr->bind_param("is", $server_id, $aggrStatus);
-                $stmt_aggr->execute();
-            }
-            $app['app.summarizer.status'] = ['metric_key' => 'app.summarizer.status', 'metric_value' => $aggrStatus, 'status' => 'ok'];
-
-            // [NEW] Dynamic evaluation for Summarizer Ejecution (process count)
-            $ejecVal = $app['app.summarizer.ejecution']['metric_value'] ?? null;
-            if ($ejecVal !== null) {
-                $ejecStatus = $rtEvaluator->evaluate('app.summarizer.ejecution', $ejecVal, $server_id, $metricIds['app.summarizer.ejecution'] ?? null);
-                $app['app.summarizer.ejecution']['status'] = $ejecStatus;
-                
-                // Expose the internal timer start so the UI can display a countdown
-                if ($ejecStatus === 'warning' || $ejecStatus === 'danger') {
-                    $wsRes = $mysqli->query("SELECT metric_value FROM server_app_metrics WHERE server_id = $server_id AND metric_key = 'app.summarizer.ejecution.warning_start'");
-                    if ($wsRes && $wsRes->num_rows > 0) {
-                        $app['app.summarizer.ejecution']['warning_start'] = (int)$wsRes->fetch_assoc()['metric_value'];
-                    }
-                }
-            }
-
             // [NEW] Dynamic evaluation for Offline Servers (Freshness)
-            // As per user request: We look STRICTLY at system.cpu.load in history, because it's the metric guaranteed 
-            // to update every few seconds by the bot, and it is never artificially inserted by virtual metrics.
-            $realUpdatedRes = $mysqli->query("SELECT created_at FROM server_metric_values WHERE server_id = $server_id AND metric_id = (SELECT id FROM metrics WHERE name = 'system.cpu.load' LIMIT 1) ORDER BY created_at DESC LIMIT 1");
-            $realUpdatedAt = ($realUpdatedRes && $row = $realUpdatedRes->fetch_assoc()) ? $row['created_at'] : null;
-            if (!$realUpdatedAt) {
-                $realUpdatedAt = $server['updated_at'] ?? null;
-            }
-
-            if ($realUpdatedAt) {
-                $formatted_updated_at = str_replace([' ', ':'], ['_', '-'], $realUpdatedAt);
+            if (isset($server['updated_at'])) {
+                $formatted_updated_at = str_replace([' ', ':'], ['_', '-'], $server['updated_at']);
                 $freshnessStatus = $rtEvaluator->evaluate('system.freshness', $formatted_updated_at, $server_id, null);
                 $app['system.freshness'] = [
                     'metric_key' => 'system.freshness',
-                    'metric_value' => $realUpdatedAt,
+                    'metric_value' => $server['updated_at'],
                     'status' => $freshnessStatus
                 ];
             }
@@ -671,83 +521,6 @@ if ($method === 'POST') {
                 'cpu_history' => array_reverse($history)
             ];
         }
-
-        // [POST-LOOP] Virtual Metric: db.shifts.max_diff
-        // Calculated here (after loop) because we need BOTH servers simultaneously.
-        // processMetric() is used so the evaluator fires, alert_rules are checked,
-        // and alerts are inserted into the alerts table naturally — no manual inserts.
-        if (count($servers_data) >= 2) {
-            $parseShiftMapRT = function($v) {
-                $res = [];
-                if (preg_match_all('/([a-zA-Z0-9_]+)\|(\d+)/', (string)$v, $m, PREG_SET_ORDER)) {
-                    foreach ($m as $match) $res[$match[1]] = (int)$match[2];
-                }
-                return $res;
-            };
-
-            // Find primary and secondary by is_primary flag
-            $primaryData   = null;
-            $secondaryData = null;
-            foreach ($servers_data as $sd) {
-                if ($sd['info']['is_primary'] == 1) $primaryData   = $sd;
-                else                                $secondaryData = $sd;
-            }
-
-            if ($primaryData && $secondaryData) {
-                $mapP = $parseShiftMapRT($primaryData['app']['db.tables.shifts']['metric_value'] ?? '');
-                $mapS = $parseShiftMapRT($secondaryData['app']['db.tables.shifts']['metric_value'] ?? '');
-
-                if (!empty($mapP) && !empty($mapS)) {
-                    $maxDiff  = 0;
-                    foreach ($mapP as $table => $countP) {
-                        $diff = abs($countP - ($mapS[$table] ?? 0));
-                        if ($diff > $maxDiff) $maxDiff = $diff;
-                    }
-
-                    // Evaluate and persist ONLY for the PRIMARY server (alert will be created once)
-                    $pId = (int)$primaryData['info']['id'];
-                    $sId = (int)$secondaryData['info']['id'];
-                    $statusP = processMetric($mysqli, $rtEvaluator, $pId, $site_id, 'db.shifts.max_diff', $maxDiff);
-
-                    // Inject the evaluated status back into the response so the frontend
-                    // reads the real status from the backend (not a hardcoded local calculation)
-                    foreach ($servers_data as &$sd) {
-                        $sd['app']['db.shifts.max_diff'] = [
-                            'metric_key'   => 'db.shifts.max_diff',
-                            'metric_value' => (string)$maxDiff,
-                            // Both get the same status in UI, but only primary generated the alert
-                            'status'       => $statusP
-                        ];
-                    }
-                    unset($sd);
-                }
-                
-                // [POST-LOOP] Virtual Metric: app.fms.cluster (None fallback)
-                // If ANY server doesn't report a cluster or it's 'None',
-                // we force evaluate it here so the alert is created naturally in the DB.
-                $serversToCheck = [
-                    ['id' => (int)$primaryData['info']['id'], 'val' => $primaryData['app']['app.fms.cluster']['metric_value'] ?? 'None'],
-                    ['id' => (int)$secondaryData['info']['id'], 'val' => $secondaryData['app']['app.fms.cluster']['metric_value'] ?? 'None']
-                ];
-
-                foreach ($serversToCheck as $stc) {
-                    if ($stc['val'] === 'None') {
-                        $cStatus = processMetric($mysqli, $rtEvaluator, $stc['id'], $site_id, 'app.fms.cluster', 'None');
-                        foreach ($servers_data as &$sd) {
-                            if ($sd['info']['id'] == $stc['id']) {
-                                $sd['app']['app.fms.cluster'] = [
-                                    'metric_key'   => 'app.fms.cluster',
-                                    'metric_value' => 'None',
-                                    'status'       => $cStatus
-                                ];
-                            }
-                        }
-                        unset($sd);
-                    }
-                }
-            }
-        }
-
         echo json_encode(["servers" => $servers_data]);
     }
 }
