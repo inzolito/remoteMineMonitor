@@ -18,6 +18,7 @@ import Profile from './pages/Profile';
 
 import ShiftsPage from './pages/ShiftsPage';
 import HistorialPage from './pages/HistorialPage';
+import TicketsPage from './pages/TicketsPage';
 
 import ErrorBoundary from './components/ErrorBoundary';
 
@@ -50,7 +51,7 @@ function App() {
                   <Route path="/super-admin" element={<SuperAdmin />} />
                   <Route path="/perfil" element={<Profile />} />
                   {/* Placeholder routes for others */}
-                  <Route path="/tickets" element={<div className="p-8 text-center text-muted-foreground">Módulo Tickets en construcción</div>} />
+                  <Route path="/tickets" element={<TicketsPage />} />
                   <Route path="/shifts" element={<ShiftsPage />} />
                   <Route path="/historial" element={<HistorialPage />} />
                 </Route>

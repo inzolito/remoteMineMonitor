@@ -13,6 +13,7 @@ export interface UserData {
     cargo?: string;
     turno_7x7?: number | null;
     turno_tipo?: string | null;
+    show_in_tickets?: number;
 }
 
 export const getUsers = async (): Promise<UserData[]> => {

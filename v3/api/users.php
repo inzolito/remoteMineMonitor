@@ -30,7 +30,7 @@ $method = $_SERVER['REQUEST_METHOD'];
 
 if ($method === 'GET') {
     // List Users - Alphabetical sort by first_name
-    $query = "SELECT u.id, u.first_name, u.last_name, u.username, u.email, p.name as role, u.permission_id, u.is_active, u.cargo, u.turno_7x7, u.turno_tipo 
+    $query = "SELECT u.id, u.first_name, u.last_name, u.username, u.email, p.name as role, u.permission_id, u.is_active, u.cargo, u.turno_7x7, u.turno_tipo, u.show_in_tickets 
               FROM users u 
               JOIN permissions p ON u.permission_id = p.id 
               ORDER BY u.first_name ASC";
@@ -39,8 +39,9 @@ if ($method === 'GET') {
     $users = array();
     while($row = $result->fetch_assoc()) {
         // Ensure is_active is cast to integer/boolean
-        $row['is_active'] = intval($row['is_active'] ?? 1);
+        $row['is_active'] = filter_var($row['is_active'], FILTER_VALIDATE_BOOLEAN);
         $row['turno_7x7'] = $row['turno_7x7'] !== null ? intval($row['turno_7x7']) : null;
+        $row['show_in_tickets'] = filter_var($row['show_in_tickets'], FILTER_VALIDATE_BOOLEAN);
         $row['turno_tipo'] = $row['turno_tipo'] ?? 'Día';
         $users[] = $row;
     }
@@ -63,12 +64,13 @@ if ($method === 'GET') {
     $email = $mysqli->real_escape_string($data->email ?? '');
     $perm_id = intval($data->permission_id ?? 2);
     $is_active = isset($data->is_active) ? intval($data->is_active) : 1;
+    $show_in_tickets = isset($data->show_in_tickets) ? intval($data->show_in_tickets) : 1;
     $cargo = $mysqli->real_escape_string($data->cargo ?? '');
     $turno_7x7 = isset($data->turno_7x7) && $data->turno_7x7 !== '' && $data->turno_7x7 !== null ? intval($data->turno_7x7) : null;
     $turno_tipo = $mysqli->real_escape_string($data->turno_tipo ?? 'Día');
 
-    $stmt = $mysqli->prepare("INSERT INTO users (first_name, last_name, username, password, email, permission_id, is_active, cargo, turno_7x7, turno_tipo) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-    $stmt->bind_param("sssssiisis", $fname, $lname, $user, $pass, $email, $perm_id, $is_active, $cargo, $turno_7x7, $turno_tipo);
+    $stmt = $mysqli->prepare("INSERT INTO users (first_name, last_name, username, password, email, permission_id, is_active, cargo, turno_7x7, turno_tipo, show_in_tickets) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+    $stmt->bind_param("sssssiisisi", $fname, $lname, $user, $pass, $email, $perm_id, $is_active, $cargo, $turno_7x7, $turno_tipo, $show_in_tickets);
 
     if ($stmt->execute()) {
         $new_id = $mysqli->insert_id;
@@ -113,6 +115,7 @@ if ($method === 'GET') {
     $email = $mysqli->real_escape_string($data->email ?? '');
     $perm_id = intval($data->permission_id);
     $is_active = isset($data->is_active) ? intval($data->is_active) : 1;
+    $show_in_tickets = isset($data->show_in_tickets) ? intval($data->show_in_tickets) : 1;
     $cargo = $mysqli->real_escape_string($data->cargo ?? '');
     $turno_7x7 = isset($data->turno_7x7) && $data->turno_7x7 !== '' && $data->turno_7x7 !== null ? intval($data->turno_7x7) : null;
     $turno_tipo = $mysqli->real_escape_string($data->turno_tipo ?? 'Día');
@@ -120,11 +123,11 @@ if ($method === 'GET') {
     // Check if password update is requested
     if (!empty($data->password)) {
         $pass = $data->password; 
-        $stmt = $mysqli->prepare("UPDATE users SET first_name=?, last_name=?, email=?, permission_id=?, password=?, is_active=?, cargo=?, turno_7x7=?, turno_tipo=? WHERE id=?");
-        $stmt->bind_param("sssisisisi", $fname, $lname, $email, $perm_id, $pass, $is_active, $cargo, $turno_7x7, $turno_tipo, $id);
+        $stmt = $mysqli->prepare("UPDATE users SET first_name=?, last_name=?, email=?, permission_id=?, password=?, is_active=?, cargo=?, turno_7x7=?, turno_tipo=?, show_in_tickets=? WHERE id=?");
+        $stmt->bind_param("sssisisisii", $fname, $lname, $email, $perm_id, $pass, $is_active, $cargo, $turno_7x7, $turno_tipo, $show_in_tickets, $id);
     } else {
-        $stmt = $mysqli->prepare("UPDATE users SET first_name=?, last_name=?, email=?, permission_id=?, is_active=?, cargo=?, turno_7x7=?, turno_tipo=? WHERE id=?");
-        $stmt->bind_param("sssiisisi", $fname, $lname, $email, $perm_id, $is_active, $cargo, $turno_7x7, $turno_tipo, $id);
+        $stmt = $mysqli->prepare("UPDATE users SET first_name=?, last_name=?, email=?, permission_id=?, is_active=?, cargo=?, turno_7x7=?, turno_tipo=?, show_in_tickets=? WHERE id=?");
+        $stmt->bind_param("sssiisisi", $fname, $lname, $email, $perm_id, $is_active, $cargo, $turno_7x7, $turno_tipo, $show_in_tickets, $id);
     }
 
     if ($stmt->execute()) {

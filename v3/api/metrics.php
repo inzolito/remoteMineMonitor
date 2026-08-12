@@ -381,12 +381,16 @@ if ($method === 'POST') {
             }
 
             // [ROBUST FALLBACK]: Prioritize history (Rooteo source) over app_metrics cache for critical identifiers
-            $injectMetric = function($mysqli, $server_id, &$app, $key, $force = false) {
+            $injectMetric = function($mysqli, $server_id, &$app, $key, $force = false) use ($rtEvaluator) {
                 // If force is true, we always query history and override cache if history has data
                 if ($force || !isset($app[$key]) || empty($app[$key]['metric_value'])) {
                     $res = $mysqli->query("SELECT value, status FROM server_metric_values WHERE server_id = $server_id AND metric_id = (SELECT id FROM metrics WHERE name = '$key' LIMIT 1) ORDER BY created_at DESC LIMIT 1");
                     if ($row = $res->fetch_assoc()) {
-                        $app[$key] = ['metric_key' => $key, 'metric_value' => $row['value'], 'status' => $row['status']];
+                        // Re-evaluate status using current alert rules instead of trusting the
+                        // stored status column, which may be stale when agents write directly
+                        // to server_metric_values without going through the evaluator (e.g. rmmcod_agent.py).
+                        $liveStatus = $rtEvaluator->evaluate($key, $row['value']);
+                        $app[$key] = ['metric_key' => $key, 'metric_value' => $row['value'], 'status' => $liveStatus];
                         return true;
                     }
                 }
@@ -399,6 +403,7 @@ if ($method === 'POST') {
             $injectMetric($mysqli, $server_id, $app, 'hostname', true);
             $injectMetric($mysqli, $server_id, $app, 'app.fms.cluster', true);
             $injectMetric($mysqli, $server_id, $app, 'app.jams.status', true);
+            $injectMetric($mysqli, $server_id, $app, 'app.jams.service', true);
             $injectMetric($mysqli, $server_id, $app, 'app.jams.restarts_log', true);
             $injectMetric($mysqli, $server_id, $app, 'app.fms.active_scripts', true);
             $injectMetric($mysqli, $server_id, $app, 'app.fms.replica', true);
@@ -458,12 +463,12 @@ if ($method === 'POST') {
             $sys = [
                 'cpu_usage' => $getMetricVal($mysqli, $server_id, $app, 'system.cpu.load', $history),
                 'cpu_status' => $app['system.cpu.load']['status'] ?? 'ok',
-                'ram_used' => $app['system.ram.used']['metric_value'] ?? 0,
-                'ram_total' => $app['system.ram.total']['metric_value'] ?? 0,
+                'ram_used' => $getMetricVal($mysqli, $server_id, $app, 'system.ram.used'),
+                'ram_total' => $getMetricVal($mysqli, $server_id, $app, 'system.ram.total'),
                 'ram_percent' => $getMetricVal($mysqli, $server_id, $app, 'system.ram.percent'),
                 'ram_status' => $app['system.ram.percent']['status'] ?? 'ok',
-                'disk_used' => $app['system.disk.used']['metric_value'] ?? 0,
-                'disk_total' => $app['system.disk.total']['metric_value'] ?? 0,
+                'disk_used' => $getMetricVal($mysqli, $server_id, $app, 'system.disk.used'),
+                'disk_total' => $getMetricVal($mysqli, $server_id, $app, 'system.disk.total'),
                 'disk_percent' => $getMetricVal($mysqli, $server_id, $app, 'system.disk.percent'),
                 'disk_status' => $app['system.disk.percent']['status'] ?? 'ok',
                 'load_average' => $app['system.load.average']['metric_value'] ?? '0.0',

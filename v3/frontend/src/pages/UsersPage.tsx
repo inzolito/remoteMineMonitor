@@ -10,7 +10,7 @@ const UsersPage = () => {
 
     // Form State
     const [formData, setFormData] = useState<Partial<UserData>>({
-        first_name: '', last_name: '', username: '', email: '', permission_id: 2, password: '', is_active: 1, cargo: '', turno_7x7: null, turno_tipo: 'Día'
+        first_name: '', last_name: '', username: '', email: '', permission_id: 2, password: '', is_active: 1, cargo: '', turno_7x7: null, turno_tipo: 'Día', show_in_tickets: 0
     });
     const [togglingUserId, setTogglingUserId] = useState<number | null>(null);
 
@@ -129,6 +129,7 @@ const UsersPage = () => {
                 password: '', // Don't fill password on edit
                 cargo: user.cargo || '',
                 turno_7x7: user.turno_7x7 !== undefined ? user.turno_7x7 : null,
+                show_in_tickets: user.show_in_tickets ? 1 : 0,
                 turno_tipo: user.turno_tipo || 'Día'
             });
         } else {

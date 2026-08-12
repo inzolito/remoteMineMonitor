@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Clock, Ticket, Calendar, AlertCircle, Eye, Loader2, X, Sun, Moon, ExternalLink, MessageSquare, Search, CheckCircle2, HelpCircle, Activity, Home } from 'lucide-react';
 import { cn } from '../lib/utils';
@@ -203,14 +203,63 @@ const ShiftsPage = () => {
         return matchesSearch && matchesStatus;
     });
 
-    // Stats are always computed from total_stats (all 7x7 tickets, all pages)
-    const stats = {
-        total: total_stats?.total ?? 0,
-        closed: total_stats?.closed ?? 0,
-        seeking: total_stats?.seeking ?? 0,
-        open: total_stats?.open ?? 0,
-        avgResolutionTime: total_stats?.avg_resolution ?? 'N/A',
-    };
+    // Stats are computed from total_stats for 'all', otherwise from local tabTickets
+    const stats = (() => {
+        if (activeTab === 'all') {
+            return {
+                total: total_stats?.total ?? 0,
+                closed: total_stats?.closed ?? 0,
+                seeking: total_stats?.seeking ?? 0,
+                open: total_stats?.open ?? 0,
+                avgResolutionTime: total_stats?.avg_resolution ?? 'N/A',
+            };
+        }
+
+        let closedCount = 0;
+        let seekingCount = 0;
+        let openCount = 0;
+        let totalResolutionTime = 0;
+        let resolvedCount = 0;
+
+        tabTickets.forEach(t => {
+            const status = t.Status?.toLowerCase() || '';
+            if (status === 'closed') {
+                closedCount++;
+                if (t.CreatedDate && t.ClosedDate) {
+                    const created = new Date(t.CreatedDate).getTime();
+                    const closed = new Date(t.ClosedDate).getTime();
+                    if (!isNaN(created) && !isNaN(closed) && closed >= created) {
+                        totalResolutionTime += (closed - created);
+                        resolvedCount++;
+                    }
+                }
+            } else if (status === 'seeking client input' || status === 'seeking client' || status === 'esperando cliente') {
+                seekingCount++;
+            } else {
+                openCount++;
+            }
+        });
+
+        let avgRes = 'N/A';
+        if (resolvedCount > 0) {
+            const avgTimeMs = totalResolutionTime / resolvedCount;
+            const avgHours = Math.floor(avgTimeMs / (1000 * 60 * 60));
+            const avgMins = Math.floor((avgTimeMs % (1000 * 60 * 60)) / (1000 * 60));
+            if (avgHours > 0) {
+                avgRes = `${avgHours}h ${avgMins}m`;
+            } else {
+                avgRes = `${avgMins}m`;
+            }
+        }
+
+        return {
+            total: tabTickets.length,
+            closed: closedCount,
+            seeking: seekingCount,
+            open: openCount,
+            avgResolutionTime: avgRes
+        };
+    })();
 
     const activeAlias = config.active_shift === 1 ? config.shift1_alias : config.shift2_alias;
     const inactiveAlias = config.active_shift === 1 ? config.shift2_alias : config.shift1_alias;
@@ -548,15 +597,19 @@ const ShiftsPage = () => {
     // Cap elapsed progress bar at 7 days
     const percentElapsed = Math.min(100, Math.max(0, (config.days_elapsed / 7) * 100)); return (
         <div className="space-y-6">
-            {/* Unified Control Panel: general info and rosters at the top */}
-            <div className="flex items-center bg-card border border-border/50 rounded-lg px-4 py-2 shadow-sm w-full gap-4 overflow-x-auto whitespace-nowrap scrollbar-hide relative z-10 mb-6">
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+                {/* Left Side: Control Panel & Resumen */}
+                <div className={cn("flex flex-col gap-6", inactive_tickets.length > 0 ? "xl:col-span-2" : "xl:col-span-3")}>
+                    {/* Unified Control Panel: general info and rosters at the top */}
+                    <div>
+                        <h2 className="text-lg font-black uppercase tracking-tight text-foreground mb-3 flex items-center gap-2">
+                            <Clock className="w-5 h-5 text-primary" />
+                            Turno 7x7
+                        </h2>
+                        <div className="flex items-center bg-card border border-border/50 rounded-xl px-4 py-3 shadow-sm w-full gap-4 overflow-x-auto whitespace-nowrap scrollbar-hide relative z-10">
 
                 {/* Cycle Info */}
                 <div className="flex items-center gap-3 border-r border-border/50 pr-4 shrink-0">
-                    <div className="flex items-center gap-1.5">
-                        <Clock className="w-4 h-4 text-primary animate-pulse" />
-                        <span className="font-black text-sm text-foreground tracking-tight">Turno 7x7</span>
-                    </div>
                     <div className="flex flex-col gap-1 shrink-0">
                         <div className="flex items-center gap-2 text-[10px] font-bold">
                             <span className="text-primary-foreground uppercase tracking-widest bg-primary px-1.5 py-[2px] rounded leading-none shrink-0">Día {config.days_elapsed}/7</span>
@@ -603,32 +656,6 @@ const ShiftsPage = () => {
                     </div>
                 </div>
 
-                {/* Inactive Shift */}
-                <div className="flex items-center gap-3 border-r border-border/50 pr-4 shrink-0 opacity-80">
-                    <span className="font-black text-sm uppercase text-muted-foreground flex items-center gap-1.5">
-                        <span className="h-2 w-2 rounded-full bg-slate-400"></span>
-                        {inactiveAlias} <span className="text-[9px] bg-muted dark:bg-muted/30 px-1 py-0.5 rounded ml-1">DESCANSO</span>
-                    </span>
-
-                    {/* Inactive Members */}
-                    <div className="flex items-center gap-1">
-                        <Sun className="w-3.5 h-3.5 text-slate-400 ml-1" />
-                        {inactiveMembers.filter(m => m.turno_tipo === 'Día' || !m.turno_tipo).map(m => (
-                            <div key={m.id} className="flex items-center gap-1 bg-muted/50 rounded-full px-2 py-0.5 text-xs text-muted-foreground border border-border/50">
-                                <span className="font-bold">{m.first_name} {m.last_name.charAt(0)}.</span>
-                                <Home className="w-3 h-3 ml-0.5" />
-                            </div>
-                        ))}
-
-                        <Moon className="w-3.5 h-3.5 text-slate-400 ml-3" />
-                        {inactiveMembers.filter(m => m.turno_tipo === 'Noche').map(m => (
-                            <div key={m.id} className="flex items-center gap-1 bg-muted/50 rounded-full px-2 py-0.5 text-xs text-muted-foreground border border-border/50">
-                                <span className="font-bold">{m.first_name} {m.last_name.charAt(0)}.</span>
-                                <Home className="w-3 h-3 ml-0.5" />
-                            </div>
-                        ))}
-                    </div>
-                </div>
 
                 {/* Handoff Button (El Switch) */}
                 <div className="shrink-0 flex-1 flex justify-end">
@@ -652,7 +679,8 @@ const ShiftsPage = () => {
                     />
                 </div>
 
-            </div>
+                        </div>
+                    </div>
 
             {/* Resumen Tickets Turno 7x7 */}
             <div className="bg-card dark:bg-card/95 border border-border rounded-2xl p-4 shadow-sm relative overflow-hidden">
@@ -695,12 +723,63 @@ const ShiftsPage = () => {
                     </div>
                 </div>
             </div>
+            </div> {/* End Left Side */}
+
+            {/* Inactive Tickets Warning List (Moved to top row) */}
+            {inactive_tickets.length > 0 && (
+                <div className="xl:col-span-1 space-y-6 h-full min-h-0">
+                    <div className="bg-card rounded-2xl border border-destructive/30 overflow-hidden shadow-sm flex flex-col h-full max-h-[350px]">
+                        <div className="p-4 border-b border-border/60 bg-destructive/5 shrink-0">
+                            <h3 className="text-xs font-black text-destructive flex items-center gap-1.5">
+                                <AlertCircle className="w-4 h-4 shrink-0 animate-pulse" />
+                                Tickets del Turno Inactivo ({inactive_tickets.length})
+                            </h3>
+                            <p className="text-[8px] text-muted-foreground mt-0.5">Deben ser transferidos al turno activo en Salesforce.</p>
+                        </div>
+                        <div className="divide-y divide-border overflow-y-auto grow min-h-0">
+                            {inactive_tickets.map((t) => (
+                                <div key={t.CaseId} className="p-3 hover:bg-muted/30 transition-colors flex items-center justify-between gap-3 opacity-90">
+                                    <div className="min-w-0 space-y-0.5">
+                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                            <span className="text-[11px] font-black text-blue-600 hover:underline cursor-pointer" onClick={() => handleOpenTicketDetails(t)}>
+                                                #{t.CaseNumber}
+                                            </span>
+                                            <span className="text-[8px] font-black uppercase tracking-tight text-amber-600 bg-amber-500/5 px-1 py-0.2 rounded border border-amber-500/10">
+                                                {t.Faena || 'N/A'}
+                                            </span>
+                                            <span className={cn(
+                                                "text-[8px] font-black uppercase tracking-tight px-1.5 py-0.2 rounded border",
+                                                t.Status?.toLowerCase() === 'closed'
+                                                    ? "bg-slate-500/10 text-slate-500 border-slate-500/20"
+                                                    : (t.OwnerName?.toLowerCase().includes('support q') || t.OwnerName?.toLowerCase().includes('queue'))
+                                                        ? "bg-rose-500/10 text-rose-600 border-rose-500/20 animate-pulse"
+                                                        : "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
+                                            )}>
+                                                {t.Status}
+                                            </span>
+                                        </div>
+                                        <p className="text-xs font-bold text-foreground truncate">{t.Subject}</p>
+                                        <p className="text-[8px] text-muted-foreground">Owner: {t.OwnerName}</p>
+                                    </div>
+                                    <button
+                                        onClick={() => handleOpenTicketDetails(t)}
+                                        className="text-muted-foreground hover:text-foreground p-1 hover:bg-muted rounded transition-colors shrink-0"
+                                    >
+                                        <Eye className="w-3.5 h-3.5" />
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
+            </div> {/* End Top Grid */}
 
             {/* Tickets Grid */}
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 items-start">
+            <div className="w-full gap-6 items-start">
 
                 {/* Active Tickets List */}
-                <div className={`${inactive_tickets.length > 0 ? 'xl:col-span-2' : 'xl:col-span-3'} space-y-6`}>
+                <div className="w-full space-y-6">
                     <div className="bg-card rounded-2xl border border-border overflow-hidden shadow-sm">
                         <div className="p-4 border-b border-border/60 bg-muted/10 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
                             {/* Tabs Navigation */}
@@ -920,54 +999,6 @@ const ShiftsPage = () => {
                     </div>
                 </div>
 
-                {/* Inactive Tickets Warning List (Shown only if there are any) */}
-                {inactive_tickets.length > 0 && (
-                    <div className="xl:col-span-1 space-y-6">
-                        <div className="bg-card rounded-2xl border border-destructive/30 overflow-hidden shadow-sm">
-                            <div className="p-4 border-b border-border/60 bg-destructive/5">
-                                <h3 className="text-xs font-black text-destructive flex items-center gap-1.5">
-                                    <AlertCircle className="w-4 h-4 shrink-0 animate-pulse" />
-                                    Tickets del Turno Inactivo ({inactive_tickets.length})
-                                </h3>
-                                <p className="text-[8px] text-muted-foreground mt-0.5">Deben ser transferidos al turno activo en Salesforce.</p>
-                            </div>
-                            <div className="divide-y divide-border max-h-[500px] overflow-y-auto">
-                                {inactive_tickets.map((t) => (
-                                    <div key={t.CaseId} className="p-3 hover:bg-muted/30 transition-colors flex items-center justify-between gap-3 opacity-90">
-                                        <div className="min-w-0 space-y-0.5">
-                                            <div className="flex items-center gap-1.5 flex-wrap">
-                                                <span className="text-[11px] font-black text-blue-600 hover:underline cursor-pointer" onClick={() => handleOpenTicketDetails(t)}>
-                                                    #{t.CaseNumber}
-                                                </span>
-                                                <span className="text-[8px] font-black uppercase tracking-tight text-amber-600 bg-amber-500/5 px-1 py-0.2 rounded border border-amber-500/10">
-                                                    {t.Faena || 'N/A'}
-                                                </span>
-                                                <span className={cn(
-                                                    "text-[8px] font-black uppercase tracking-tight px-1.5 py-0.2 rounded border",
-                                                    t.Status?.toLowerCase() === 'closed'
-                                                        ? "bg-slate-500/10 text-slate-500 border-slate-500/20"
-                                                        : (t.OwnerName?.toLowerCase().includes('support q') || t.OwnerName?.toLowerCase().includes('queue'))
-                                                            ? "bg-rose-500/10 text-rose-600 border-rose-500/20 animate-pulse"
-                                                            : "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
-                                                )}>
-                                                    {t.Status}
-                                                </span>
-                                            </div>
-                                            <p className="text-xs font-bold text-foreground truncate">{t.Subject}</p>
-                                            <p className="text-[8px] text-muted-foreground">Owner: {t.OwnerName}</p>
-                                        </div>
-                                        <button
-                                            onClick={() => handleOpenTicketDetails(t)}
-                                            className="text-muted-foreground hover:text-foreground p-1 hover:bg-muted rounded transition-colors shrink-0"
-                                        >
-                                            <Eye className="w-3.5 h-3.5" />
-                                        </button>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-                )}
             </div>
 
             {/* Salesforce Ticket Modal */}

@@ -722,20 +722,24 @@ const MonitoreoSite = () => {
 
             {/* --- SECCIÓN ALERTAS DE SISTEMA (Inesperado) - Moved to bottom if needed, but keeping structure --- */}
 
-            <div className={cn("mb-6 flex justify-between items-center px-1 transition-all duration-700", isFullSiteOffline && "grayscale opacity-70")}>
-                <div className="flex items-center gap-3">
-                    <div className="p-2 bg-white dark:bg-slate-800 rounded shadow-sm text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
-                        <Activity className="w-6 h-6" />
+            <div className={cn("mb-8 relative flex items-center justify-center px-2 py-4 transition-all duration-700", isFullSiteOffline && "grayscale opacity-70")}>
+                <div className="flex items-center justify-center gap-4">
+                    <div className="p-3 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl shadow-lg shadow-blue-500/20 text-white">
+                        <Activity className="w-7 h-7" />
                     </div>
-                    <div>
-                        <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
-                            MONITOREO FMS - {site?.name} <span className="text-slate-400 dark:text-slate-500 font-normal text-sm">({site?.alias}) v3.3-DEBUG</span>
-                        </h1>
-                    </div>
+                    <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-slate-800 dark:text-slate-100 flex flex-col md:flex-row md:items-center gap-2 md:gap-4 text-center">
+                        <span>MONITOREO FMS - <span className="text-blue-600 dark:text-blue-400">{site?.name}</span></span>
+                        <span className="text-slate-500 dark:text-slate-400 font-medium text-sm md:text-base bg-slate-100 dark:bg-slate-800/80 px-4 py-1.5 rounded-full border border-slate-200 dark:border-slate-700 shadow-sm w-fit mx-auto md:mx-0">
+                            ({site?.alias}) <span className="text-[10px] ml-1 opacity-60">v3.3-DEBUG</span>
+                        </span>
+                    </h1>
                 </div>
+                
                 {/* Notification Mockup - Just the time */}
-                <div className="text-right flex flex-col items-end">
-                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{new Date().toLocaleTimeString()}</span>
+                <div className="absolute right-2 top-1/2 -translate-y-1/2 hidden lg:flex flex-col items-end">
+                    <span className="text-xs text-slate-500 dark:text-slate-400 font-bold uppercase tracking-widest bg-white dark:bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm backdrop-blur-sm">
+                        {new Date().toLocaleTimeString()}
+                    </span>
                 </div>
             </div>
 

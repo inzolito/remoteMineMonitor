@@ -170,6 +170,25 @@ function get_all_7x7_tickets($mysqli, $page = 1, $limit = 30) {
     $sa_res = $mysqli->query("SELECT COUNT(*) as c FROM rmmsalesforce.sf_cases WHERE OwnerId = '00G1I00000249DwUAI' AND LOWER(Status) != 'closed' AND IsDeleted = 0");
     if ($sa_res) $totals['sa_queue'] = (int)$sa_res->fetch_assoc()['c'];
 
+    // Average resolution time
+    $avg_res_q = "SELECT AVG(TIMESTAMPDIFF(MINUTE, CreatedDate, ClosedDate)) as avg_res 
+                  FROM rmmsalesforce.sf_cases 
+                  WHERE OwnerId IN ($in_clause) AND IsDeleted = 0 AND LOWER(Status) = 'closed'";
+    $avg_res = $mysqli->query($avg_res_q);
+    if ($avg_res) {
+        $avg_val = $avg_res->fetch_assoc()['avg_res'];
+        if ($avg_val !== null) {
+            $mins = round($avg_val);
+            $h = floor($mins / 60);
+            $m = $mins % 60;
+            if ($h > 0) {
+                $totals['avg_resolution'] = "{$h}h {$m}m";
+            } else {
+                $totals['avg_resolution'] = "{$m}m";
+            }
+        }
+    }
+
     // 3. Fetch Tickets
     $query = "SELECT c.Id, c.CaseNumber, c.Subject, c.Status, c.Priority, c.CreatedDate, c.ClosedDate,
                      c.Description, c.Resolution, c.OwnerId,

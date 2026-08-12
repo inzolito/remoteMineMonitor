@@ -545,8 +545,19 @@ const Home = () => {
 
                                 const is7x7 = !!data?.is_7x7;
 
-                                const totalPages = Math.ceil(filteredTickets.length / itemsPerPage);
-                                const paginatedTickets = filteredTickets.slice(
+                                const sortedTickets = [...filteredTickets].sort((a, b) => {
+                                    const isClosedA = a.Status?.toLowerCase() === 'closed';
+                                    const isClosedB = b.Status?.toLowerCase() === 'closed';
+                                    
+                                    if (isClosedA !== isClosedB) return isClosedA ? 1 : -1;
+                                    
+                                    const timeA = new Date(a.CreatedDate?.replace(' ', 'T') || 0).getTime();
+                                    const timeB = new Date(b.CreatedDate?.replace(' ', 'T') || 0).getTime();
+                                    return timeB - timeA;
+                                });
+
+                                const totalPages = Math.ceil(sortedTickets.length / itemsPerPage);
+                                const paginatedTickets = sortedTickets.slice(
                                     (currentPage - 1) * itemsPerPage,
                                     currentPage * itemsPerPage
                                 );
@@ -574,9 +585,23 @@ const Home = () => {
                                                         const isQueueTicket = ticket.OwnerName?.toLowerCase().includes('support q') || ticket.OwnerName?.toLowerCase().includes('queue');
                                                         const highlightRed = isQueueTicket && !isClosed;
                                                         
-                                                        return (
+                                                        const absoluteIdx = (currentPage - 1) * itemsPerPage + idx;
+                                                        const isFirstClosed = isClosed && (absoluteIdx === 0 || sortedTickets[absoluteIdx - 1].Status?.toLowerCase() !== 'closed');
+                                                        
+                                                        return [
+                                                            isFirstClosed && (
+                                                                <tr key={`div-${ticket.CaseId || idx}`} className="bg-slate-100/50 dark:bg-slate-800/20">
+                                                                    <td colSpan={is7x7 ? 8 : 7} className="py-2">
+                                                                        <div className="w-full flex items-center justify-center gap-3">
+                                                                            <div className="h-px bg-slate-200 dark:bg-slate-700 flex-1"></div>
+                                                                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">Tickets Cerrados</span>
+                                                                            <div className="h-px bg-slate-200 dark:bg-slate-700 flex-1"></div>
+                                                                        </div>
+                                                                    </td>
+                                                                </tr>
+                                                            ),
                                                             <tr 
-                                                                key={idx} 
+                                                                key={ticket.CaseId || idx} 
                                                                 className={cn(
                                                                     "transition-colors group",
                                                                     isClosed 
@@ -683,7 +708,7 @@ const Home = () => {
                                                                     </button>
                                                                 </td>
                                                             </tr>
-                                                        );
+                                                        ];
                                                     })
                                                 ) : (
                                                     <tr>
