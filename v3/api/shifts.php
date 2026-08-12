@@ -117,94 +117,95 @@ function get_group_members($mysqli, $group_id) {
 }
 
 /**
- * Fetch open tickets for a given shift group (from Salesforce via shift_group_members).
- * Also includes South American Support Q open tickets.
- * $cycle_start: only include tickets created on or after this datetime (for active shift),
- *               or all open if null (for inactive shift).
+ * Fetch tickets for all 7x7 members (both groups) with pagination and status stats.
  */
-function get_tickets_for_group($mysqli, $group_id, $cycle_start = null, $include_older_open = true) {
-    // Build date filter
-    $date_clause = '';
-    if ($cycle_start) {
-        $safe = $mysqli->real_escape_string($cycle_start);
-        if ($include_older_open) {
-            // Tickets created in this cycle OR older tickets still open
-            $date_clause = "AND (c.CreatedDate >= '$safe' OR LOWER(c.Status) != 'closed')";
-        } else {
-            $date_clause = "AND c.CreatedDate >= '$safe'";
-        }
-    } else {
-        // Inactive group: only open tickets
-        $date_clause = "AND LOWER(c.Status) != 'closed'";
-    }
+function get_all_7x7_tickets($mysqli, $page = 1, $limit = 30) {
+    $offset = ($page - 1) * $limit;
 
-    // Pre-fetch active group salesforce_user_ids to avoid slow MySQL subquery with collation mismatch
+    // 1. Get all Salesforce User IDs from both groups
     $sf_ids = [];
-    $active_users_q = "SELECT u2.salesforce_user_id 
-                       FROM monitoring_system.shift_group_members sgm
-                       JOIN monitoring_system.users u2 ON u2.id = sgm.user_id
-                       WHERE sgm.group_id = $group_id
-                         AND u2.salesforce_user_id IS NOT NULL 
-                         AND u2.salesforce_user_id != ''";
-    $sf_res = $mysqli->query($active_users_q);
+    $all_users_q = "SELECT u.salesforce_user_id 
+                    FROM monitoring_system.shift_group_members sgm
+                    JOIN monitoring_system.users u ON u.id = sgm.user_id
+                    WHERE u.salesforce_user_id IS NOT NULL AND u.salesforce_user_id != ''";
+    $sf_res = $mysqli->query($all_users_q);
     if ($sf_res) {
         while ($sf_row = $sf_res->fetch_assoc()) {
             $sf_ids[] = "'" . $mysqli->real_escape_string($sf_row['salesforce_user_id']) . "'";
         }
     }
-    
     $in_clause = count($sf_ids) > 0 ? implode(',', $sf_ids) : "'NO_MATCH'";
 
+    // 2. Get Fast Stats (Group By is much faster than SUM(CASE WHEN))
+    $totals = [
+        'total' => 0, 'closed' => 0, 'open' => 0, 'seeking' => 0,
+        'assigned' => 0, 'working' => 0, 'sa_queue' => 0, 'avg_resolution' => 'N/A'
+    ];
+    
+    $stats_q = "SELECT Status, COUNT(*) as count 
+                FROM rmmsalesforce.sf_cases 
+                WHERE OwnerId IN ($in_clause) AND IsDeleted = 0 
+                GROUP BY Status";
+    $stats_res = $mysqli->query($stats_q);
+    if ($stats_res) {
+        while ($row = $stats_res->fetch_assoc()) {
+            $st = strtolower($row['Status']);
+            $count = (int)$row['count'];
+            $totals['total'] += $count;
+            if ($st === 'closed') {
+                $totals['closed'] += $count;
+            } else {
+                if (strpos($st, 'seeking') !== false) {
+                    $totals['seeking'] += $count;
+                } else {
+                    $totals['open'] += $count;
+                }
+                if ($st === 'assigned') $totals['assigned'] += $count;
+                if ($st === 'working') $totals['working'] += $count;
+            }
+        }
+    }
+    
+    // SA queue count (open only)
+    $sa_res = $mysqli->query("SELECT COUNT(*) as c FROM rmmsalesforce.sf_cases WHERE OwnerId = '00G1I00000249DwUAI' AND LOWER(Status) != 'closed' AND IsDeleted = 0");
+    if ($sa_res) $totals['sa_queue'] = (int)$sa_res->fetch_assoc()['c'];
+
+    // 3. Fetch Tickets
     $query = "SELECT c.Id, c.CaseNumber, c.Subject, c.Status, c.Priority, c.CreatedDate, c.ClosedDate,
                      c.Description, c.Resolution, c.OwnerId,
                      a.internal_faena_alias as Faena, a.Name as AccountName,
                      u.Name as OwnerName,
-                     (SELECT COUNT(*) FROM rmmsalesforce.sf_case_comments cc WHERE cc.ParentId = c.Id) as CommentCount,
-                     sta.id as assignment_id, sta.cycle_id as assigned_cycle_id
+                     (SELECT COUNT(*) FROM rmmsalesforce.sf_case_comments cc WHERE cc.ParentId = c.Id) as CommentCount
               FROM rmmsalesforce.sf_cases c
               LEFT JOIN rmmsalesforce.sf_accounts a ON c.AccountId = a.Id
               LEFT JOIN rmmsalesforce.sf_users u ON c.OwnerId = u.Id
-              LEFT JOIN monitoring_system.shift_ticket_assignments sta ON sta.case_id = c.Id
-              WHERE (
-                  c.OwnerId IN ($in_clause)
-                  OR (
-                      (c.OwnerId = '00G1I00000249DwUAI' OR u.Name = 'South American Support Q')
-                      AND LOWER(c.Status) != 'closed'
-                  )
-              ) AND c.IsDeleted = 0
-              $date_clause
-              ORDER BY c.CreatedDate DESC";
+              WHERE c.OwnerId IN ($in_clause) AND c.IsDeleted = 0
+              ORDER BY (CASE WHEN LOWER(c.Status) = 'closed' THEN 1 ELSE 0 END) ASC, c.CreatedDate DESC
+              LIMIT $limit OFFSET $offset";
 
-    $stmt = $mysqli->prepare($query);
-    if (!$stmt) return [];
-    $stmt->execute();
-    $res = $stmt->get_result();
+    $res = $mysqli->query($query);
     $tickets = [];
-    while ($row = $res->fetch_assoc()) {
-        $ownerName = $row['OwnerName'];
-        if ($row['OwnerId'] === '00G1I00000249DwUAI' || $ownerName === 'South American Support Q') {
-            $ownerName = 'South American Support Q';
+    if ($res) {
+        while ($row = $res->fetch_assoc()) {
+            $tickets[] = [
+                'CaseId'          => $row['Id'],
+                'CaseNumber'      => $row['CaseNumber'],
+                'Subject'         => $row['Subject'] ?? '(Sin Asunto)',
+                'Status'          => $row['Status'],
+                'Priority'        => $row['Priority'],
+                'CreatedDate'     => $row['CreatedDate'],
+                'ClosedDate'      => $row['ClosedDate'],
+                'Description'     => $row['Description'] ?? '',
+                'Resolution'      => $row['Resolution'] ?? '',
+                'Faena'           => $row['Faena'] ?? '',
+                'AccountName'     => $row['AccountName'] ?? 'N/A',
+                'OwnerName'       => $row['OwnerName'] ?? 'Sin Asignar',
+                'CommentCount'    => (int)($row['CommentCount'] ?? 0),
+            ];
         }
-        $tickets[] = [
-            'CaseId'          => $row['Id'],
-            'CaseNumber'      => $row['CaseNumber'],
-            'Subject'         => $row['Subject'] ?? '(Sin Asunto)',
-            'Status'          => $row['Status'],
-            'Priority'        => $row['Priority'],
-            'CreatedDate'     => $row['CreatedDate'],
-            'ClosedDate'      => $row['ClosedDate'],
-            'Description'     => $row['Description'] ?? '',
-            'Resolution'      => $row['Resolution'] ?? '',
-            'Faena'           => $row['Faena'] ?? '',
-            'AccountName'     => $row['AccountName'] ?? 'N/A',
-            'OwnerName'       => $ownerName ?? 'Sin Asignar',
-            'CommentCount'    => (int)($row['CommentCount'] ?? 0),
-            'is_inherited'    => !empty($row['assigned_cycle_id']) ? false : 
-                                 ($row['CreatedDate'] < ($cycle_start ?? '9999') ? true : false),
-        ];
     }
 
-    // Fetch comments for all tickets in one query
+    // Fetch comments
     if (count($tickets) > 0) {
         $caseIds = array_map(function($t) { return "'" . $t['CaseId'] . "'"; }, $tickets);
         $idsStr = implode(',', $caseIds);
@@ -232,6 +233,72 @@ function get_tickets_for_group($mysqli, $group_id, $cycle_start = null, $include
         unset($t);
     }
 
+    return [
+        'tickets'   => $tickets,
+        'total'     => $totals['total'],
+        'per_page'  => $limit,
+        'page'      => $page,
+        'totals'    => $totals,
+    ];
+}
+
+/**
+ * Fetch OPEN tickets for the inactive shift group (to show as "pending transfer").
+ */
+function get_inactive_tickets($mysqli, $group_id) {
+    $sf_ids = [];
+    $users_q = "SELECT u2.salesforce_user_id 
+                FROM monitoring_system.shift_group_members sgm
+                JOIN monitoring_system.users u2 ON u2.id = sgm.user_id
+                WHERE sgm.group_id = $group_id
+                  AND u2.salesforce_user_id IS NOT NULL 
+                  AND u2.salesforce_user_id != ''";
+    $sf_res = $mysqli->query($users_q);
+    if ($sf_res) {
+        while ($sf_row = $sf_res->fetch_assoc()) {
+            $sf_ids[] = "'" . $mysqli->real_escape_string($sf_row['salesforce_user_id']) . "'";
+        }
+    }
+    $in_clause = count($sf_ids) > 0 ? implode(',', $sf_ids) : "'NO_MATCH'";
+
+    $res = $mysqli->query(
+        "SELECT c.Id, c.CaseNumber, c.Subject, c.Status, c.Priority, c.CreatedDate, c.ClosedDate,
+                c.Description, c.Resolution, c.OwnerId,
+                a.internal_faena_alias as Faena, a.Name as AccountName,
+                u.Name as OwnerName,
+                (SELECT COUNT(*) FROM rmmsalesforce.sf_case_comments cc WHERE cc.ParentId = c.Id) as CommentCount
+         FROM rmmsalesforce.sf_cases c
+         LEFT JOIN rmmsalesforce.sf_accounts a ON c.AccountId = a.Id
+         LEFT JOIN rmmsalesforce.sf_users u ON c.OwnerId = u.Id
+         WHERE c.OwnerId IN ($in_clause) AND c.IsDeleted = 0
+           AND LOWER(c.Status) != 'closed'
+         ORDER BY c.CreatedDate DESC LIMIT 50"
+    );
+    $tickets = [];
+    if ($res) {
+        while ($row = $res->fetch_assoc()) {
+            $ownerName = $row['OwnerName'];
+            if ($row['OwnerId'] === '00G1I00000249DwUAI' || $ownerName === 'South American Support Q') {
+                $ownerName = 'South American Support Q';
+            }
+            $tickets[] = [
+                'CaseId'       => $row['Id'],
+                'CaseNumber'   => $row['CaseNumber'],
+                'Subject'      => $row['Subject'] ?? '(Sin Asunto)',
+                'Status'       => $row['Status'],
+                'Priority'     => $row['Priority'],
+                'CreatedDate'  => $row['CreatedDate'],
+                'ClosedDate'   => $row['ClosedDate'],
+                'Description'  => $row['Description'] ?? '',
+                'Resolution'   => $row['Resolution'] ?? '',
+                'Faena'        => $row['Faena'] ?? '',
+                'AccountName'  => $row['AccountName'] ?? 'N/A',
+                'OwnerName'    => $ownerName ?? 'Sin Asignar',
+                'CommentCount' => (int)($row['CommentCount'] ?? 0),
+                'Comments'     => [],
+            ];
+        }
+    }
     return $tickets;
 }
 
@@ -320,6 +387,16 @@ check_and_perform_rollover($mysqli);
 $method = $_SERVER['REQUEST_METHOD'];
 
 if ($method === 'GET') {
+    // ── Tickets endpoint with pagination ──────────────────────────
+    $action = $_GET['action'] ?? 'main';
+    if ($action === 'tickets') {
+        $page     = max(1, intval($_GET['page'] ?? 1));
+        $per_page = 30;
+        $result   = get_all_7x7_tickets($mysqli, $page, $per_page);
+        echo json_encode($result);
+        exit();
+    }
+
     $cycle = get_active_cycle($mysqli);
     if (!$cycle) {
         http_response_code(500);
@@ -347,14 +424,11 @@ if ($method === 'GET') {
     $members_shift1 = get_group_members($mysqli, 1);
     $members_shift2 = get_group_members($mysqli, 2);
 
-    // Tickets for the active group (created in this cycle + older ones still open)
-    $active_tickets = get_tickets_for_group($mysqli, $active_group_id, $cycle_start, true);
-
     // Tickets for the inactive group (only open — these are "traspasados" pending)
-    $inactive_tickets = get_tickets_for_group($mysqli, $inactive_group_id, null, false);
+    $inactive_tickets = get_inactive_tickets($mysqli, $inactive_group_id);
 
-    // Auto-register new tickets in shift_ticket_assignments
-    register_untracked_tickets($mysqli, $active_tickets, $cycle['id'], $active_group_id, $current_sub_shift);
+    // All 7x7 tickets page 1 + total stats for the summary divs
+    $all_tickets_data = get_all_7x7_tickets($mysqli, 1, 30);
 
     echo json_encode([
         'config' => [
@@ -370,8 +444,14 @@ if ($method === 'GET') {
         ],
         'shift1_members'   => $members_shift1,
         'shift2_members'   => $members_shift2,
-        'active_tickets'   => $active_tickets,
+        'active_tickets'   => $all_tickets_data['tickets'],
         'inactive_tickets' => $inactive_tickets,
+        'total_stats'      => $all_tickets_data['totals'],
+        'pagination'       => [
+            'page'     => $all_tickets_data['page'],
+            'per_page' => $all_tickets_data['per_page'],
+            'total'    => $all_tickets_data['total'],
+        ],
     ]);
 
 // ─────────────────────────────────────────────────────────────
