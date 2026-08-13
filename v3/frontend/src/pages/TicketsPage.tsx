@@ -36,7 +36,12 @@ const TicketsPage = () => {
     const { data: ticketsData, isLoading, error } = useQuery({
         queryKey: ['tickets_module', page],
         queryFn: async () => {
-            const res = await fetch(`/monitoreoLaboratorio/v3/api/tickets.php?page=${page}&limit=${limit}`);
+            const token = localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')!).token : '';
+            const res = await fetch(`/monitoreoLaboratorio/v3/api/tickets.php?page=${page}&limit=${limit}`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
             if (!res.ok) throw new Error('Error al cargar tickets');
             return res.json();
         },
