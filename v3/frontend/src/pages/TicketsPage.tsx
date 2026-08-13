@@ -444,23 +444,23 @@ const TicketsPage = () => {
                                                     <span className="text-4xl font-black text-foreground leading-none">{stats.total}</span>
                                                 </div>
                                             </div>
-                                            {/* Legend (Horizontal & Compact) */}
-                                            <div className="grid grid-cols-2 gap-x-2 gap-y-1.5 mt-2 w-full px-2">
+                                            {/* Legend (Grid format) */}
+                                            <div className="grid grid-cols-2 gap-2 mt-4 w-full">
                                                 {[
-                                                    { label: 'WORKING', value: stats.open, color: 'bg-emerald-500' },
-                                                    { label: 'SEEKING', value: stats.seeking, color: 'bg-amber-500' },
-                                                    { label: 'ESCALADO PD', value: stats.escalado_pd, color: 'bg-indigo-600' },
-                                                    { label: 'ESCALADO GT', value: stats.escalado_gt, color: 'bg-purple-600' },
-                                                    { label: 'CLOSED', value: stats.closed, color: 'bg-slate-500' },
-                                                    { label: 'ASSIGNED', value: stats.assigned, color: 'bg-blue-500' },
-                                                    { label: 'S.A QUEUE', value: stats.sa_queue, color: 'bg-rose-600' }
-                                                ].filter(item => item.value > 0).map((item, idx) => (
-                                                    <div key={idx} className="flex items-center justify-between text-[10px]">
+                                                    { label: 'WORKING', value: stats.open, color: 'bg-emerald-500', bg: 'border-emerald-200 bg-emerald-50 dark:bg-emerald-950/20' },
+                                                    { label: 'SEEKING', value: stats.seeking, color: 'bg-amber-500', bg: 'border-amber-200 bg-amber-50 dark:bg-amber-950/20' },
+                                                    { label: 'ESCALADO PD', value: stats.escalado_pd, color: 'bg-indigo-500', bg: 'border-indigo-200 bg-indigo-50 dark:bg-indigo-950/20' },
+                                                    { label: 'ESCALADO GT', value: stats.escalado_gt, color: 'bg-purple-500', bg: 'border-purple-200 bg-purple-50 dark:bg-purple-950/20' },
+                                                    { label: 'CLOSED', value: stats.closed, color: 'bg-slate-500', bg: 'border-slate-200 bg-slate-50 dark:bg-slate-900/40' },
+                                                    { label: 'ASSIGNED', value: stats.assigned, color: 'bg-blue-500', bg: 'border-blue-200 bg-blue-50 dark:bg-blue-950/20' },
+                                                    { label: 'S.A QUEUE', value: stats.sa_queue, color: 'bg-rose-500', bg: 'border-rose-200 bg-rose-50 dark:bg-rose-950/20' }
+                                                ].map((item, idx) => (
+                                                    <div key={idx} className={`flex items-center justify-between text-[10px] border ${item.bg} rounded-lg p-2 dark:border-slate-800`}>
                                                         <div className="flex items-center gap-1.5">
                                                             <div className={`w-2 h-2 rounded-full ${item.color}`} />
-                                                            <span className="font-semibold text-slate-500 dark:text-slate-400">{item.label}</span>
+                                                            <span className="font-bold text-slate-700 dark:text-slate-300">{item.label}</span>
                                                         </div>
-                                                        <span className="font-black text-foreground">{item.value}</span>
+                                                        <span className="font-black text-foreground text-xs">{item.value}</span>
                                                     </div>
                                                 ))}
                                             </div>
