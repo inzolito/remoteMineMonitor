@@ -174,7 +174,7 @@ const TicketsPage = () => {
                     <span className="text-3xl font-black text-slate-600 dark:text-slate-300">{stats.closed}</span>
                 </div>
                 <div className="bg-rose-50 dark:bg-rose-900/10 border border-rose-100 dark:border-rose-800/30 shadow-sm rounded-2xl p-4 flex flex-col gap-1 relative overflow-hidden group">
-                    <span className="text-[10px] font-black uppercase tracking-wider text-rose-600 dark:text-rose-400">S.A QUEUE</span>
+                    <span className="text-[10px] font-black uppercase tracking-wider text-rose-600 dark:text-rose-400">ASIGNADO A S.A.</span>
                     <span className="text-3xl font-black text-rose-600 dark:text-rose-400">{stats.sa_queue}</span>
                 </div>
             </div>
@@ -413,7 +413,7 @@ const TicketsPage = () => {
                                                                 { name: 'ESCALADO GT', value: stats.escalado_gt, color: '#9333ea' },
                                                                 { name: 'CLOSED', value: stats.closed, color: '#64748b' },
                                                                 { name: 'ASSIGNED', value: stats.assigned, color: '#3b82f6' },
-                                                                { name: 'S.A QUEUE', value: stats.sa_queue, color: '#e11d48' }
+                                                                { name: 'ASIGNADO A S.A.', value: stats.sa_queue, color: '#e11d48' }
                                                             ].filter(d => d.value > 0)}
                                                             cx="50%"
                                                             cy="50%"
@@ -429,7 +429,7 @@ const TicketsPage = () => {
                                                                 { name: 'ESCALADO GT', value: stats.escalado_gt, color: '#9333ea' },
                                                                 { name: 'CLOSED', value: stats.closed, color: '#64748b' },
                                                                 { name: 'ASSIGNED', value: stats.assigned, color: '#3b82f6' },
-                                                                { name: 'S.A QUEUE', value: stats.sa_queue, color: '#e11d48' }
+                                                                { name: 'ASIGNADO A S.A.', value: stats.sa_queue, color: '#e11d48' }
                                                             ].filter(d => d.value > 0).map((entry, index) => (
                                                                 <Cell key={`cell-${index}`} fill={entry.color} />
                                                             ))}
@@ -453,7 +453,7 @@ const TicketsPage = () => {
                                                     { label: 'ESCALADO GT', value: stats.escalado_gt, color: 'bg-purple-500', bg: 'border-purple-200 bg-purple-50 dark:bg-purple-950/20' },
                                                     { label: 'CLOSED', value: stats.closed, color: 'bg-slate-500', bg: 'border-slate-200 bg-slate-50 dark:bg-slate-900/40' },
                                                     { label: 'ASSIGNED', value: stats.assigned, color: 'bg-blue-500', bg: 'border-blue-200 bg-blue-50 dark:bg-blue-950/20' },
-                                                    { label: 'S.A QUEUE', value: stats.sa_queue, color: 'bg-rose-500', bg: 'border-rose-200 bg-rose-50 dark:bg-rose-950/20' }
+                                                    { label: 'ASIGNADO A S.A.', value: stats.sa_queue, color: 'bg-rose-500', bg: 'border-rose-200 bg-rose-50 dark:bg-rose-950/20' }
                                                 ].map((item, idx) => (
                                                     <div key={idx} className={`flex items-center justify-between text-[10px] border ${item.bg} rounded-lg p-2 dark:border-slate-800`}>
                                                         <div className="flex items-center gap-1.5">
