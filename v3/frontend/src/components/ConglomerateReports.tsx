@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import html2canvas from 'html2canvas';
 import { Mail, Loader2, X, Send, Copy, Image, FileText, AlertCircle } from 'lucide-react';
 import { cn } from '../lib/utils';
@@ -189,10 +190,14 @@ export const ConglomerateReports: React.FC<ConglomerateReportsProps> = ({ varian
             `;
         }
 
+        const messageText = tickets.length > 0
+            ? `Junto con saludar, comparto el reporte de tickets para <strong>${displayName.toUpperCase()}</strong>.`
+            : `Junto con saludar, no se registraron tickets para <strong>${displayName.toUpperCase()}</strong>.`;
+
         return `
             <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-size: 12px; color: #334155; max-width: 1000px;">
                 <p>${getGreeting()},</p>
-                <p>Junto con saludar, comparto el reporte consolidado de tickets del turno anterior para el conglomerado <strong>${displayName.toUpperCase()}</strong>.</p>
+                <p>${messageText}</p>
                 <p style="font-size: 11px; color: #64748b; margin-bottom: 15px;">Período evaluado: <strong>${formattedStart}</strong> al <strong>${formattedEnd}</strong></p>
                 
                 <table style="width: 100%; border-collapse: collapse; border: 1px solid #cbd5e1; font-family: 'Segoe UI', sans-serif; font-size: 11px; margin-top: 15px; background-color: #ffffff;">
@@ -221,7 +226,10 @@ export const ConglomerateReports: React.FC<ConglomerateReportsProps> = ({ varian
     const performCopyHtml = async (resData: ApiResponse, conglomDisplayName: string) => {
         const configItem = conglomConfig.find(c => c.key === resData.conglomerate) || { themeHex: '#475569' };
         const htmlContent = generateHtmlTableString(resData.tickets, resData.start_date, resData.end_date, configItem.themeHex);
-        const plainText = `${getGreeting()},\n\nJunto con saludar, comparto el reporte consolidado de tickets del turno anterior para ${conglomDisplayName.toUpperCase()}.\nPeriodo: ${resData.start_date} al ${resData.end_date}.`;
+        const messageText = resData.tickets.length > 0
+            ? `Junto con saludar, comparto el reporte de tickets para ${conglomDisplayName.toUpperCase()}.`
+            : `Junto con saludar, no se registraron tickets para ${conglomDisplayName.toUpperCase()}.`;
+        const plainText = `${getGreeting()},\n\n${messageText}\nPeriodo: ${resData.start_date} al ${resData.end_date}.`;
 
         try {
             const htmlBlob = new Blob([htmlContent], { type: 'text/html' });
@@ -333,8 +341,8 @@ export const ConglomerateReports: React.FC<ConglomerateReportsProps> = ({ varian
 
     const renderModal = () => {
         if (!selectedConglom) return null;
-        return (
-            <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+        return createPortal(
+            <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
                 <div className="bg-card w-full max-w-6xl rounded-2xl shadow-2xl border border-border flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-200">
                     
                     {/* Header */}
@@ -380,7 +388,11 @@ export const ConglomerateReports: React.FC<ConglomerateReportsProps> = ({ varian
                                         {/* Preview content inside capture wrapper */}
                                         <div className="font-sans text-xs text-slate-800 space-y-2">
                                             <p className="text-slate-900 font-medium">{getGreeting()},</p>
-                                            <p>Junto con saludar, comparto el reporte consolidado de tickets del turno anterior para el conglomerado <strong>{displayName.toUpperCase()}</strong>.</p>
+                                            <p>
+                                                {data.tickets.length > 0
+                                                    ? <>Junto con saludar, comparto el reporte de tickets para <strong>{displayName.toUpperCase()}</strong>.</>
+                                                    : <>Junto con saludar, no se registraron tickets para <strong>{displayName.toUpperCase()}</strong>.</>}
+                                            </p>
                                             <p className="text-[10px] text-slate-500">
                                                 Período evaluado: <strong>{formatDateTime24h(data.start_date, true)}</strong> al <strong>{formatDateTime24h(data.end_date, true)}</strong>
                                             </p>
@@ -582,7 +594,8 @@ export const ConglomerateReports: React.FC<ConglomerateReportsProps> = ({ varian
                         </div>
                     </div>
                 </div>
-            </div>
+            </div>,
+            document.body
         );
     };
 

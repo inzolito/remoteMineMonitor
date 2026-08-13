@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import html2canvas from 'html2canvas';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -328,8 +329,8 @@ export const SubShiftHandoff: React.FC<SubShiftHandoffProps> = ({ openTickets, i
             </button>
 
             {/* Modal - Wide (max-w-5xl) for comfort */}
-            {showModal && (
-                <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+            {showModal && createPortal(
+                <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
                     <div className="bg-card w-full max-w-5xl rounded-2xl shadow-2xl border border-border flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-200">
 
                         {/* Header */}
@@ -590,7 +591,8 @@ export const SubShiftHandoff: React.FC<SubShiftHandoffProps> = ({ openTickets, i
                             </div>
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
         </>
     );
