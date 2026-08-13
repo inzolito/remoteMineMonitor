@@ -81,6 +81,8 @@ $stats = [
     'total' => 0,
     'open' => 0, // Used for 'Working'
     'seeking' => 0,
+    'escalado_pd' => 0,
+    'escalado_gt' => 0,
     'closed' => 0,
     'queue' => 0,
     'assigned' => 0
@@ -97,6 +99,10 @@ while ($row = $res->fetch_assoc()) {
         $stats['assigned']++;
     } elseif (strpos($st, 'seeking') !== false) {
         $stats['seeking']++;
+    } elseif (strpos($st, 'escalado a pd') !== false) {
+        $stats['escalado_pd']++;
+    } elseif (strpos($st, 'escalado a gt') !== false) {
+        $stats['escalado_gt']++;
     }
 }
 $stmt->close();
@@ -166,31 +172,40 @@ while ($row = $res->fetch_assoc()) {
         'Conglomerate' => $row['Conglomerate'] ?? 'Otros',
         'OwnerName' => $row['OwnerName'] ?? 'Sin Asignar',
         'Duration' => $duration,
-        'CommentCount' => 0
+        'CommentCount' => 0,
+        'Comments' => []
     ];
 }
 $stmt->close();
 
-// Fetch comment counts for the paginated tickets
+// Fetch comments
 if (count($tickets) > 0) {
     $caseIds = array_map(function($t) use ($mysqli) { return "'" . $mysqli->real_escape_string($t['Id']) . "'"; }, $tickets);
     $idsStr = implode(',', $caseIds);
     
-    $commentsQuery = "SELECT ParentId, COUNT(Id) as CommentCount 
-                      FROM rmmsalesforce.sf_case_comments 
-                      WHERE ParentId IN ($idsStr) 
-                      GROUP BY ParentId";
+    $commentsQuery = "SELECT cc.ParentId, cc.CommentBody, cc.CreatedDate, u.Name as Author 
+                      FROM rmmsalesforce.sf_case_comments cc 
+                      LEFT JOIN rmmsalesforce.sf_users u ON cc.CreatedById = u.Id 
+                      WHERE cc.ParentId IN ($idsStr) 
+                      ORDER BY cc.CreatedDate ASC";
     
     $commentsRes = $mysqli->query($commentsQuery);
-    $commentCounts = [];
+    $commentsByTicket = [];
     if ($commentsRes) {
         while ($c = $commentsRes->fetch_assoc()) {
-            $commentCounts[$c['ParentId']] = $c['CommentCount'];
+            $pid = $c['ParentId'];
+            if (!isset($commentsByTicket[$pid])) $commentsByTicket[$pid] = [];
+            $commentsByTicket[$pid][] = [
+                'Body' => $c['CommentBody'],
+                'CreatedDate' => $c['CreatedDate'],
+                'Author' => $c['Author']
+            ];
         }
     }
     
     foreach ($tickets as &$t) {
-        $t['CommentCount'] = $commentCounts[$t['Id']] ?? 0;
+        $t['Comments'] = $commentsByTicket[$t['Id']] ?? [];
+        $t['CommentCount'] = count($t['Comments']);
     }
     unset($t);
 }
