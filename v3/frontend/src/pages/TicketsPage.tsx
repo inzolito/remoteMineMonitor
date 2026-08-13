@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, Fragment } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Ticket, Search, AlertCircle, Eye, Loader2, MessageSquare, CheckCircle2, X, ExternalLink, Calendar, Clock, BarChart3, AlertTriangle } from 'lucide-react';
 import { cn } from '../lib/utils';
@@ -25,7 +25,7 @@ interface SFCase {
 
 const TicketsPage = () => {
     const [page, setPage] = useState(1);
-    const limit = 30;
+    const limit = 50;
     const [searchQuery, setSearchQuery] = useState('');
     const [activeTab, setActiveTab] = useState<'all' | 'today' | 'week' | 'month' | 'escalado'>('all');
     
@@ -34,10 +34,10 @@ const TicketsPage = () => {
     const [selectedSfTicket, setSelectedSfTicket] = useState<SFCase | null>(null);
 
     const { data: ticketsData, isLoading, error } = useQuery({
-        queryKey: ['tickets_module', page],
+        queryKey: ['tickets_module', page, searchQuery, activeTab],
         queryFn: async () => {
             const token = localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')!).token : '';
-            const res = await fetch(`/monitoreoLaboratorio/v3/api/tickets.php?page=${page}&limit=${limit}`, {
+            const res = await fetch(`/monitoreoLaboratorio/v3/api/tickets.php?page=${page}&limit=${limit}&search=${encodeURIComponent(searchQuery)}&timeframe=${activeTab}`, {
                 headers: {
                     'Authorization': `Bearer ${token}`
                 }
@@ -51,7 +51,8 @@ const TicketsPage = () => {
 
     const active_tickets: SFCase[] = ticketsData?.tickets || [];
     const stats = ticketsData?.stats || { total: 0, open: 0, seeking: 0, escalado_pd: 0, escalado_gt: 0, closed: 0, queue: 0, assigned: 0, sa_queue: 0 };
-    const pagination = ticketsData?.pagination || { page: 1, limit: 30, total: 0, total_pages: 0 };
+    const chartStats = ticketsData?.filtered_stats || stats;
+    const pagination = ticketsData?.pagination || { page: 1, limit: 50, total: 0, total_pages: 0 };
 
     const getOwnerAlias = (name: string) => {
         if (!name) return '--';
@@ -75,7 +76,7 @@ const TicketsPage = () => {
         const diffHrs = Math.floor(diffMin / 60);
         const diffDays = Math.floor(diffHrs / 24);
 
-        if (diffHrs >= 24) return `${diffHrs}H (${diffDays}d)`;
+        if (diffDays > 0) return `${diffDays} ${diffDays === 1 ? 'DÍA' : 'DÍAS'}`;
         if (diffHrs > 0) return `${diffHrs}H`;
         if (diffMin > 0) return `${diffMin}M`;
         return 'NEW';
@@ -85,34 +86,7 @@ const TicketsPage = () => {
         setSelectedSfTicket(t);
         setIsSfModalOpen(true);
     };
-
-    // Filter logic
-    const isTicketInTimeframe = (t: SFCase, timeframe: string) => {
-        if (!t.CreatedDate) return false;
-        
-        const created = new Date(t.CreatedDate.replace(' ', 'T')).getTime();
-        const now = new Date().getTime();
-        const diffMs = now - created;
-        const diffDays = diffMs / (1000 * 60 * 60 * 24);
-        
-        if (timeframe === 'today') return diffDays <= 1;
-        if (timeframe === 'week') return diffDays <= 7;
-        if (timeframe === 'month') return diffDays <= 30;
-        if (timeframe === 'escalado') {
-            const st = t.Status?.toLowerCase() || '';
-            return st.includes('escalado a pd') || st.includes('escalado a gt');
-        }
-        return true; // 'all'
-    };
-
-    const filteredTickets = active_tickets.filter((t: SFCase) => {
-        const matchesSearch = t.CaseNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            t.Subject?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            t.Faena?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            t.OwnerName?.toLowerCase().includes(searchQuery.toLowerCase());
-            
-        return matchesSearch && isTicketInTimeframe(t, activeTab);
-    });
+    const filteredTickets = active_tickets;
 
     if (isLoading && !ticketsData) {
         return (
@@ -188,7 +162,7 @@ const TicketsPage = () => {
                         <div className="p-4 border-b border-border/60 bg-muted/10 flex flex-col xl:flex-row xl:items-center justify-between gap-3">
                             <div className="flex border border-border/60 p-0.5 bg-background dark:bg-muted/20 gap-0.5 rounded-xl shrink-0 w-fit overflow-x-auto max-w-full">
                                 <button
-                                    onClick={() => setActiveTab('all')}
+                                    onClick={() => { setActiveTab('all'); setPage(1); }}
                                     className={cn(
                                         "px-3 py-1.5 rounded-lg text-[11px] font-black transition-all flex items-center gap-1.5 whitespace-nowrap",
                                         activeTab === 'all' ? "bg-primary text-white shadow-sm" : "text-muted-foreground hover:bg-muted/40 hover:text-foreground"
@@ -197,7 +171,7 @@ const TicketsPage = () => {
                                     <BarChart3 className="w-3.5 h-3.5" /> Total ({stats.total})
                                 </button>
                                 <button
-                                    onClick={() => setActiveTab('today')}
+                                    onClick={() => { setActiveTab('today'); setPage(1); }}
                                     className={cn(
                                         "px-3 py-1.5 rounded-lg text-[11px] font-black transition-all flex items-center gap-1.5 whitespace-nowrap",
                                         activeTab === 'today' ? "bg-primary text-white shadow-sm" : "text-muted-foreground hover:bg-muted/40 hover:text-foreground"
@@ -206,7 +180,7 @@ const TicketsPage = () => {
                                     <Clock className="w-3.5 h-3.5" /> Hoy
                                 </button>
                                 <button
-                                    onClick={() => setActiveTab('week')}
+                                    onClick={() => { setActiveTab('week'); setPage(1); }}
                                     className={cn(
                                         "px-3 py-1.5 rounded-lg text-[11px] font-black transition-all flex items-center gap-1.5 whitespace-nowrap",
                                         activeTab === 'week' ? "bg-primary text-white shadow-sm" : "text-muted-foreground hover:bg-muted/40 hover:text-foreground"
@@ -215,7 +189,7 @@ const TicketsPage = () => {
                                     <Calendar className="w-3.5 h-3.5" /> Esta Semana
                                 </button>
                                 <button
-                                    onClick={() => setActiveTab('month')}
+                                    onClick={() => { setActiveTab('month'); setPage(1); }}
                                     className={cn(
                                         "px-3 py-1.5 rounded-lg text-[11px] font-black transition-all flex items-center gap-1.5 whitespace-nowrap",
                                         activeTab === 'month' ? "bg-primary text-white shadow-sm" : "text-muted-foreground hover:bg-muted/40 hover:text-foreground"
@@ -224,7 +198,7 @@ const TicketsPage = () => {
                                     <Calendar className="w-3.5 h-3.5" /> Este Mes
                                 </button>
                                 <button
-                                    onClick={() => setActiveTab('escalado')}
+                                    onClick={() => { setActiveTab('escalado'); setPage(1); }}
                                     className={cn(
                                         "px-3 py-1.5 rounded-lg text-[11px] font-black transition-all flex items-center gap-1.5 whitespace-nowrap",
                                         activeTab === 'escalado' ? "bg-indigo-600 text-white shadow-sm" : "text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20"
@@ -240,18 +214,21 @@ const TicketsPage = () => {
                                     type="text"
                                     placeholder="Buscar..."
                                     value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    onChange={(e) => {
+                                        setSearchQuery(e.target.value);
+                                        setPage(1);
+                                    }}
                                     className="w-full pl-8 pr-3 py-1.5 bg-background border border-border rounded-lg text-[11px] focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all dark:bg-card"
                                 />
                             </div>
                         </div>
 
                         {/* Main Content Body */}
-                        <div className="grid grid-cols-1 lg:grid-cols-5 divide-y lg:divide-y-0 lg:divide-x divide-border/60">
+                        <div className="grid grid-cols-1 lg:grid-cols-12 divide-y lg:divide-y-0 lg:divide-x divide-border/60">
                             {/* Left Side (Table wrapper) */}
-                            <div className="lg:col-span-3 flex flex-col justify-between max-h-[550px]">
+                            <div className="lg:col-span-8 flex flex-col justify-between max-h-[550px]">
                                 <div className="overflow-x-auto overflow-y-auto">
-                                    <table className="w-full text-left text-sm whitespace-nowrap">
+                                    <table className="w-full text-left text-[11px] whitespace-nowrap">
                                         <thead>
                                             <tr className="border-b border-border/60 bg-muted/10 sticky top-0 z-20 backdrop-blur-md">
                                                 <th className="px-4 py-3 text-[10px] font-black uppercase tracking-wider text-muted-foreground">Ticket / Faena</th>
@@ -264,104 +241,132 @@ const TicketsPage = () => {
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-border/30">
-                                            {[...filteredTickets].sort((a, b) => {
-                                                const isClosedA = a.Status?.toLowerCase() === 'closed';
-                                                const isClosedB = b.Status?.toLowerCase() === 'closed';
-                                                if (isClosedA !== isClosedB) return isClosedA ? 1 : -1;
-                                                const timeA = new Date(a.CreatedDate?.replace(' ', 'T') || 0).getTime();
-                                                const timeB = new Date(b.CreatedDate?.replace(' ', 'T') || 0).getTime();
-                                                return timeB - timeA;
-                                            }).map((t) => {
-                                                const isClosed = t.Status?.toLowerCase() === 'closed';
-                                                const isWorking = t.Status?.toLowerCase() === 'working';
-                                                const isAssigned = t.Status?.toLowerCase() === 'assigned';
-                                                const isSeeking = t.Status?.toLowerCase().includes('seeking');
-                                                const isEscalado = t.Status?.toLowerCase().includes('escalado a');
-                                                const highlightRed = t.OwnerName?.toLowerCase().includes('queue') && !isClosed;
+                                            {(() => {
+                                                const sortedTickets = [...filteredTickets].sort((a, b) => {
+                                                    const isClosedA = a.Status?.toLowerCase() === 'closed';
+                                                    const isClosedB = b.Status?.toLowerCase() === 'closed';
+                                                    if (isClosedA !== isClosedB) return isClosedA ? 1 : -1;
+                                                    const timeA = new Date(a.CreatedDate?.replace(' ', 'T') || 0).getTime();
+                                                    const timeB = new Date(b.CreatedDate?.replace(' ', 'T') || 0).getTime();
+                                                    return timeB - timeA;
+                                                });
 
-                                                return (
-                                                    <tr key={t.Id} className={cn(
-                                                        "group transition-colors hover:bg-muted/30",
-                                                        isClosed ? "bg-slate-50/30 dark:bg-slate-900/10 opacity-75" : 
-                                                        highlightRed ? "bg-rose-50/80 dark:bg-rose-900/10 border-l-2 border-l-rose-500" :
-                                                        isWorking ? "bg-emerald-50/80 dark:bg-emerald-900/10 border-l-2 border-l-emerald-500" :
-                                                        isAssigned ? "bg-blue-50/80 dark:bg-blue-900/10 border-l-2 border-l-blue-500" :
-                                                        isEscalado ? "bg-indigo-50/80 dark:bg-indigo-900/10 border-l-2 border-l-indigo-500" :
-                                                        isSeeking ? "bg-amber-50/80 dark:bg-amber-900/10 border-l-2 border-l-amber-500" : ""
-                                                    )}>
-                                                        <td className="px-4 py-3">
-                                                            <div className="flex flex-col">
-                                                                <span className="font-bold text-primary hover:underline cursor-pointer">
-                                                                    {t.CaseNumber}
-                                                                </span>
-                                                                <span className="text-[10px] font-medium text-muted-foreground truncate max-w-[120px]">
-                                                                    {t.Faena}
-                                                                </span>
-                                                            </div>
-                                                        </td>
-                                                        <td className="px-4 py-3">
-                                                            <div className="flex flex-col max-w-[150px] md:max-w-[200px]">
-                                                                <span className={cn(
-                                                                    "text-sm font-semibold truncate",
-                                                                    isClosed ? "text-slate-500" : "text-foreground"
-                                                                )}>
-                                                                    {t.Subject}
-                                                                </span>
-                                                            </div>
-                                                        </td>
-                                                        <td className="px-4 py-3">
-                                                            <span className={cn(
-                                                                "text-[9px] px-2 py-1 rounded-md font-black uppercase tracking-wider border whitespace-nowrap",
-                                                                isClosed ? "bg-slate-100 text-slate-500 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700" :
-                                                                isWorking ? "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800" :
-                                                                isAssigned ? "bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800" :
-                                                                isEscalado ? "bg-indigo-100 text-indigo-700 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-400 dark:border-indigo-800" :
-                                                                isSeeking ? "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800" :
-                                                                "bg-muted text-muted-foreground border-border"
+                                                if (sortedTickets.length === 0) {
+                                                    return (
+                                                        <tr>
+                                                            <td colSpan={7} className="px-4 py-8 text-center text-sm text-muted-foreground">
+                                                                No se encontraron tickets.
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                }
+
+                                                return sortedTickets.map((t, idx) => {
+                                                    const isClosed = t.Status?.toLowerCase() === 'closed';
+                                                    const isWorking = t.Status?.toLowerCase() === 'working';
+                                                    const isAssigned = t.Status?.toLowerCase() === 'assigned';
+                                                    const isSeeking = t.Status?.toLowerCase().includes('seeking');
+                                                    const isEscalado = t.Status?.toLowerCase().includes('escalado a') || t.Status?.toLowerCase().includes('escalate');
+                                                    const highlightRed = t.OwnerName?.toLowerCase().includes('queue') && !isClosed;
+
+                                                    const isFirstClosed = isClosed && (idx === 0 || sortedTickets[idx - 1].Status?.toLowerCase() !== 'closed');
+
+                                                    return (
+                                                        <Fragment key={t.Id}>
+                                                            {isFirstClosed && (
+                                                                <tr className="bg-slate-100/50 dark:bg-slate-800/20">
+                                                                    <td colSpan={7} className="py-2">
+                                                                        <div className="w-full flex items-center justify-center gap-3">
+                                                                            <div className="h-px bg-slate-200 dark:bg-slate-700 flex-1"></div>
+                                                                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">Tickets Cerrados</span>
+                                                                            <div className="h-px bg-slate-200 dark:bg-slate-700 flex-1"></div>
+                                                                        </div>
+                                                                    </td>
+                                                                </tr>
+                                                            )}
+                                                            <tr className={cn(
+                                                                "group transition-colors hover:bg-muted/30",
+                                                                isClosed ? "bg-slate-50/30 dark:bg-slate-900/10 opacity-75" : 
+                                                                highlightRed ? "bg-rose-50/80 dark:bg-rose-900/10 border-l-2 border-l-rose-500" :
+                                                                isWorking ? "bg-emerald-50/80 dark:bg-emerald-900/10 border-l-2 border-l-emerald-500" :
+                                                                isAssigned ? "bg-blue-50/80 dark:bg-blue-900/10 border-l-2 border-l-blue-500" :
+                                                                isEscalado ? "bg-indigo-50/80 dark:bg-indigo-900/10 border-l-2 border-l-indigo-500" :
+                                                                isSeeking ? "bg-amber-50/80 dark:bg-amber-900/10 border-l-2 border-l-amber-500" : ""
                                                             )}>
-                                                                {t.Status}
-                                                            </span>
-                                                        </td>
-                                                        <td className="px-4 py-3">
-                                                            <span className={cn(
-                                                                "text-[10px] uppercase",
-                                                                isClosed ? "font-normal text-slate-400" :
-                                                                highlightRed ? "font-black text-rose-600" : "font-black text-foreground/90"
-                                                            )}>
-                                                                {formatTimeElapsed(t.CreatedDate)}
-                                                            </span>
-                                                        </td>
-                                                        <td className="px-4 py-3 text-center">
-                                                            <div className="inline-flex items-center gap-1.5 px-2 py-1 bg-slate-50 dark:bg-muted/50 rounded-lg">
-                                                                <MessageSquare className="w-3 h-3 text-primary opacity-50" />
-                                                                <span className="text-[10px] font-black text-foreground">{t.CommentCount || 0}</span>
-                                                            </div>
-                                                        </td>
-                                                        <td className="px-4 py-3 text-center">
-                                                            <span className={cn(
-                                                                "text-[9px] px-2 py-1 rounded-md whitespace-nowrap border uppercase",
-                                                                isClosed ? "font-normal text-slate-400 bg-slate-50 dark:bg-slate-800/50" :
-                                                                highlightRed ? "font-bold text-rose-600 bg-rose-50 dark:bg-rose-900/20" :
-                                                                "font-bold text-foreground bg-slate-100 dark:bg-slate-800"
-                                                            )}>
-                                                                {getOwnerAlias(t.OwnerName)}
-                                                            </span>
-                                                        </td>
-                                                        <td className="px-4 py-3 text-right">
-                                                            <button onClick={() => handleOpenTicketDetails(t)} className="p-2 hover:bg-primary/10 text-primary rounded-xl transition-all">
-                                                                <Eye className="w-4 h-4" />
-                                                            </button>
-                                                        </td>
-                                                    </tr>
-                                                );
-                                            })}
-                                            {filteredTickets.length === 0 && (
-                                                <tr>
-                                                    <td colSpan={7} className="px-4 py-8 text-center text-sm text-muted-foreground">
-                                                        No se encontraron tickets.
-                                                    </td>
-                                                </tr>
-                                            )}
+                                                                <td className="px-4 py-3">
+                                                                    <div className="flex flex-col">
+                                                                        <span 
+                                                                            onClick={() => handleOpenTicketDetails(t)}
+                                                                            className="font-bold text-primary hover:underline cursor-pointer"
+                                                                        >
+                                                                            {t.CaseNumber}
+                                                                        </span>
+                                                                        <span className="text-[10px] font-medium text-muted-foreground truncate max-w-[120px]">
+                                                                            {t.Faena}
+                                                                        </span>
+                                                                    </div>
+                                                                </td>
+                                                                <td className="px-4 py-3 max-w-xs md:max-w-md">
+                                                                    <p className={cn(
+                                                                        "text-[11px] font-semibold truncate",
+                                                                        isClosed ? "text-slate-500 dark:text-slate-400 font-normal" : "text-foreground font-bold"
+                                                                    )}>
+                                                                        {t.Subject}
+                                                                    </p>
+                                                                </td>
+                                                                <td className="px-4 py-3">
+                                                                    <span className={cn(
+                                                                        "text-[9px] px-2 py-1 rounded-md font-black uppercase tracking-wider border whitespace-nowrap",
+                                                                        isClosed ? "bg-slate-100 text-slate-500 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700" :
+                                                                        isWorking ? "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800" :
+                                                                        isAssigned ? "bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800" :
+                                                                        isEscalado ? "bg-indigo-100 text-indigo-700 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-400 dark:border-indigo-800" :
+                                                                        isSeeking ? "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800" :
+                                                                        "bg-muted text-muted-foreground border-border"
+                                                                    )}>
+                                                                        {t.Status}
+                                                                    </span>
+                                                                </td>
+                                                                <td className="px-4 py-3">
+                                                                    <div className="flex flex-col">
+                                                                        <span className={cn(
+                                                                            "text-[11px] uppercase",
+                                                                            isClosed ? "font-normal text-slate-400" :
+                                                                            highlightRed ? "font-black text-rose-600 animate-pulse" : "font-black text-foreground/90"
+                                                                        )}>
+                                                                            {formatTimeElapsed(t.CreatedDate)}
+                                                                        </span>
+                                                                        <span className="text-[9px] font-medium text-muted-foreground/60 whitespace-nowrap opacity-70">
+                                                                            {new Date(t.CreatedDate.replace(' ', 'T')).toLocaleDateString()}
+                                                                        </span>
+                                                                    </div>
+                                                                </td>
+                                                                <td className="px-4 py-3 text-center">
+                                                                    <div className="inline-flex items-center gap-1.5 px-2 py-1 bg-slate-50 dark:bg-muted/50 rounded-lg">
+                                                                        <MessageSquare className="w-3 h-3 text-primary opacity-50" />
+                                                                        <span className="text-[10px] font-black text-foreground">{t.CommentCount || 0}</span>
+                                                                    </div>
+                                                                </td>
+                                                                <td className="px-4 py-3 text-center">
+                                                                    <span className={cn(
+                                                                        "text-[9px] px-2 py-1 rounded-md whitespace-nowrap border uppercase",
+                                                                        isClosed ? "font-normal text-slate-400 bg-slate-50 dark:bg-slate-800/50" :
+                                                                        highlightRed ? "font-bold text-rose-600 bg-rose-50 dark:bg-rose-900/20" :
+                                                                        "font-bold text-foreground bg-slate-100 dark:bg-slate-800"
+                                                                    )}>
+                                                                        {getOwnerAlias(t.OwnerName)}
+                                                                    </span>
+                                                                </td>
+                                                                <td className="px-4 py-3 text-right">
+                                                                    <button onClick={() => handleOpenTicketDetails(t)} className="p-2 hover:bg-primary/10 text-primary rounded-xl transition-all">
+                                                                        <Eye className="w-4 h-4" />
+                                                                    </button>
+                                                                </td>
+                                                            </tr>
+                                                        </Fragment>
+                                                    );
+                                                });
+                                            })()}
                                         </tbody>
                                     </table>
                                 </div>
@@ -393,27 +398,27 @@ const TicketsPage = () => {
                             </div>
 
                             {/* Right Side (Analytics Sidebar) */}
-                            <div className="lg:col-span-2 p-3 bg-muted/5 flex flex-col gap-3.5 max-h-[550px] overflow-y-auto">
+                            <div className="lg:col-span-4 p-3 bg-muted/5 flex flex-col gap-3.5 max-h-[550px] overflow-y-auto">
                                 <div className="space-y-2">
                                     <div className="flex items-center justify-between border-b border-border/40 pb-1.5 shrink-0">
                                         <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider">Distribución Global</span>
-                                        <span className="text-[9px] font-extrabold text-muted-foreground bg-muted dark:bg-muted/30 px-2 py-0.5 rounded-full">Total Anual: {stats.total}</span>
+                                        <span className="text-[9px] font-extrabold text-muted-foreground bg-muted dark:bg-muted/30 px-2 py-0.5 rounded-full">Total: {chartStats.total}</span>
                                     </div>
-
-                                    {stats.total > 0 ? (
+ 
+                                    {chartStats.total > 0 ? (
                                         <div className="flex flex-col items-center">
                                             <div className="w-64 h-64 shrink-0 relative flex items-center justify-center">
                                                 <ResponsiveContainer width="100%" height="100%">
                                                     <PieChart>
                                                         <Pie
                                                             data={[
-                                                                { name: 'WORKING', value: stats.open, color: '#10b981' },
-                                                                { name: 'SEEKING', value: stats.seeking, color: '#f59e0b' },
-                                                                { name: 'ESCALADO PD', value: stats.escalado_pd, color: '#4f46e5' },
-                                                                { name: 'ESCALADO GT', value: stats.escalado_gt, color: '#9333ea' },
-                                                                { name: 'CLOSED', value: stats.closed, color: '#64748b' },
-                                                                { name: 'ASSIGNED', value: stats.assigned, color: '#3b82f6' },
-                                                                { name: 'ASIGNADO A S.A.', value: stats.sa_queue, color: '#e11d48' }
+                                                                { name: 'WORKING', value: chartStats.open, color: '#10b981' },
+                                                                { name: 'SEEKING', value: chartStats.seeking, color: '#f59e0b' },
+                                                                { name: 'ESCALADO PD', value: chartStats.escalado_pd, color: '#4f46e5' },
+                                                                { name: 'ESCALADO GT', value: chartStats.escalado_gt, color: '#9333ea' },
+                                                                { name: 'CLOSED', value: chartStats.closed, color: '#64748b' },
+                                                                { name: 'ASSIGNED', value: chartStats.assigned, color: '#3b82f6' },
+                                                                { name: 'ASIGNADO A S.A.', value: chartStats.sa_queue, color: '#e11d48' }
                                                             ].filter(d => d.value > 0)}
                                                             cx="50%"
                                                             cy="50%"
@@ -423,13 +428,13 @@ const TicketsPage = () => {
                                                             dataKey="value"
                                                         >
                                                             {[
-                                                                { name: 'WORKING', value: stats.open, color: '#10b981' },
-                                                                { name: 'SEEKING', value: stats.seeking, color: '#f59e0b' },
-                                                                { name: 'ESCALADO PD', value: stats.escalado_pd, color: '#4f46e5' },
-                                                                { name: 'ESCALADO GT', value: stats.escalado_gt, color: '#9333ea' },
-                                                                { name: 'CLOSED', value: stats.closed, color: '#64748b' },
-                                                                { name: 'ASSIGNED', value: stats.assigned, color: '#3b82f6' },
-                                                                { name: 'ASIGNADO A S.A.', value: stats.sa_queue, color: '#e11d48' }
+                                                                { name: 'WORKING', value: chartStats.open, color: '#10b981' },
+                                                                { name: 'SEEKING', value: chartStats.seeking, color: '#f59e0b' },
+                                                                { name: 'ESCALADO PD', value: chartStats.escalado_pd, color: '#4f46e5' },
+                                                                { name: 'ESCALADO GT', value: chartStats.escalado_gt, color: '#9333ea' },
+                                                                { name: 'CLOSED', value: chartStats.closed, color: '#64748b' },
+                                                                { name: 'ASSIGNED', value: chartStats.assigned, color: '#3b82f6' },
+                                                                { name: 'ASIGNADO A S.A.', value: chartStats.sa_queue, color: '#e11d48' }
                                                             ].filter(d => d.value > 0).map((entry, index) => (
                                                                 <Cell key={`cell-${index}`} fill={entry.color} />
                                                             ))}
@@ -441,19 +446,19 @@ const TicketsPage = () => {
                                                 </ResponsiveContainer>
                                                 <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                                                     <span className="text-xs font-black uppercase text-slate-400 tracking-wider">Total</span>
-                                                    <span className="text-4xl font-black text-foreground leading-none">{stats.total}</span>
+                                                    <span className="text-4xl font-black text-foreground leading-none">{chartStats.total}</span>
                                                 </div>
                                             </div>
                                             {/* Legend (Grid format) */}
                                             <div className="grid grid-cols-2 gap-2 mt-4 w-full">
                                                 {[
-                                                    { label: 'WORKING', value: stats.open, color: 'bg-emerald-500', bg: 'border-emerald-200 bg-emerald-50 dark:bg-emerald-950/20' },
-                                                    { label: 'SEEKING', value: stats.seeking, color: 'bg-amber-500', bg: 'border-amber-200 bg-amber-50 dark:bg-amber-950/20' },
-                                                    { label: 'ESCALADO PD', value: stats.escalado_pd, color: 'bg-indigo-500', bg: 'border-indigo-200 bg-indigo-50 dark:bg-indigo-950/20' },
-                                                    { label: 'ESCALADO GT', value: stats.escalado_gt, color: 'bg-purple-500', bg: 'border-purple-200 bg-purple-50 dark:bg-purple-950/20' },
-                                                    { label: 'CLOSED', value: stats.closed, color: 'bg-slate-500', bg: 'border-slate-200 bg-slate-50 dark:bg-slate-900/40' },
-                                                    { label: 'ASSIGNED', value: stats.assigned, color: 'bg-blue-500', bg: 'border-blue-200 bg-blue-50 dark:bg-blue-950/20' },
-                                                    { label: 'ASIGNADO A S.A.', value: stats.sa_queue, color: 'bg-rose-500', bg: 'border-rose-200 bg-rose-50 dark:bg-rose-950/20' }
+                                                    { label: 'WORKING', value: chartStats.open, color: 'bg-emerald-500', bg: 'border-emerald-200 bg-emerald-50 dark:bg-emerald-950/20' },
+                                                    { label: 'SEEKING', value: chartStats.seeking, color: 'bg-amber-500', bg: 'border-amber-200 bg-amber-50 dark:bg-amber-950/20' },
+                                                    { label: 'ESCALADO PD', value: chartStats.escalado_pd, color: 'bg-indigo-500', bg: 'border-indigo-200 bg-indigo-50 dark:bg-indigo-950/20' },
+                                                    { label: 'ESCALADO GT', value: chartStats.escalado_gt, color: 'bg-purple-500', bg: 'border-purple-200 bg-purple-50 dark:bg-purple-950/20' },
+                                                    { label: 'CLOSED', value: chartStats.closed, color: 'bg-slate-500', bg: 'border-slate-200 bg-slate-50 dark:bg-slate-900/40' },
+                                                    { label: 'ASSIGNED', value: chartStats.assigned, color: 'bg-blue-500', bg: 'border-blue-200 bg-blue-50 dark:bg-blue-950/20' },
+                                                    { label: 'ASIGNADO A S.A.', value: chartStats.sa_queue, color: 'bg-rose-500', bg: 'border-rose-200 bg-rose-50 dark:bg-rose-950/20' }
                                                 ].map((item, idx) => (
                                                     <div key={idx} className={`flex items-center justify-between text-[10px] border ${item.bg} rounded-lg p-2 dark:border-slate-800`}>
                                                         <div className="flex items-center gap-1.5">

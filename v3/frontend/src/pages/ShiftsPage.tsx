@@ -1,6 +1,6 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Clock, Ticket, Calendar, AlertCircle, Eye, Loader2, X, Sun, Moon, ExternalLink, MessageSquare, Search, CheckCircle2, HelpCircle, Activity, Home } from 'lucide-react';
+import { Clock, Ticket, Calendar, AlertCircle, Eye, Loader2, X, Sun, Moon, ExternalLink, MessageSquare, Search, CheckCircle2, HelpCircle, Activity } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
 import { ShiftStatusEye } from '../components/ShiftStatusEye';
@@ -262,9 +262,7 @@ const ShiftsPage = () => {
     })();
 
     const activeAlias = config.active_shift === 1 ? config.shift1_alias : config.shift2_alias;
-    const inactiveAlias = config.active_shift === 1 ? config.shift2_alias : config.shift1_alias;
     const activeMembers = config.active_shift === 1 ? shift1_members : shift2_members;
-    const inactiveMembers = config.active_shift === 1 ? shift2_members : shift1_members;
 
     // Calculate dates
     const start = new Date(config.start_date + 'T00:00:00');
@@ -312,7 +310,7 @@ const ShiftsPage = () => {
         const diffHrs = Math.floor(diffMin / 60);
         const diffDays = Math.floor(diffHrs / 24);
 
-        if (diffDays > 0) return `${diffDays} ${diffDays === 1 ? 'Día' : 'Días'}`;
+        if (diffHrs >= 24) return `${diffHrs}H (${diffDays}d)`;
         if (diffHrs > 0) return `${diffHrs}H`;
         if (diffMin > 0) return `${diffMin}M`;
         return 'NEW';
@@ -855,9 +853,9 @@ const ShiftsPage = () => {
                         </div>
 
                         {/* Tab Content Body */}
-                        <div className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-border/60">
+                        <div className="grid grid-cols-1 lg:grid-cols-5 divide-y lg:divide-y-0 lg:divide-x divide-border/60">
                             {/* Left Side (Table wrapper) */}
-                            <div className="lg:col-span-1 flex flex-col justify-between max-h-[550px]">
+                            <div className="lg:col-span-3 flex flex-col justify-between max-h-[550px]">
                                 <div className="overflow-x-auto overflow-y-auto">
                                     {renderTicketsTable()}
                                 </div>
@@ -865,7 +863,7 @@ const ShiftsPage = () => {
                             </div>
 
                             {/* Right Side (Analytics Sidebar) */}
-                            <div className="lg:col-span-1 p-3 bg-muted/5 flex flex-col gap-3.5 max-h-[550px] overflow-y-auto">
+                            <div className="lg:col-span-2 p-3 bg-muted/5 flex flex-col gap-3.5 max-h-[550px] overflow-y-auto">
                                     {/* Donut Chart */}
                                     <div className="space-y-2">
                                         <div className="flex items-center justify-between border-b border-border/40 pb-1.5 shrink-0">
