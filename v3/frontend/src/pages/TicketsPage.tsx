@@ -444,6 +444,26 @@ const TicketsPage = () => {
                                                     <span className="text-4xl font-black text-foreground leading-none">{stats.total}</span>
                                                 </div>
                                             </div>
+                                            {/* Legend (Horizontal & Compact) */}
+                                            <div className="grid grid-cols-2 gap-x-2 gap-y-1.5 mt-2 w-full px-2">
+                                                {[
+                                                    { label: 'WORKING', value: stats.open, color: 'bg-emerald-500' },
+                                                    { label: 'SEEKING', value: stats.seeking, color: 'bg-amber-500' },
+                                                    { label: 'ESCALADO PD', value: stats.escalado_pd, color: 'bg-indigo-600' },
+                                                    { label: 'ESCALADO GT', value: stats.escalado_gt, color: 'bg-purple-600' },
+                                                    { label: 'CLOSED', value: stats.closed, color: 'bg-slate-500' },
+                                                    { label: 'ASSIGNED', value: stats.assigned, color: 'bg-blue-500' },
+                                                    { label: 'S.A QUEUE', value: stats.sa_queue, color: 'bg-rose-600' }
+                                                ].filter(item => item.value > 0).map((item, idx) => (
+                                                    <div key={idx} className="flex items-center justify-between text-[10px]">
+                                                        <div className="flex items-center gap-1.5">
+                                                            <div className={`w-2 h-2 rounded-full ${item.color}`} />
+                                                            <span className="font-semibold text-slate-500 dark:text-slate-400">{item.label}</span>
+                                                        </div>
+                                                        <span className="font-black text-foreground">{item.value}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
                                         </div>
                                     ) : (
                                         <div className="py-6 text-center text-[10px] text-muted-foreground italic font-semibold">Sin datos para graficar</div>
