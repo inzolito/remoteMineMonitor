@@ -29,33 +29,6 @@ $page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
 $limit = isset($_GET['limit']) ? max(1, intval($_GET['limit'])) : 30;
 $offset = ($page - 1) * $limit;
 
-// Get users that are enabled for the Tickets Module
-$allowed_sf_ids = [];
-$members_q = "SELECT salesforce_user_id 
-              FROM monitoring_system.users 
-              WHERE show_in_tickets = 1 
-                AND salesforce_user_id IS NOT NULL 
-                AND salesforce_user_id != ''";
-$sf_res = $mysqli->query($members_q);
-if ($sf_res) {
-    while ($sf_row = $sf_res->fetch_assoc()) {
-        $allowed_sf_ids[] = "'" . $mysqli->real_escape_string($sf_row['salesforce_user_id']) . "'";
-    }
-}
-// Include Support American Queue so its tickets appear globally
-$allowed_sf_ids[] = "'00G1I00000249DwUAI'";
-
-if (empty($allowed_sf_ids)) {
-    echo json_encode([
-        'stats' => ['total' => 0, 'open' => 0, 'seeking' => 0, 'closed' => 0, 'queue' => 0, 'assigned' => 0],
-        'tickets' => [],
-        'pagination' => ['page' => $page, 'limit' => $limit, 'total' => 0, 'total_pages' => 0]
-    ]);
-    exit();
-}
-
-$in_clause = implode(',', $allowed_sf_ids);
-
 // The year criteria (for now, simply this calendar year)
 $start_of_year = date('Y-01-01 00:00:00');
 
@@ -71,8 +44,7 @@ $start_date_utc = $start_dt->format('Y-m-d H:i:s');
 $stats_query = "SELECT c.Status, c.OwnerId 
                 FROM rmmsalesforce.sf_cases c
                 WHERE c.CreatedDate >= ? 
-                  AND c.IsDeleted = 0
-                  AND c.OwnerId IN ($in_clause)";
+                  AND c.IsDeleted = 0";
 
 $stmt = $mysqli->prepare($stats_query);
 $stmt->bind_param('s', $start_date_utc);
@@ -126,7 +98,6 @@ $tickets_query = "SELECT SQL_CALC_FOUND_ROWS
                   LEFT JOIN rmmsalesforce.sf_users u ON c.OwnerId = u.Id
                   WHERE c.CreatedDate >= ? 
                     AND c.IsDeleted = 0
-                    AND c.OwnerId IN ($in_clause)
                   ORDER BY c.CreatedDate DESC
                   LIMIT ? OFFSET ?";
 
