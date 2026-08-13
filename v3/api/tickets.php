@@ -42,6 +42,8 @@ if ($sf_res) {
         $allowed_sf_ids[] = "'" . $mysqli->real_escape_string($sf_row['salesforce_user_id']) . "'";
     }
 }
+// Include Support American Queue so its tickets appear globally
+$allowed_sf_ids[] = "'00G1I00000249DwUAI'";
 
 if (empty($allowed_sf_ids)) {
     echo json_encode([
@@ -66,7 +68,7 @@ $start_dt->setTimezone($utc_tz);
 $start_date_utc = $start_dt->format('Y-m-d H:i:s');
 
 // 1. Get Global Stats (Whole Year)
-$stats_query = "SELECT c.Status 
+$stats_query = "SELECT c.Status, c.OwnerId 
                 FROM rmmsalesforce.sf_cases c
                 WHERE c.CreatedDate >= ? 
                   AND c.IsDeleted = 0
@@ -85,7 +87,8 @@ $stats = [
     'escalado_gt' => 0,
     'closed' => 0,
     'queue' => 0,
-    'assigned' => 0
+    'assigned' => 0,
+    'sa_queue' => 0
 ];
 
 while ($row = $res->fetch_assoc()) {
@@ -103,6 +106,10 @@ while ($row = $res->fetch_assoc()) {
         $stats['escalado_pd']++;
     } elseif (strpos($st, 'escalado a gt') !== false) {
         $stats['escalado_gt']++;
+    }
+
+    if (strtolower($row['OwnerId']) === '00g1i00000249dwuai' && $st !== 'closed') {
+        $stats['sa_queue']++;
     }
 }
 $stmt->close();

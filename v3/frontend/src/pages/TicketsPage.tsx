@@ -50,7 +50,7 @@ const TicketsPage = () => {
     });
 
     const active_tickets: SFCase[] = ticketsData?.tickets || [];
-    const stats = ticketsData?.stats || { total: 0, open: 0, seeking: 0, escalado_pd: 0, escalado_gt: 0, closed: 0, queue: 0, assigned: 0 };
+    const stats = ticketsData?.stats || { total: 0, open: 0, seeking: 0, escalado_pd: 0, escalado_gt: 0, closed: 0, queue: 0, assigned: 0, sa_queue: 0 };
     const pagination = ticketsData?.pagination || { page: 1, limit: 30, total: 0, total_pages: 0 };
 
     const getOwnerAlias = (name: string) => {
@@ -152,7 +152,7 @@ const TicketsPage = () => {
             </div>
 
             {/* Summary Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-6 gap-3 md:gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 md:gap-4">
                 <div className="bg-white dark:bg-card border border-border shadow-sm rounded-2xl p-4 flex flex-col gap-1 relative overflow-hidden group">
                     <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform duration-500">
                         <Ticket className="w-12 h-12 text-slate-500" />
@@ -161,24 +161,28 @@ const TicketsPage = () => {
                     <span className="text-3xl font-black text-slate-800 dark:text-slate-100">{stats.total}</span>
                 </div>
                 <div className="bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-800/30 shadow-sm rounded-2xl p-4 flex flex-col gap-1 relative overflow-hidden group">
-                    <span className="text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Trabajando</span>
+                    <span className="text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400">WORKING</span>
                     <span className="text-3xl font-black text-emerald-600 dark:text-emerald-400">{stats.open}</span>
                 </div>
                 <div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-800/30 shadow-sm rounded-2xl p-4 flex flex-col gap-1 relative overflow-hidden group">
-                    <span className="text-[10px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400">Esperando Info</span>
+                    <span className="text-[10px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400">SEEKING</span>
                     <span className="text-3xl font-black text-amber-600 dark:text-amber-400">{stats.seeking}</span>
                 </div>
                 <div className="bg-indigo-50 dark:bg-indigo-900/10 border border-indigo-100 dark:border-indigo-800/30 shadow-sm rounded-2xl p-4 flex flex-col gap-1 relative overflow-hidden group">
-                    <span className="text-[10px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400">Escalado a PD</span>
+                    <span className="text-[10px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400">ESCALADO PD</span>
                     <span className="text-3xl font-black text-indigo-600 dark:text-indigo-400">{stats.escalado_pd}</span>
                 </div>
                 <div className="bg-purple-50 dark:bg-purple-900/10 border border-purple-100 dark:border-purple-800/30 shadow-sm rounded-2xl p-4 flex flex-col gap-1 relative overflow-hidden group">
-                    <span className="text-[10px] font-black uppercase tracking-wider text-purple-600 dark:text-purple-400">Escalado a GT</span>
+                    <span className="text-[10px] font-black uppercase tracking-wider text-purple-600 dark:text-purple-400">ESCALADO GT</span>
                     <span className="text-3xl font-black text-purple-600 dark:text-purple-400">{stats.escalado_gt}</span>
                 </div>
                 <div className="bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800/50 shadow-sm rounded-2xl p-4 flex flex-col gap-1 relative overflow-hidden group opacity-80">
-                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Cerrados</span>
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">CLOSED</span>
                     <span className="text-3xl font-black text-slate-600 dark:text-slate-300">{stats.closed}</span>
+                </div>
+                <div className="bg-rose-50 dark:bg-rose-900/10 border border-rose-100 dark:border-rose-800/30 shadow-sm rounded-2xl p-4 flex flex-col gap-1 relative overflow-hidden group">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-rose-600 dark:text-rose-400">S.A QUEUE</span>
+                    <span className="text-3xl font-black text-rose-600 dark:text-rose-400">{stats.sa_queue}</span>
                 </div>
             </div>
 
