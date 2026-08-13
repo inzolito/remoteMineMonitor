@@ -152,14 +152,7 @@ const TicketsPage = () => {
             </div>
 
             {/* Summary Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 md:gap-4">
-                <div className="bg-white dark:bg-card border border-border shadow-sm rounded-2xl p-4 flex flex-col gap-1 relative overflow-hidden group">
-                    <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform duration-500">
-                        <Ticket className="w-12 h-12 text-slate-500" />
-                    </div>
-                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Total Anual</span>
-                    <span className="text-3xl font-black text-slate-800 dark:text-slate-100">{stats.total}</span>
-                </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-4">
                 <div className="bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-800/30 shadow-sm rounded-2xl p-4 flex flex-col gap-1 relative overflow-hidden group">
                     <span className="text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400">WORKING</span>
                     <span className="text-3xl font-black text-emerald-600 dark:text-emerald-400">{stats.open}</span>
@@ -271,7 +264,14 @@ const TicketsPage = () => {
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-border/30">
-                                            {filteredTickets.map((t) => {
+                                            {[...filteredTickets].sort((a, b) => {
+                                                const isClosedA = a.Status?.toLowerCase() === 'closed';
+                                                const isClosedB = b.Status?.toLowerCase() === 'closed';
+                                                if (isClosedA !== isClosedB) return isClosedA ? 1 : -1;
+                                                const timeA = new Date(a.CreatedDate?.replace(' ', 'T') || 0).getTime();
+                                                const timeB = new Date(b.CreatedDate?.replace(' ', 'T') || 0).getTime();
+                                                return timeB - timeA;
+                                            }).map((t) => {
                                                 const isClosed = t.Status?.toLowerCase() === 'closed';
                                                 const isWorking = t.Status?.toLowerCase() === 'working';
                                                 const isAssigned = t.Status?.toLowerCase() === 'assigned';
@@ -412,7 +412,8 @@ const TicketsPage = () => {
                                                                 { name: 'ESCALADO PD', value: stats.escalado_pd, color: '#4f46e5' },
                                                                 { name: 'ESCALADO GT', value: stats.escalado_gt, color: '#9333ea' },
                                                                 { name: 'CLOSED', value: stats.closed, color: '#64748b' },
-                                                                { name: 'ASSIGNED', value: stats.assigned, color: '#3b82f6' }
+                                                                { name: 'ASSIGNED', value: stats.assigned, color: '#3b82f6' },
+                                                                { name: 'S.A QUEUE', value: stats.sa_queue, color: '#e11d48' }
                                                             ].filter(d => d.value > 0)}
                                                             cx="50%"
                                                             cy="50%"
@@ -427,7 +428,8 @@ const TicketsPage = () => {
                                                                 { name: 'ESCALADO PD', value: stats.escalado_pd, color: '#4f46e5' },
                                                                 { name: 'ESCALADO GT', value: stats.escalado_gt, color: '#9333ea' },
                                                                 { name: 'CLOSED', value: stats.closed, color: '#64748b' },
-                                                                { name: 'ASSIGNED', value: stats.assigned, color: '#3b82f6' }
+                                                                { name: 'ASSIGNED', value: stats.assigned, color: '#3b82f6' },
+                                                                { name: 'S.A QUEUE', value: stats.sa_queue, color: '#e11d48' }
                                                             ].filter(d => d.value > 0).map((entry, index) => (
                                                                 <Cell key={`cell-${index}`} fill={entry.color} />
                                                             ))}
