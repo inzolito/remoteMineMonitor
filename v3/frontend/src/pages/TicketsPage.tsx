@@ -1,11 +1,12 @@
 import { useState, Fragment } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Ticket, Search, AlertCircle, Eye, Loader2, MessageSquare, CheckCircle2, X, ExternalLink, Calendar, Clock, BarChart3, AlertTriangle } from 'lucide-react';
+import { Ticket, Search, AlertCircle, Eye, Loader2, MessageSquare, CheckCircle2, X, ExternalLink, Calendar, Clock, BarChart3, AlertTriangle, Sparkles } from 'lucide-react';
+import { AIChatWidget } from '../components/AIChatWidget';
 import { cn } from '../lib/utils';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
 import { createPortal } from 'react-dom';
 
-interface SFCase {
+export interface SFCase {
     Id: string;
     CaseNumber: string;
     Subject: string;
@@ -32,6 +33,8 @@ const TicketsPage = () => {
     // Modal state
     const [isSfModalOpen, setIsSfModalOpen] = useState(false);
     const [selectedSfTicket, setSelectedSfTicket] = useState<SFCase | null>(null);
+    const [isChatOpen, setIsChatOpen] = useState(false);
+
 
     const { data: ticketsData, isLoading, error } = useQuery({
         queryKey: ['tickets_module', page, searchQuery, activeTab],
@@ -76,10 +79,16 @@ const TicketsPage = () => {
         const diffHrs = Math.floor(diffMin / 60);
         const diffDays = Math.floor(diffHrs / 24);
 
-        if (diffDays > 0) return `${diffDays} ${diffDays === 1 ? 'DÍA' : 'DÍAS'}`;
+        if (diffHrs >= 24) return `${diffHrs}H (${diffDays}d)`;
         if (diffHrs > 0) return `${diffHrs}H`;
         if (diffMin > 0) return `${diffMin}M`;
         return 'NEW';
+    };
+
+    const abbreviateStatus = (status: string) => {
+        if (!status) return status;
+        if (status.toLowerCase().includes('seeking customer clarification')) return 'Seeking c.c.';
+        return status;
     };
 
     const handleOpenTicketDetails = (t: SFCase) => {
@@ -154,8 +163,8 @@ const TicketsPage = () => {
             </div>
 
             {/* Tickets Grid */}
-            <div className="w-full gap-6 items-start">
-                <div className="w-full space-y-6">
+            <div className="flex gap-4 w-full items-start">
+                <div className="flex-1 min-w-0 space-y-6">
                     <div className="bg-card rounded-2xl border border-border overflow-hidden shadow-sm">
                         
                         {/* Tab & Filters Row */}
@@ -232,10 +241,10 @@ const TicketsPage = () => {
                                         <thead>
                                             <tr className="border-b border-border/60 bg-muted/10 sticky top-0 z-20 backdrop-blur-md">
                                                 <th className="px-4 py-3 text-[10px] font-black uppercase tracking-wider text-muted-foreground">Ticket / Faena</th>
-                                                <th className="px-4 py-3 text-[10px] font-black uppercase tracking-wider text-muted-foreground">Asunto</th>
+                                                <th className="px-4 py-3 text-[10px] font-black uppercase tracking-wider text-muted-foreground max-w-[160px]">Asunto</th>
                                                 <th className="px-4 py-3 text-[10px] font-black uppercase tracking-wider text-muted-foreground">Estado</th>
                                                 <th className="px-4 py-3 text-[10px] font-black uppercase tracking-wider text-muted-foreground">Tiempo</th>
-                                                <th className="px-4 py-3 text-[10px] font-black uppercase tracking-wider text-muted-foreground text-center"><MessageSquare className="w-3.5 h-3.5 inline" /></th>
+                                                <th className="px-4 py-3 text-[10px] font-black uppercase tracking-wider text-muted-foreground text-center">Comment</th>
                                                 <th className="px-4 py-3 text-[10px] font-black uppercase tracking-wider text-muted-foreground text-center">Owner</th>
                                                 <th className="px-4 py-3 text-[10px] font-black uppercase tracking-wider text-muted-foreground text-right"></th>
                                             </tr>
@@ -306,7 +315,7 @@ const TicketsPage = () => {
                                                                         </span>
                                                                     </div>
                                                                 </td>
-                                                                <td className="px-4 py-3 max-w-xs md:max-w-md">
+                                                                <td className="px-4 py-3 max-w-[160px]">
                                                                     <p className={cn(
                                                                         "text-[11px] font-semibold truncate",
                                                                         isClosed ? "text-slate-500 dark:text-slate-400 font-normal" : "text-foreground font-bold"
@@ -324,7 +333,7 @@ const TicketsPage = () => {
                                                                         isSeeking ? "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800" :
                                                                         "bg-muted text-muted-foreground border-border"
                                                                     )}>
-                                                                        {t.Status}
+                                                                        {abbreviateStatus(t.Status)}
                                                                     </span>
                                                                 </td>
                                                                 <td className="px-4 py-3">
@@ -479,6 +488,29 @@ const TicketsPage = () => {
                         </div>
                     </div>
                 </div>
+
+                {/* Right Side: Collapsible Gemini Panel */}
+                {isChatOpen ? (
+                    <div className="w-[360px] xl:w-[380px] shrink-0 border border-border bg-card rounded-2xl shadow-sm h-[650px] overflow-hidden transition-all duration-300 ease-in-out">
+                        <AIChatWidget
+                            onClose={() => setIsChatOpen(false)}
+                            activeTickets={active_tickets}
+                            handleOpenTicketDetails={handleOpenTicketDetails}
+                        />
+                    </div>
+                ) : (
+                    /* Floating Gemini Toggle Button */
+                    <button
+                        onClick={() => setIsChatOpen(true)}
+                        className="group relative shrink-0 p-3 bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-2xl shadow-md hover:shadow-lg hover:scale-105 active:scale-95 transition-all flex items-center justify-center border border-indigo-400/20"
+                        title="Abrir Asistente Gemini AI"
+                    >
+                        <Sparkles className="w-5 h-5 animate-pulse text-white group-hover:rotate-12 transition-transform duration-300" />
+                        <span className="absolute right-full mr-2.5 px-2 py-1 bg-slate-900 text-white text-[9px] font-black rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none uppercase tracking-wider whitespace-nowrap shadow-sm border border-slate-800">
+                            Gemini AI
+                        </span>
+                    </button>
+                )}
             </div>
 
             {/* Salesforce Ticket Modal */}
