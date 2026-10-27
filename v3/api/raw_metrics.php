@@ -45,14 +45,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     
     $metrics = [];
     
-    // Fetch a TRACE LOG of the last 150 entries from server_metric_values
-    // This allows debugging the real-time stream of incoming data
-    $query = "SELECT m.name as metric_key, mv.value as metric_value, mv.status, mv.created_at as updated_at 
-              FROM server_metric_values mv
-              JOIN metrics m ON mv.metric_id = m.id
-              WHERE mv.server_id = $serverId 
-              ORDER BY mv.created_at DESC 
-              LIMIT 150";
+    // Fetch the latest value of each metric for the server, ordered alphabetically
+    $query = "SELECT metric_key, metric_value, status, last_updated as updated_at 
+              FROM server_app_metrics
+              WHERE server_id = $serverId 
+              ORDER BY metric_key ASC";
     
     $result = $mysqli->query($query);
     if (!$result) {

@@ -2,6 +2,23 @@ import { useState, useEffect } from 'react';
 import { getRawMetrics } from '../services/serversService';
 import { useServers } from '../hooks/useServers';
 
+const getRelativeTime = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+    
+    if (diffInSeconds < 60) return `Hace ${diffInSeconds} seg${diffInSeconds !== 1 ? 's' : ''}`;
+    
+    const diffInMinutes = Math.floor(diffInSeconds / 60);
+    if (diffInMinutes < 60) return `Hace ${diffInMinutes} min${diffInMinutes !== 1 ? 's' : ''}`;
+    
+    const diffInHours = Math.floor(diffInMinutes / 60);
+    if (diffInHours < 24) return `Hace ${diffInHours} hr${diffInHours !== 1 ? 's' : ''}`;
+    
+    const diffInDays = Math.floor(diffInHours / 24);
+    return `Hace ${diffInDays} día${diffInDays !== 1 ? 's' : ''}`;
+};
+
 interface RawMetric {
     metric_key: string;
     metric_value: string;
@@ -137,7 +154,8 @@ export default function RooteoTab() {
                                             </span>
                                         </td>
                                         <td className="px-4 py-2 text-xs text-gray-500">
-                                            {new Date(metric.updated_at).toLocaleString('es-CL')}
+                                            <div className="font-semibold text-gray-700">{getRelativeTime(metric.updated_at)}</div>
+                                            <div className="text-[10px] text-gray-400 mt-0.5">{new Date(metric.updated_at).toLocaleString('es-CL')}</div>
                                         </td>
                                     </tr>
                                 ))}

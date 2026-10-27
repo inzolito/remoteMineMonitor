@@ -4,6 +4,9 @@ header("Access-Control-Allow-Origin: *");
 header("Content-Type: application/json; charset=UTF-8");
 header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With");
+header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
+header("Pragma: no-cache");
+header("Expires: 0");
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
@@ -127,7 +130,7 @@ if ($method === 'GET') {
             'servers' => $servers
         ];
     } elseif ($action === 'servers') {
-        $sql = "SELECT s.id, s.name, s.ip as ip_address, s.server_type_id, s.status, 
+        $sql = "SELECT s.id, s.name, s.ip as ip_address, s.server_type, s.server_type_id, s.status, 
                        st.name as type_name, 
                        si.name as site_name, si.conglomerate 
                 FROM servers s 
@@ -137,10 +140,12 @@ if ($method === 'GET') {
                 WHERE s.is_deleted = 0 
                 ORDER BY 
                     CASE 
-                        WHEN si.conglomerate = 'AMSA' THEN 1 
-                        WHEN si.conglomerate LIKE 'Codelco%' THEN 2 
-                        ELSE 3 
+                        WHEN si.conglomerate IS NULL OR si.conglomerate = '' THEN 1
+                        WHEN si.conglomerate = 'AMSA' THEN 2 
+                        WHEN si.conglomerate LIKE 'Codelco%' THEN 3 
+                        ELSE 4 
                     END,
+                    si.conglomerate ASC,
                     si.name ASC, 
                     s.name ASC";
         $res = mysqli_query($mysqli, $sql);
@@ -306,6 +311,9 @@ if ($method === 'GET') {
                 $outputs[] = shell_exec($cmd);
             }
         }
+        // Run Codelco site restart as well if applicable
+        $cmd_cod = "sudo /var/www/monitoreoLaboratorio/v3/scripts/bot-codelco-control.sh restart-site $site_id 2>&1";
+        $outputs[] = shell_exec($cmd_cod);
         
         $data = ["success" => true, "message" => "Comando enviado", "output" => implode("\n", $outputs)];
     } elseif ($action === 'bot_status_v2') {
@@ -327,7 +335,7 @@ if ($method === 'GET') {
     } elseif ($action === 'bot_logs_v2') {
         $logPath = "/var/log/rmmcod_agent.log";
         if (file_exists($logPath)) {
-            $output = shell_exec("tail -n 200 " . escapeshellarg($logPath));
+            $output = shell_exec("tail -n 300 " . escapeshellarg($logPath));
             $data = ["logs" => $output ?: "Archivo de log vacío", "path" => $logPath];
         } else {
             $data = ["logs" => "Archivo de log no encontrado", "path" => $logPath];

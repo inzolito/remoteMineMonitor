@@ -19,6 +19,7 @@ import Profile from './pages/Profile';
 import ShiftsPage from './pages/ShiftsPage';
 import HistorialPage from './pages/HistorialPage';
 import TicketsPage from './pages/TicketsPage';
+import ReproductorMonitoreo from './pages/ReproductorMonitoreo';
 
 import ErrorBoundary from './components/ErrorBoundary';
 
@@ -54,6 +55,7 @@ function App() {
                   <Route path="/tickets" element={<TicketsPage />} />
                   <Route path="/shifts" element={<ShiftsPage />} />
                   <Route path="/historial" element={<HistorialPage />} />
+                  <Route path="/reproductor-monitoreo" element={<ReproductorMonitoreo />} />
                 </Route>
               </Route>
 

@@ -131,6 +131,7 @@ const SuperAdmin = () => {
     const [detailMetric, setDetailMetric] = useState<any>(null); // For generic modal
     const [purgeData, setPurgeData] = useState<any>(null); // For deletion review modal
     const [selectedConnection, setSelectedConnection] = useState<any>(null); // For Connection Path modal
+    const [hopFilter, setHopFilter] = useState<string>('');
 
     // Security: Only maik
     if (user?.username !== 'maik') {
@@ -147,6 +148,7 @@ const SuperAdmin = () => {
             } else if (action === 'modules') {
                 url = '/monitoreoLaboratorio/v3/api/modules.php?action=all';
             }
+            url += (url.includes('?') ? '&' : '?') + `_t=${Date.now()}`;
 
             const resp = await fetch(url, {
                 headers: {
@@ -773,26 +775,41 @@ const SuperAdmin = () => {
                                 </div>
                                 <div className="flex gap-4 items-center relative z-10">
                                     {selectedLogSite && (
-                                        <div className="flex items-center gap-3 px-3 py-1.5 bg-muted/30 rounded-xl border">
-                                            <span className={`text-[9px] font-black uppercase tracking-widest ${selectedLogSite.is_monitored == 1 ? 'text-emerald-500' : 'text-muted-foreground opacity-50'}`}>
-                                                {selectedLogSite.is_monitored == 1 ? 'Encendida' : 'Apagada'}
-                                            </span>
+                                        <>
+                                            <div className="flex items-center gap-3 px-3 py-1.5 bg-muted/30 rounded-xl border">
+                                                <span className={`text-[9px] font-black uppercase tracking-widest ${selectedLogSite.is_monitored == 1 ? 'text-emerald-500' : 'text-muted-foreground opacity-50'}`}>
+                                                    {selectedLogSite.is_monitored == 1 ? 'Encendida' : 'Apagada'}
+                                                </span>
+                                                <button 
+                                                    onClick={async () => {
+                                                        const newStatus = selectedLogSite.is_monitored == 1 ? 0 : 1;
+                                                        await fetchData('bot_site_toggle', `&site_id=${selectedLogSite.id}&status=${newStatus}`);
+                                                        const updatedSites = await fetchData('bot_sites');
+                                                        if (updatedSites) {
+                                                            setBotSites(updatedSites);
+                                                            const fresh = updatedSites.find((s: any) => s.id === selectedLogSite.id);
+                                                            if (fresh) setSelectedLogSite(fresh);
+                                                        }
+                                                    }}
+                                                    className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors focus:outline-none ${selectedLogSite.is_monitored == 1 ? 'bg-emerald-500' : 'bg-slate-300'}`}
+                                                >
+                                                    <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform duration-200 ${selectedLogSite.is_monitored == 1 ? 'translate-x-[22px]' : 'translate-x-1'}`} />
+                                                </button>
+                                            </div>
+
                                             <button 
                                                 onClick={async () => {
-                                                    const newStatus = selectedLogSite.is_monitored == 1 ? 0 : 1;
-                                                    await fetchData('bot_site_toggle', `&site_id=${selectedLogSite.id}&status=${newStatus}`);
-                                                    const updatedSites = await fetchData('bot_sites');
-                                                    if (updatedSites) {
-                                                        setBotSites(updatedSites);
-                                                        const fresh = updatedSites.find((s: any) => s.id === selectedLogSite.id);
-                                                        if (fresh) setSelectedLogSite(fresh);
+                                                    if (confirm(`¿Reiniciar túneles y reconectar faena ${selectedLogSite.name}?`)) {
+                                                        await fetchData('bot_site_restart', `&site_id=${selectedLogSite.id}`);
+                                                        const updatedSites = await fetchData('bot_sites');
+                                                        if (updatedSites) setBotSites(updatedSites);
                                                     }
                                                 }}
-                                                className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors focus:outline-none ${selectedLogSite.is_monitored == 1 ? 'bg-emerald-500' : 'bg-slate-300'}`}
+                                                className="flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary border border-primary/20 rounded-xl text-[10px] font-black uppercase hover:bg-primary hover:text-white transition-all cursor-pointer"
                                             >
-                                                <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform duration-200 ${selectedLogSite.is_monitored == 1 ? 'translate-x-[22px]' : 'translate-x-1'}`} />
+                                                <RefreshCw className="w-3.5 h-3.5" /> Reiniciar Faena
                                             </button>
-                                        </div>
+                                        </>
                                     )}
                                 </div>
                                 <div className="absolute top-0 right-0 p-3 opacity-5 pointer-events-none">
@@ -1308,80 +1325,98 @@ const SuperAdmin = () => {
                                                 groups[key].push(server);
                                                 return groups;
                                             }, {}) as Record<string, any[]>
-                                    ).map(([groupName, groupServers]) => (
-                                        <>
-                                            <tr key={`group-${groupName}`} className="bg-muted/30">
-                                                <td colSpan={5} className="py-2 px-4 font-semibold text-primary text-xs uppercase tracking-widest border-y">
-                                                    {groupName} ({groupServers.length})
-                                                </td>
-                                            </tr>
-                                            {groupServers.map((s: any) => (
-                                                <tr key={s.id} className="hover:bg-muted/40 transition-colors group">
-                                                    <td className="py-3 px-4 font-medium text-foreground">{s.name}</td>
-                                                    <td className="py-3 px-4 text-muted-foreground text-xs">
-                                                        {s.site_name || '-'}
-                                                    </td>
-                                                    <td className="py-3 px-4 text-center">
-                                                        {Number(s.status) === 1 ? (
-                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold border border-emerald-200">
-                                                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                                                                ONLINE
-                                                            </span>
-                                                        ) : (
-                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-[10px] font-bold border border-red-200">
-                                                                <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
-                                                                OFFLINE
-                                                            </span>
-                                                        )}
-                                                    </td>
-                                                    <td className="py-3 px-4 font-mono text-xs text-muted-foreground bg-muted/10 rounded w-fit my-1 inline-block px-1">
-                                                        {s.ip_address || 'N/A'}
-                                                    </td>
-                                                    <td className="py-3 px-4">
-                                                        <select
-                                                            value={s.server_type_id || ''}
-                                                            onChange={async (e) => {
-                                                                const val = e.target.value ? parseInt(e.target.value) : null;
-                                                                if (await sendData('servers', 'PUT', { id: s.id, server_type_id: val })) {
-                                                                    setServers(servers.map(serv => serv.id === s.id ? { ...serv, server_type_id: val } : serv));
-                                                                }
-                                                            }}
-                                                            className={`bg-transparent border rounded p-1.5 text-xs w-full max-w-[180px] focus:ring-1 ring-primary outline-none transition-all ${!s.server_type_id ? 'border-red-300 text-red-600 bg-red-50' : 'border-gray-200'}`}
-                                                        >
-                                                            <option value="">-- Sin Asignar --</option>
-                                                            {serverTypes.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                                                        </select>
-                                                    </td>
-                                                    <td className="py-3 px-4 text-right">
-                                                        <button
-                                                            className="text-primary hover:bg-primary/10 p-1.5 rounded transition-all"
-                                                            title="Sincronizar forzosamente"
-                                                        >
-                                                            <RefreshCw className="w-3.5 h-3.5" />
-                                                        </button>
-
-                                                        <button
-                                                            onClick={async () => {
-                                                                const details = await fetchData('connection_details', `&server_id=${s.id}`);
-                                                                if (details) {
-                                                                    setSelectedConnection({
-                                                                        server: s,
-                                                                        connection: details.connection || { server_id: s.id, connection_name: s.name, connection_status: 1 },
-                                                                        paths: details.paths || []
-                                                                    });
-                                                                }
-                                                            }}
-                                                            className="text-indigo-600 hover:bg-indigo-50 p-1.5 rounded transition-all"
-                                                            title="Configurar Ruta de Conexión (Saltos)"
-                                                        >
-                                                            <Network className="w-3.5 h-3.5" />
-                                                        </button>
-
+                                    ).map(([groupName, groupServers]) => {
+                                        const sortedGroupServers = [...groupServers].sort((a: any, b: any) => {
+                                            const siteA = (a.site_name || '').trim();
+                                            const siteB = (b.site_name || '').trim();
+                                            if (siteA !== siteB) return siteA.localeCompare(siteB, 'es', { sensitivity: 'base' });
+                                            return (a.name || '').trim().localeCompare((b.name || '').trim(), 'es', { sensitivity: 'base' });
+                                        });
+                                        return (
+                                            <div key={`group-wrapper-${groupName}`} style={{ display: 'contents' }}>
+                                                <tr key={`group-${groupName}`} className="bg-muted/30">
+                                                    <td colSpan={6} className="py-2 px-4 font-semibold text-primary text-xs uppercase tracking-widest border-y">
+                                                        {groupName} ({sortedGroupServers.length})
                                                     </td>
                                                 </tr>
-                                            ))}
-                                        </>
-                                    ))}
+                                                {sortedGroupServers.map((s: any) => (
+                                                    <tr key={s.id} className="hover:bg-muted/40 transition-colors group">
+                                                        <td className="py-3 px-4 font-medium text-foreground">{s.name}</td>
+                                                        <td className="py-3 px-4 text-muted-foreground text-xs">
+                                                            {s.site_name || '-'}
+                                                        </td>
+                                                        <td className="py-3 px-4 text-center">
+                                                            {Number(s.status) === 1 ? (
+                                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold border border-emerald-200">
+                                                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                                                    ONLINE
+                                                                </span>
+                                                            ) : (
+                                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-[10px] font-bold border border-red-200">
+                                                                    <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
+                                                                    OFFLINE
+                                                                </span>
+                                                            )}
+                                                        </td>
+                                                        <td className="py-3 px-4 font-mono text-xs text-muted-foreground bg-muted/10 rounded w-fit my-1 inline-block px-1">
+                                                            {s.ip_address || 'N/A'}
+                                                        </td>
+                                                        <td className="py-3 px-4">
+                                                            <select
+                                                                value={s.server_type_id || ''}
+                                                                onChange={async (e) => {
+                                                                    const val = e.target.value ? parseInt(e.target.value) : null;
+                                                                    if (await sendData('servers', 'PUT', { id: s.id, server_type_id: val })) {
+                                                                        setServers(servers.map(serv => serv.id === s.id ? { ...serv, server_type_id: val } : serv));
+                                                                    }
+                                                                }}
+                                                                className={`bg-transparent border rounded p-1.5 text-xs w-full max-w-[180px] focus:ring-1 ring-primary outline-none transition-all ${!s.server_type_id ? 'border-red-300 text-red-600 bg-red-50' : 'border-gray-200'}`}
+                                                            >
+                                                                <option value="">-- Sin Asignar --</option>
+                                                                {serverTypes.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                                                            </select>
+                                                        </td>
+                                                        <td className="py-3 px-4 text-right">
+                                                            <button
+                                                                onClick={async () => {
+                                                                    const [sList, stList] = await Promise.all([fetchData('servers'), fetchData('server_types')]);
+                                                                    if (sList) setServers(sList);
+                                                                    if (stList) setServerTypes(stList);
+                                                                    setMessage({ type: 'success', text: 'Servidores sincronizados correctamente.' });
+                                                                }}
+                                                                className="text-primary hover:bg-primary/10 p-1.5 rounded transition-all"
+                                                                title="Sincronizar forzosamente"
+                                                            >
+                                                                <RefreshCw className="w-3.5 h-3.5" />
+                                                            </button>
+
+                                                            <button
+                                                                onClick={async () => {
+                                                                    const [details, freshServers] = await Promise.all([
+                                                                        fetchData('connection_details', `&server_id=${s.id}`),
+                                                                        fetchData('servers')
+                                                                    ]);
+                                                                    if (freshServers) setServers(freshServers);
+                                                                    if (details) {
+                                                                        setSelectedConnection({
+                                                                            server: s,
+                                                                            connection: details.connection || { server_id: s.id, connection_name: s.name, connection_status: 1 },
+                                                                            paths: details.paths || []
+                                                                        });
+                                                                    }
+                                                                }}
+                                                                className="text-indigo-600 hover:bg-indigo-50 p-1.5 rounded transition-all"
+                                                                title="Configurar Ruta de Conexión (Saltos)"
+                                                            >
+                                                                <Network className="w-3.5 h-3.5" />
+                                                            </button>
+
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </div>
+                                        );
+                                    })}
                                 </tbody>
                             </table>
                             {servers.length === 0 && (
@@ -2714,7 +2749,7 @@ const SuperAdmin = () => {
                                     <p className="text-indigo-100 text-sm opacity-80">Configuración de saltos para: <span className="font-bold">{selectedConnection.server.name}</span></p>
                                 </div>
                             </div>
-                            <button onClick={() => setSelectedConnection(null)} className="p-2 hover:bg-white/20 rounded-lg transition-colors text-2xl leading-none">&times;</button>
+                            <button onClick={() => { setSelectedConnection(null); setHopFilter(''); }} className="p-2 hover:bg-white/20 rounded-lg transition-colors text-2xl leading-none">&times;</button>
                         </div>
 
                         <div className="p-6 space-y-6">
@@ -2754,15 +2789,53 @@ const SuperAdmin = () => {
                                     <h4 className="text-sm font-bold text-slate-700 flex items-center gap-2">
                                         <Terminal className="w-4 h-4 text-indigo-500" /> Secuencia de Saltos (Hops)
                                     </h4>
-                                    <button
-                                        onClick={() => {
-                                            const newHops = [...selectedConnection.paths, { jump_server_id: '', jump_order: selectedConnection.paths.length + 1 }];
-                                            setSelectedConnection({ ...selectedConnection, paths: newHops });
-                                        }}
-                                        className="text-[10px] bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-full font-black hover:bg-indigo-100 transition-colors uppercase tracking-widest"
-                                    >
-                                        + Agregar Salto
-                                    </button>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={async () => {
+                                                const fresh = await fetchData('servers');
+                                                if (fresh) {
+                                                    setServers(fresh);
+                                                    setMessage({ type: 'success', text: 'Lista de servidores actualizada.' });
+                                                }
+                                            }}
+                                            title="Actualizar lista de servidores disponibles"
+                                            className="text-[10px] bg-slate-100 text-slate-600 px-2.5 py-1.5 rounded-full font-bold hover:bg-slate-200 transition-colors flex items-center gap-1"
+                                        >
+                                            <RefreshCw className="w-3 h-3" /> Actualizar
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const newHops = [...selectedConnection.paths, { jump_server_id: '', jump_order: selectedConnection.paths.length + 1 }];
+                                                setSelectedConnection({ ...selectedConnection, paths: newHops });
+                                            }}
+                                            className="text-[10px] bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-full font-black hover:bg-indigo-100 transition-colors uppercase tracking-widest"
+                                        >
+                                            + Agregar Salto
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Quick filter for jump servers */}
+                                <div className="relative">
+                                    <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                                    <input
+                                        type="text"
+                                        placeholder="Filtrar servidores en desplegables (ej. Antucoya, Tunel, 10.16)..."
+                                        value={hopFilter}
+                                        onChange={e => setHopFilter(e.target.value)}
+                                        className="w-full pl-8 pr-8 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 ring-indigo-500/20 focus:bg-white transition-all"
+                                    />
+                                    {hopFilter && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setHopFilter('')}
+                                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-sm leading-none font-bold"
+                                        >
+                                            &times;
+                                        </button>
+                                    )}
                                 </div>
 
                                 <div className="space-y-2 max-h-64 overflow-y-auto pr-2 custom-scrollbar">
@@ -2777,7 +2850,7 @@ const SuperAdmin = () => {
                                                     onChange={e => {
                                                         const newPaths = [...selectedConnection.paths];
                                                         const val = e.target.value;
-                                                        const selectedServ = servers.find(s => String(s.id) === val);
+                                                        const selectedServ = servers.find(s => String(s.id) === val) || (String(selectedConnection.server?.id) === val ? selectedConnection.server : null);
                                                         newPaths[idx].jump_server_id = val ? parseInt(val) : null;
                                                         newPaths[idx].jump_server_name = selectedServ ? selectedServ.name : '';
                                                         setSelectedConnection({ ...selectedConnection, paths: newPaths });
@@ -2790,27 +2863,112 @@ const SuperAdmin = () => {
                                                         if (!jid) return null;
 
                                                         const sjid = String(jid);
-                                                        const isSelf = sjid === String(selectedConnection.server.id);
-                                                        const isActive = servers.some(s => String(s.id) === sjid);
+                                                        const isKnown = servers.some(s => String(s.id) === sjid) || sjid === String(selectedConnection.server?.id);
 
-                                                        if (isSelf || !isActive) {
+                                                        if (!isKnown) {
                                                             return (
                                                                 <option value={sjid}>
-                                                                    {path.jump_server_name || 'Desconocido'} {isSelf ? '(Mismo Servidor)' : '(Inactivo/Eliminado)'}
+                                                                    {path.jump_server_name || 'Desconocido'} (Inactivo/Eliminado)
                                                                 </option>
                                                             );
                                                         }
                                                         return null;
                                                     })()}
 
-                                                    {servers
-                                                        .filter(serv => String(serv.id) !== String(selectedConnection.server.id))
-                                                        .map(serv => (
-                                                            <option key={serv.id} value={String(serv.id)}>
-                                                                {serv.name} ({serv.ip_address})
-                                                            </option>
-                                                        ))
-                                                    }
+                                                    {(() => {
+                                                        const q = (hopFilter || '').toLowerCase().trim();
+                                                        const selfId = String(selectedConnection.server?.id || '');
+                                                        const selfServer = servers.find(s => String(s.id) === selfId) || selectedConnection.server;
+
+                                                        const eligibleServers = servers.filter(serv => {
+                                                            if (!q) return true;
+                                                            const name = (serv.name || '').toLowerCase();
+                                                            const ip = (serv.ip_address || serv.ip || '').toLowerCase();
+                                                            const site = (serv.site_name || '').toLowerCase();
+                                                            const cong = (serv.conglomerate || '').toLowerCase();
+                                                            return name.includes(q) || ip.includes(q) || site.includes(q) || cong.includes(q);
+                                                        });
+                                                        
+                                                        const groupsMap = new Map<string, { groupName: string; isTunnel: boolean; isSelf: boolean; servers: any[] }>();
+
+                                                        const addToGroup = (groupKey: string, isTunnel: boolean, isSelf: boolean, serv: any, customLabel: string) => {
+                                                            if (!groupsMap.has(groupKey)) {
+                                                                groupsMap.set(groupKey, { groupName: groupKey, isTunnel, isSelf, servers: [] });
+                                                            }
+                                                            groupsMap.get(groupKey)!.servers.push({ ...serv, _displayLabel: customLabel });
+                                                        };
+
+                                                        // Add Target Server (Self) as Destino Final
+                                                        if (selfServer) {
+                                                            const selfMatchesQuery = !q ||
+                                                                (selfServer.name || '').toLowerCase().includes(q) ||
+                                                                (selfServer.ip_address || selfServer.ip || '').toLowerCase().includes(q) ||
+                                                                (selfServer.site_name || '').toLowerCase().includes(q) ||
+                                                                (selfServer.conglomerate || '').toLowerCase().includes(q);
+
+                                                            if (selfMatchesQuery) {
+                                                                const selfName = (selfServer.name || 'Servidor Actual').trim();
+                                                                const selfIp = (selfServer.ip_address || selfServer.ip || 'Sin IP').trim();
+                                                                addToGroup('🎯 Destino Final (Mismo Servidor)', false, true, selfServer, `${selfName} (Mismo Servidor / Destino) (${selfIp})`);
+                                                            }
+                                                        }
+
+                                                        for (const serv of eligibleServers) {
+                                                            const cong = (serv.conglomerate || '').trim();
+                                                            const site = (serv.site_name || '').trim();
+                                                            const name = (serv.name || 'Sin Nombre').trim();
+                                                            const ip = (serv.ip_address || serv.ip || 'Sin IP').trim();
+                                                            const isSelf = String(serv.id) === selfId;
+                                                            const isTunnel = (serv.server_type && String(serv.server_type).toLowerCase() === 'tunel') ||
+                                                                             name.toLowerCase().includes('tunel') ||
+                                                                             (!cong && !site);
+
+                                                            // 1. If it is a tunnel or gateway, always add to the Túneles group
+                                                            if (isTunnel) {
+                                                                const tunnelLabel = site ? `${name} [${site}] (${ip})` : `${name} (${ip})`;
+                                                                addToGroup('⚡ Túneles y Saltos de Red', true, false, serv, tunnelLabel);
+                                                            }
+
+                                                            // 2. Also place under its specific Faena/Site if assigned
+                                                            const selfTag = isSelf ? ' (Mismo Servidor)' : '';
+                                                            if (cong && site) {
+                                                                const siteLabel = isTunnel ? `${name} [Túnel] (${ip})` : `${name}${selfTag} (${ip})`;
+                                                                addToGroup(`${cong} — ${site}`, false, false, serv, siteLabel);
+                                                            } else if (cong && !isTunnel) {
+                                                                addToGroup(`${cong} — General`, false, false, serv, `${name}${selfTag} (${ip})`);
+                                                            } else if (site && !isTunnel) {
+                                                                addToGroup(`General — ${site}`, false, false, serv, `${name}${selfTag} (${ip})`);
+                                                            }
+                                                        }
+
+                                                        const sortedGroups = Array.from(groupsMap.values()).sort((a, b) => {
+                                                            if (a.isSelf && !b.isSelf) return -1;
+                                                            if (!a.isSelf && b.isSelf) return 1;
+                                                            if (a.isTunnel && !b.isTunnel) return -1;
+                                                            if (!a.isTunnel && b.isTunnel) return 1;
+                                                            return a.groupName.localeCompare(b.groupName, 'es', { sensitivity: 'base' });
+                                                        });
+
+                                                        for (const grp of sortedGroups) {
+                                                            if (!grp.isSelf) {
+                                                                grp.servers.sort((a, b) => {
+                                                                    const nameA = (a.name || '').trim();
+                                                                    const nameB = (b.name || '').trim();
+                                                                    return nameA.localeCompare(nameB, 'es', { sensitivity: 'base' });
+                                                                });
+                                                            }
+                                                        }
+
+                                                        return sortedGroups.map(grp => (
+                                                            <optgroup key={grp.groupName} label={`${grp.groupName} (${grp.servers.length})`}>
+                                                                {grp.servers.map((serv, sIdx) => (
+                                                                    <option key={`${grp.groupName}-${serv.id}-${sIdx}`} value={String(serv.id)}>
+                                                                        {serv._displayLabel}
+                                                                    </option>
+                                                                ))}
+                                                            </optgroup>
+                                                        ));
+                                                    })()}
 
                                                 </select>
 
@@ -2844,7 +3002,7 @@ const SuperAdmin = () => {
 
                         <div className="p-6 bg-slate-50 border-t flex gap-3">
                             <button
-                                onClick={() => setSelectedConnection(null)}
+                                onClick={() => { setSelectedConnection(null); setHopFilter(''); }}
                                 className="px-6 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-600 text-sm font-bold hover:bg-slate-50 transition-all"
                             >
                                 Cancelar
@@ -2886,6 +3044,7 @@ const SuperAdmin = () => {
 
                                         setMessage({ type: 'success', text: 'Ruta de conexión actualizada perfectamente.' });
                                         setSelectedConnection(null);
+                                        setHopFilter('');
                                     } catch (err: any) {
                                         setMessage({ type: 'error', text: 'Error al guardar la ruta: ' + err.message });
                                     } finally {

@@ -1,0 +1,1958 @@
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { getSites } from '../services/sitesService';
+import { getHistoricalSnapshot } from '../services/historicalService';
+import {
+    Activity, Database, Terminal, ShieldCheck, Clock, X,
+    FolderOpen, FileText, ChevronDown, ChevronRight,
+    AlertTriangle, Layers, Copy, Trash2, WifiOff, Repeat, CheckCircle2,
+    Play, Pause, ChevronLeft, Calendar, SkipBack, SkipForward, Loader2, Search, Server
+} from 'lucide-react';
+import { clsx, type ClassValue } from 'clsx';
+import { twMerge } from 'tailwind-merge';
+import { AreaChart, Area, ResponsiveContainer, CartesianGrid, XAxis, YAxis } from 'recharts';
+
+import StandardMetricCard from '../components/StandardMetricCard';
+
+function cn(...inputs: ClassValue[]) {
+    return twMerge(clsx(inputs));
+}
+
+// --- Reproductor Helpers ---
+function padZ(n: number) { return String(n).padStart(2, '0'); }
+function dateToLocalISO(d: Date): string { return `${d.getFullYear()}-${padZ(d.getMonth() + 1)}-${padZ(d.getDate())}`; }
+function buildTimestamp(dateStr: string, minutesOfDay: number): string {
+    const hh = Math.floor(minutesOfDay / 60);
+    const mm = minutesOfDay % 60;
+    return `${dateStr} ${padZ(hh)}:${padZ(mm)}:00`;
+}
+function sliderLabel(minutes: number): string { return `${padZ(Math.floor(minutes / 60))}:${padZ(minutes % 60)}`; }
+// --- Time Ago Component ---
+const TimeAgo = ({ timestamp }: { timestamp: string }) => {
+    const [timeAgo, setTimeAgo] = useState('');
+
+    useEffect(() => {
+        const update = () => {
+            if (!timestamp) return;
+            // Try parsing YYYY-MM-DD HH:mm:ss or similar
+            const date = new Date(timestamp);
+            if (isNaN(date.getTime())) {
+                setTimeAgo('');
+                return;
+            }
+            const now = new Date();
+            const diff = Math.floor((now.getTime() - date.getTime()) / 1000);
+
+            if (diff < 60) {
+                setTimeAgo(`${diff}s ago`);
+            } else if (diff < 3600) {
+                setTimeAgo(`${Math.floor(diff / 60)}m ago`);
+            } else if (diff < 86400) {
+                setTimeAgo(`${Math.floor(diff / 3600)}h ${Math.floor((diff % 3600) / 60)}m ago`);
+            } else {
+                setTimeAgo(`${Math.floor(diff / 86400)}d ${Math.floor((diff % 86400) / 3600)}h ago`);
+            }
+        };
+        update();
+        const output = setInterval(update, 60000); // Update every minute
+        return () => clearInterval(output);
+    }, [timestamp]);
+
+    return <span>{timeAgo}</span>;
+};
+
+// --- Daily/Hourly Parser ---
+const parseBackupStatus = (raw: string | undefined) => {
+    if (!raw) return { name: '-', time: null, raw: '-' };
+
+    let name = raw;
+    let timeStr = '';
+
+    // 1. Try split by pipe
+    if (raw.includes('|')) {
+        const parts = raw.split('|');
+        name = parts[0].trim();
+        timeStr = parts[1].trim();
+    } else {
+        // If no pipe, try to find a date/duration pattern in the whole string
+        // extracting it might be hard, so let's check if the *whole* string is just a date? 
+        // Unlikely given "trae el nombre... y el tiempo".
+        // Let's assume the END of the string might be the time if no pipe.
+        timeStr = raw;
+    }
+
+    // 2. Try Standard Timestamp (YYYY-MM-DD HH:mm:ss)
+    const dateMatch = timeStr.match(/(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})/);
+    if (dateMatch) {
+        return { name, time: dateMatch[1], raw };
+    }
+
+    // 3. Try Duration Format (e.g. "1d 2h 30m 10s" or similar)
+    // We convert duration to a past timestamp so TimeAgo can count up from it.
+    // Regex looks for groups of digits followed by d/h/m/s
+    const durRegex = /(?:(\d+)\s*d)?\s*(?:(\d+)\s*h)?\s*(?:(\d+)\s*m)?\s*(?:(\d+)\s*s)?/;
+    const durMatch = timeStr.match(durRegex);
+
+    // Check if we actually matched something relevant (at least one unit)
+    if (durMatch && (durMatch[1] || durMatch[2] || durMatch[3] || durMatch[4])) {
+        const days = parseInt(durMatch[1] || '0');
+        const hours = parseInt(durMatch[2] || '0');
+        const mins = parseInt(durMatch[3] || '0');
+        const secs = parseInt(durMatch[4] || '0');
+
+        if (days + hours + mins + secs > 0) {
+            const now = new Date();
+            const totalSeconds = (days * 86400) + (hours * 3600) + (mins * 60) + secs;
+            const pastDate = new Date(now.getTime() - (totalSeconds * 1000));
+
+            // Return ISO string for TimeAgo to consume
+            // Note: If 'name' was just the raw string and we found a duration inside it, 
+            // we might want to clean 'name' to remove the duration part? 
+            // For now, keeping name as is or split part is safer.
+            return { name, time: pastDate.toISOString(), raw };
+        }
+    }
+
+    // 4. Try X-HH:MM:SS Format (e.g. "0-10:37:04")
+    const customMatch = timeStr.match(/(\d+)-(\d{2}):(\d{2}):(\d{2})/);
+    if (customMatch) {
+        const days = parseInt(customMatch[1]);
+        const hours = parseInt(customMatch[2]);
+        const mins = parseInt(customMatch[3]);
+        const secs = parseInt(customMatch[4]);
+
+        const now = new Date();
+        const totalSeconds = (days * 86400) + (hours * 3600) + (mins * 60) + secs;
+        const pastDate = new Date(now.getTime() - (totalSeconds * 1000));
+
+        // Clean name by removing the time part
+        const cleanName = name.replace(customMatch[0], '').trim();
+        return { name: cleanName, time: pastDate.toISOString(), raw, formattedAge: `${days > 0 ? days + 'd ' : ''}${hours}h ${mins}m ${secs}s` };
+    }
+
+    return { name, time: null, raw };
+};
+
+const HighlightedContent = ({ content }: { content: string }) => {
+    if (!content) return <span className="text-slate-400 italic font-medium">No hay salida disponible.</span>;
+
+    const lines = content.split('\n');
+
+    return (
+        <div className="flex flex-col gap-1">
+            {lines.map((line, lineIdx) => {
+                if (!line.trim()) return <div key={lineIdx} className="h-4"></div>;
+
+                // Detect duration pattern (MM:SS or HH:MM:SS) in column 3 (common for active scripts)
+                const parts = line.split(/\s+/).filter(Boolean);
+                let durationPart = "";
+                let isWarning = false;
+                let isDanger = false;
+
+                if (parts.length >= 3) {
+                    let timeStr = parts[2];
+                    if (/^(\d+-)?\d+:\d{2}(:\d{2})?$/.test(timeStr)) {
+                        durationPart = timeStr;
+                        let days = 0;
+                        let hours = 0;
+                        let mins = 0;
+                        let secs = 0;
+
+                        let timeOnly = timeStr;
+                        if (timeOnly.includes('-')) {
+                            const timeParts = timeOnly.split('-');
+                            days = parseInt(timeParts[0]);
+                            timeOnly = timeParts[1];
+                        }
+
+                        const timeChunks = timeOnly.split(':');
+                        if (timeChunks.length === 3) {
+                            hours = parseInt(timeChunks[0]);
+                            mins = parseInt(timeChunks[1]);
+                            secs = parseInt(timeChunks[2]);
+                        } else if (timeChunks.length === 2) {
+                            mins = parseInt(timeChunks[0]);
+                            secs = parseInt(timeChunks[1]);
+                        }
+
+                        const total = (days * 86400) + (hours * 3600) + (mins * 60) + secs;
+
+                        // Thresholds matching DB rules: 3 min (180s) Warning, 7 min (420s) Danger
+                        if (total > 180) isWarning = true;
+                        if (total > 420) isDanger = true;
+                    }
+                }
+
+                if (durationPart) {
+                    const startIndex = line.indexOf(durationPart);
+                    const before = line.substring(0, startIndex);
+                    const after = line.substring(startIndex + durationPart.length);
+
+                    return (
+                        <div key={lineIdx} className="hover:bg-white/5 rounded px-1 transition-all text-slate-200 group flex flex-wrap items-center font-mono text-[11px] whitespace-pre-wrap">
+                            <span className="opacity-80 group-hover:opacity-100">{before}</span>
+                            <span className={clsx(
+                                "font-bold px-1.5 py-0.5 rounded shadow-sm mx-0.5 transition-all text-[10px]",
+                                isDanger ? "bg-red-500 text-white animate-pulse" :
+                                    (isWarning ? "bg-yellow-400 text-slate-900" : "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30")
+                            )}>
+                                {durationPart}
+                            </span>
+                            <span className="opacity-80 group-hover:opacity-100">{after}</span>
+                        </div>
+                    );
+                }
+
+                if (line.trim().startsWith('>')) {
+                    return (
+                        <div key={lineIdx} className="hover:bg-white/5 rounded px-1 transition-all text-emerald-400 font-bold group flex flex-wrap items-center font-mono text-[11px] mt-4 mb-1 whitespace-pre-wrap">
+                            {line}
+                        </div>
+                    );
+                }
+
+                return (
+                    <div key={lineIdx} className="hover:bg-white/5 rounded px-1 transition-all text-slate-200 group flex flex-wrap items-center font-mono text-[11px] whitespace-pre-wrap leading-relaxed">
+                        {line.split(/(\d{4}-\d{2}-\d{2}|\d{2}:\d{2}:\d{2}|\/opt\/Jigsaw\/[\w\/\.-]+\.log|success|online)/gi).map((part, i) => {
+                            const lower = part.toLowerCase();
+                            if (/error|danger|panic|critical|failed/i.test(lower)) {
+                                return <span key={i} className="bg-red-500/10 text-red-400 font-bold px-1 rounded border border-red-500/20">{part}</span>;
+                            }
+                            if (/warning/i.test(lower)) {
+                                return <span key={i} className="bg-yellow-500/10 text-yellow-400 font-bold px-1 rounded border border-yellow-500/20">{part}</span>;
+                            }
+                            if (/\d{4}-\d{2}-\d{2}|\d{2}:\d{2}:\d{2}|\/opt\/Jigsaw\/[\w\/\.-]+\.log|success|online/i.test(lower)) {
+                                return <span key={i} style={{ color: 'rgb(16 185 129)' }} className="font-bold">{part}</span>;
+                            }
+                            return <span key={i} className="opacity-80 group-hover:opacity-100">{part}</span>;
+                        })}
+                    </div>
+                );
+            })}
+        </div>
+    );
+};
+
+// --- File Explorer Helper ---
+const FileTree = ({ rawData }: { rawData: string | undefined }) => {
+    const tree = useMemo(() => {
+        if (!rawData) return null;
+
+        const parseTree = (raw: string) => {
+            const items = raw.split('\n').filter(l => l.trim()).map(line => {
+                const parts = line.trim().split(/\s+/);
+                const size = parts[0];
+                const fullPath = parts[1] || 'unknown';
+                return { size, fullPath };
+            });
+
+            const root: any = { name: '/', children: {}, type: 'dir', fullPath: '/' };
+
+            items.forEach(item => {
+                const parts = item.fullPath.split('/').filter(p => p);
+                let current = root;
+                let pathAcc = '';
+                parts.forEach((part, i) => {
+                    pathAcc += '/' + part;
+                    if (i === parts.length - 1) {
+                        current.children[part] = { name: part, size: item.size, type: 'file', fullPath: item.fullPath };
+                    } else {
+                        if (!current.children[part]) {
+                            current.children[part] = { name: part, children: {}, type: 'dir', fullPath: pathAcc };
+                        }
+                        current = current.children[part];
+                    }
+                });
+            });
+            return root;
+        };
+        return parseTree(rawData);
+    }, [rawData]);
+
+    if (!tree) return <div className="text-slate-400 text-xs italic p-4">No se detectaron archivos pesados.</div>;
+
+    const RenderNode = ({ node, depth = 0 }: { node: any, depth?: number }) => {
+        const [isOpen, setIsOpen] = useState(true);
+
+        return (
+            <div className="select-none">
+                <div
+                    onClick={() => node.type === 'dir' && setIsOpen(!isOpen)}
+                    className={cn(
+                        "flex items-center gap-2 py-1 px-2 rounded-md transition-colors cursor-pointer text-xs",
+                        node.type === 'dir' ? "text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30" : "text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                    )}
+                    style={{ paddingLeft: `${depth * 16 + 8}px` }}
+                >
+                    {node.type === 'dir' ? (
+                        <>
+                            {isOpen ? <ChevronDown size={14} className="text-emerald-500" /> : <ChevronRight size={14} className="text-emerald-500" />}
+                            <FolderOpen size={14} className="text-emerald-500 fill-emerald-50" />
+                            <span className="font-bold">{node.name}</span>
+                        </>
+                    ) : (
+                        <>
+                            <div className="w-[14px]"></div>
+                            <FileText size={14} className="text-slate-400 dark:text-slate-500" />
+                            <span className="flex-1 truncate">{node.name}</span>
+                            <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 tabular-nums bg-slate-100 dark:bg-slate-800 px-1.5 rounded-full">({node.size})</span>
+                        </>
+                    )}
+                </div>
+                {node.type === 'dir' && isOpen && (
+                    <div>
+                        {Object.values(node.children).map((child: any) => (
+                            <RenderNode key={child.fullPath} node={child} depth={depth + 1} />
+                        ))}
+                    </div>
+                )}
+            </div>
+        );
+    };
+
+    return (
+        <div key={rawData} className="p-2 overflow-auto max-h-[500px] custom-scrollbar">
+            {Object.values(tree.children).map((child: any) => (
+                <RenderNode key={child.fullPath} node={child} />
+            ))}
+        </div>
+    );
+};
+
+// --- Database Section Components ---
+const DBHealthCard = ({ label, value, sublabel, color, icon: Icon, onClick }: any) => {
+    const isAlert = color.bg?.includes('red') || color.bg?.includes('amber');
+
+    return (
+        <div
+            onClick={onClick}
+            className={cn(
+                "rounded-xl border p-2.5 flex flex-col justify-between shadow-sm min-h-[64px] transition-all",
+                isAlert ? `${color.bg} border-transparent` : "bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700/50",
+                onClick ? "cursor-pointer hover:border-blue-200 dark:hover:border-blue-800 hover:shadow-md active:scale-95" : ""
+            )}
+        >
+            <div className="flex justify-between items-start mb-1">
+                <span className={cn("text-[8px] font-black uppercase tracking-widest", isAlert ? "text-white/70" : "text-slate-400 dark:text-slate-500")}>{label}</span>
+                <div className={cn("p-1 rounded-md", isAlert ? "bg-white/20 text-white" : `${color.bg} dark:bg-opacity-20 ${color.text}`)}><Icon size={12} /></div>
+            </div>
+            <div className="flex items-baseline gap-1.5 min-w-0">
+                <span className={cn("text-sm font-black truncate", isAlert ? "text-white" : `${color.text} dark:text-slate-100`)}>{value}</span>
+                {sublabel && <span className={cn("text-[8px] font-bold truncate tracking-tighter", isAlert ? "text-white/80" : "text-slate-400 dark:text-slate-500")}>{sublabel}</span>}
+            </div>
+        </div>
+    );
+};
+
+const SchemaBackupCard = ({ secondaryServer }: any) => {
+    const metricObj = secondaryServer?.app?.['db.schema.date'];
+    const dateStr = metricObj?.metric_value; // Expected: "YYYY-MM-DD HH:mm:ss"
+    const [elapsed, setElapsed] = useState('');
+
+    useEffect(() => {
+        const update = () => {
+            if (!dateStr) return;
+            const date = new Date(dateStr);
+            if (isNaN(date.getTime())) return;
+
+            const now = new Date();
+            const diff = Math.floor((now.getTime() - date.getTime()) / 1000);
+
+            if (diff < 60) setElapsed(`${diff}s`);
+            else if (diff < 3600) setElapsed(`${Math.floor(diff / 60)}m ${diff % 60}s`);
+            else if (diff < 86400) setElapsed(`${Math.floor(diff / 3600)}h ${Math.floor((diff % 3600) / 60)}m ${diff % 60}s`);
+            else setElapsed(`${Math.floor(diff / 86400)}d ${Math.floor((diff % 86400) / 3600)}h ${Math.floor((diff % 3600) / 60)}m ${diff % 60}s`);
+        };
+        update();
+        const timer = setInterval(update, 1000); // Update every second
+        return () => clearInterval(timer);
+    }, [dateStr]);
+
+    // Status comes from DB evaluation (Single Source of Truth)
+    const status = metricObj?.status || 'ok';
+    const isDanger = status === 'danger';
+    const isWarning = status === 'warning';
+
+    if (!dateStr) return <DBHealthCard label="Schema Backup" value="N/A" sublabel="SCHEMA" color={{ bg: 'bg-indigo-50', text: 'text-indigo-600' }} icon={Clock} />;
+
+    return (
+        <DBHealthCard
+            label="Schema Backup"
+            value={elapsed || '...'}
+            sublabel={dateStr}
+            color={isDanger ? { bg: 'bg-red-600', text: 'text-white' } :
+                isWarning ? { bg: 'bg-amber-400', text: 'text-amber-950' } :
+                    { bg: 'bg-indigo-50', text: 'text-indigo-600' }}
+            icon={Clock}
+        />
+    );
+};
+
+const TerminalModal = ({ isOpen, onClose, title, content, serverId, metricKey, metricsData }: any) => {
+    if (!isOpen) return null;
+
+    // Resolve "live" content if possible
+    let liveContent = content;
+    let isSummarizer = metricKey === 'app.summarizer.log';
+    let execContent = "";
+    let logContent = "";
+    let processTableUI = null;
+
+    if (metricsData && serverId && metricKey) {
+        const srv = metricsData.servers.find((s: any) => s.info.id === serverId);
+        if (srv && srv.app && srv.app[metricKey]) {
+            if (isSummarizer) {
+                const rawExec = srv.app['app.summarizer.ejecution']?.metric_value || '';
+                const lines = rawExec.split('\n').filter((l: string) => l.trim().length > 0 && !l.includes('/bin/sh -c'));
+                const count = lines.length;
+                const formattedExec = lines.map((line: string) => line.trimEnd()).join('\n');
+
+                const ws = srv.app['app.summarizer.ejecution']?.warning_start;
+                let timeStr = "";
+                if (ws) {
+                    const seconds = Math.floor(Date.now() / 1000) - ws;
+                    if (seconds < 60) {
+                        timeStr = `${seconds}s`;
+                    } else {
+                        const mins = Math.floor(seconds / 60);
+                        const secs = seconds % 60;
+                        timeStr = `${mins}m ${secs}s`;
+                    }
+                }
+
+                if (timeStr && count > 1) {
+                    processTableUI = (
+                        <div className="mb-4 bg-amber-500/10 border border-amber-500/30 text-amber-400 px-4 py-2 rounded-lg font-mono text-[11px] flex items-center justify-between shrink-0">
+                            <span>⚠️ MÚLTIPLES PROCESOS DETECTADOS</span>
+                            <span className="font-bold tracking-wider">TIEMPO CORRIENDO JUNTOS: {timeStr}</span>
+                        </div>
+                    );
+                } else {
+                    processTableUI = null;
+                }
+
+                execContent = `SUMMARIZER ACTIVE PROCESSES: ${count}\n\n${formattedExec}`;
+                logContent = srv.app['app.summarizer.log']?.metric_value || 'Cargando Log...';
+            } else {
+                liveContent = srv.app[metricKey].metric_value;
+
+                // Special case for JAMS Service on Active server: Append app.jams.restarts_log
+                if (metricKey === 'app.jams.service' && srv.info.is_primary == 1) {
+                    const restartData = srv.app['app.jams.restarts_log']?.metric_value ||
+                        srv.app['app.jams.restart']?.metric_value;
+                    if (restartData) {
+                        liveContent = liveContent.trim() + "\n\n" + "> reinicios del jams\n" + restartData;
+                    }
+                }
+            }
+        }
+    }
+
+    return (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-[#0f172a] text-slate-50 min-w-fit max-w-[95vw] md:min-w-[896px] h-[80vh] rounded-2xl flex flex-col shadow-2xl border border-slate-700 overflow-hidden animate-in zoom-in-95 duration-200">
+                <div className="flex justify-between items-center p-5 border-b border-slate-800 bg-slate-900/50">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-emerald-500/10 rounded-lg text-emerald-400">
+                            <Terminal size={18} />
+                        </div>
+                        <h3 className="font-bold text-slate-100 tracking-tight font-mono">{title}</h3>
+                    </div>
+                    <button
+                        onClick={onClose}
+                        className="p-2 hover:bg-white/10 rounded-full transition-colors text-slate-400 hover:text-white"
+                    >
+                        <X size={20} />
+                    </button>
+                </div>
+                <div className="flex-1 p-6 overflow-auto custom-scrollbar bg-[#0f172a]">
+                    {isSummarizer ? (
+                        <>
+                            {processTableUI}
+                            <HighlightedContent content={execContent} />
+                            <div className="text-slate-300 font-mono text-[11px] whitespace-pre-wrap leading-relaxed mt-6 border-t border-slate-800/50 pt-6">
+                                {logContent}
+                            </div>
+                        </>
+                    ) : (
+                        <HighlightedContent content={liveContent} />
+                    )}
+
+                    {/* Utility Footer for Idle Queries (pg_terminate_backend Commands) */}
+                    {metricKey === 'db.idle_queries' && liveContent && liveContent.length > 5 && (() => {
+                        const pids = liveContent.split('\n')
+                            .filter((l: string) => l.includes('|'))
+                            .map((l: string) => l.split('|')[0]?.trim())
+                            .filter((pid: string) => pid && !isNaN(Number(pid)));
+
+                        if (pids.length === 0) return null;
+
+                        const bulkCommand = `SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE pid IN (${pids.join(', ')});`;
+
+                        return (
+                            <div className="mt-8 border-t border-slate-800 pt-6">
+                                <h4 className="flex items-center gap-2 text-rose-400 font-bold mb-4 text-xs uppercase tracking-widest">
+                                    <Trash2 size={14} />
+                                    Comando Bulk para Limpieza de Hilos de Postgres ({pids.length} hilos)
+                                </h4>
+                                <div className="bg-slate-900 border border-slate-800 rounded-lg p-4 group hover:border-rose-500/50 transition-colors">
+                                    <div className="flex items-start justify-between gap-4">
+                                        <code className="text-xs text-rose-300 font-mono bg-rose-500/5 p-3 rounded block w-full whitespace-pre-wrap break-all border border-rose-900/30">
+                                            {bulkCommand}
+                                        </code>
+                                        <button
+                                            onClick={() => {
+                                                navigator.clipboard.writeText(bulkCommand);
+                                                alert(`Copiado comando bulk para ${pids.length} hilos.`);
+                                            }}
+                                            className="p-3 bg-rose-600/20 hover:bg-rose-600 rounded-lg text-rose-400 hover:text-white transition-colors flex-shrink-0 flex items-center gap-2 font-bold text-xs uppercase tracking-wider"
+                                            title="Copiar comando bulk"
+                                        >
+                                            <Copy size={16} />
+                                            Copiar Todo
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })()}
+                </div>
+                <div className="p-4 border-t border-slate-800 bg-slate-900/30 flex justify-between items-center">
+                    <div className="text-[10px] text-slate-500 font-mono italic">
+                        {metricKey === 'db.idle_queries' ? '* Copia el comando KILL y ejecútalo en tu gestor SQL para matar hilos específicos.' : ''}
+                    </div>
+                    <button
+                        onClick={onClose}
+                        className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-100 rounded-lg font-bold text-sm transition-all shadow-sm border border-slate-700"
+                    >
+                        Cerrar Detalle
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// --- Circular Gauge Component (Thicker, Pixel-Perfect for Site 7) ---
+const CircularUsage = ({ percentage, label, sublabel, color, onClick, buttonLabel }: any) => {
+    const radius = 45;
+    const stroke = 8;
+    const normalizedRadius = radius - (stroke / 2);
+    const circumference = normalizedRadius * 2 * Math.PI;
+    const strokeDashoffset = circumference - (percentage / 100) * circumference;
+
+    return (
+        <div className="flex flex-col items-center justify-center">
+            <div className="relative flex items-center justify-center mb-2">
+                <svg height={radius * 2} width={radius * 2} className="transform -rotate-90">
+                    <circle
+                        stroke="#f1f5f9"
+                        strokeWidth={stroke}
+                        fill="transparent"
+                        r={normalizedRadius}
+                        cx={radius}
+                        cy={radius}
+                    />
+                    <circle
+                        stroke={color}
+                        strokeWidth={stroke}
+                        strokeDasharray={circumference + ' ' + circumference}
+                        style={{ strokeDashoffset }}
+                        strokeLinecap="round"
+                        fill="transparent"
+                        r={normalizedRadius}
+                        cx={radius}
+                        cy={radius}
+                        className="transition-all duration-1000 ease-out"
+                    />
+                </svg>
+                <span className="absolute text-base font-black text-slate-800 dark:text-slate-100" style={{ color }}>{Math.round(percentage)}%</span>
+            </div>
+            <div className="text-center flex flex-col items-center">
+                <div className="font-bold text-[11px] text-slate-500 dark:text-slate-400 uppercase tracking-tight leading-none mb-1">
+                    {label === 'Disco' ? 'Disco Duro' : label}
+                </div>
+                <div className="text-[10px] font-black text-slate-700 dark:text-slate-300 leading-none mb-2">{sublabel}</div>
+                {onClick && (
+                    <button
+                        onClick={onClick}
+                        className="px-3 py-1 bg-white dark:bg-slate-800 text-[#0ea5e9] text-[10px] font-bold rounded border border-[#e0f2fe] dark:border-slate-700 hover:bg-[#f0f9ff] dark:hover:bg-slate-700 transition-colors shadow-sm uppercase tracking-tighter"
+                    >
+                        {buttonLabel === 'Particiones' ? 'Ver Particiones' : (buttonLabel === 'Crontab' ? 'Ver Crontab' : buttonLabel)}
+                    </button>
+                )}
+            </div>
+        </div>
+    );
+};
+
+
+
+// ─── Main Page ───────────────────────────────────────────────────────────────
+
+const PLAY_INTERVAL_MS = 1500;
+const PLAY_STEP_MINUTES = 10;
+
+const ReproductorMonitoreo = () => {
+
+    // ── Site selection
+    const { data: sites, isLoading: sitesLoading } = useQuery({
+        queryKey: ['sites'],
+        queryFn: getSites,
+    });
+    const activeSites = sites?.filter(s => Number(s.status) === 1) || [];
+    const [selectedSiteId, setSelectedSiteId] = useState<number | null>(null);
+
+    // Auto-select first site
+    useEffect(() => {
+        if (activeSites.length > 0 && !selectedSiteId) {
+            setSelectedSiteId(Number(activeSites[0].id));
+        }
+    }, [activeSites]);
+
+    // ── Time state
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    const [selectedDate, setSelectedDate] = useState<string>(dateToLocalISO(yesterday));
+    const [sliderMinutes, setSliderMinutes] = useState<number>(480);  // default 08:00
+    const [committedMinutes, setCommittedMinutes] = useState<number>(480);
+    const [hourInput, setHourInput] = useState('08');
+    const [minInput, setMinInput]   = useState('00');
+
+    // ── Play state
+    const [isPlaying, setIsPlaying] = useState(false);
+    const playRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+    const stopPlay = useCallback(() => {
+        if (playRef.current) clearInterval(playRef.current);
+        playRef.current = null;
+        setIsPlaying(false);
+    }, []);
+
+    const startPlay = useCallback(() => {
+        setIsPlaying(true);
+        playRef.current = setInterval(() => {
+            setCommittedMinutes(prev => {
+                const next = prev + PLAY_STEP_MINUTES;
+                if (next >= 1440) { stopPlay(); return 1439; }
+                setSliderMinutes(next);
+                setHourInput(padZ(Math.floor(next / 60)));
+                setMinInput(padZ(next % 60));
+                return next;
+            });
+        }, PLAY_INTERVAL_MS);
+    }, [stopPlay]);
+
+    useEffect(() => () => { if (playRef.current) clearInterval(playRef.current); }, []);
+
+    // ── Sync hour/min inputs → slider & committed
+    const applyTimeInputs = () => {
+        const hh = Math.min(23, Math.max(0, parseInt(hourInput) || 0));
+        const mm = Math.min(59, Math.max(0, parseInt(minInput) || 0));
+        const total = hh * 60 + mm;
+        setSliderMinutes(total);
+        setCommittedMinutes(total);
+        setHourInput(padZ(hh));
+        setMinInput(padZ(mm));
+    };
+
+    // ── Query
+    const targetTs = buildTimestamp(selectedDate, committedMinutes);
+
+    const { data: snapshot, isFetching, isError } = useQuery({
+        queryKey: ['historical_snapshot', selectedSiteId, targetTs],
+        queryFn: () => getHistoricalSnapshot(selectedSiteId!, targetTs),
+        enabled: !!selectedSiteId,
+        staleTime: Infinity,
+    });
+
+    // ── UI
+    const selectedSite = activeSites.find(s => Number(s.id) === selectedSiteId);
+
+    const stepMinutes = (delta: number) => {
+        const next = Math.min(1439, Math.max(0, committedMinutes + delta));
+        setSliderMinutes(next);
+        setCommittedMinutes(next);
+        setHourInput(padZ(Math.floor(next / 60)));
+        setMinInput(padZ(next % 60));
+    };
+
+
+    // --- Adapted from MonitoreoSite ---
+    const [modalOpen, setModalOpen] = useState(false);
+    const [modalTitle, setModalTitle] = useState('');
+    const [modalContent, setModalContent] = useState('');
+    const [selectedMetricKey, setSelectedMetricKey] = useState<string | null>(null);
+    const [selectedServerId, setSelectedServerId] = useState<number | null>(null);
+
+    const openTerminal = (title: string, content: string, serverId: number | null = null, metricKey: string | null = null) => {
+        setModalTitle(title);
+        setModalContent(content);
+        setSelectedServerId(serverId);
+        setSelectedMetricKey(metricKey);
+        setModalOpen(true);
+    };
+
+    const metricsData = snapshot; // Mapping for the Modal and other components
+    const primaryServer = metricsData?.servers?.find((s: any) => Number(s.info.is_primary) === 1) || metricsData?.servers?.[0];
+    const secondaryServer = metricsData?.servers?.find((s: any) => s.info.id !== primaryServer?.info?.id);
+
+    const isPrimaryOffline = primaryServer?.app?.['system.freshness']?.status === 'danger';
+    const isSecondaryOffline = secondaryServer?.app?.['system.freshness']?.status === 'danger';
+    const isFullSiteOffline = isPrimaryOffline && isSecondaryOffline;
+
+    const primaryFail = primaryServer?.app?.['app.jams.status']?.status === 'danger';
+    const secondaryFail = secondaryServer?.app?.['app.jams.status']?.status === 'warning' || secondaryServer?.app?.['app.jams.status']?.status === 'danger';
+    const hasFailover = primaryFail || secondaryFail;
+
+    const formatMetricValue = (val: any, defaultUnit = 'G') => {
+        if (val === undefined || val === null || val === '') return '0' + defaultUnit;
+        const str = String(val).trim();
+        if (/[a-zA-Z]$/.test(str)) return str;
+        return str + defaultUnit;
+    };
+    
+    const livePrimaryHistory = primaryServer?.cpu_history || [];
+    const liveSecondaryHistory = secondaryServer?.cpu_history || [];
+    
+    return (
+        <div className="min-h-screen bg-background flex flex-col">
+            {/* ── Top bar ────────────────────────────────── */}
+            <div className="border-b border-border bg-card px-6 py-4 sticky top-0 z-30 shadow-sm">
+                <div className="max-w-7xl mx-auto flex flex-col gap-4">
+                    {/* Title row */}
+                    <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-lg bg-indigo-100 dark:bg-indigo-950/40 flex items-center justify-center">
+                            <Play className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                        </div>
+                        <div>
+                            <h1 className="text-xl font-bold text-foreground leading-none">Reproductor Monitoreo</h1>
+                            <p className="text-xs text-muted-foreground mt-0.5">Visor histórico del estado de servidores</p>
+                        </div>
+
+                        {/* Site selector */}
+                        <div className="ml-auto flex items-center gap-2">
+                            <Server className="w-4 h-4 text-muted-foreground" />
+                            <select
+                                value={selectedSiteId ?? ''}
+                                onChange={e => setSelectedSiteId(Number(e.target.value))}
+                                className="text-sm border border-input rounded-lg px-3 py-1.5 bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+                            >
+                                {activeSites.map(s => (
+                                    <option key={s.id} value={s.id}>{s.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
+
+                    {/* Time control bar */}
+                    <div className="bg-muted/40 rounded-xl border border-border px-4 py-3 flex flex-col gap-3">
+                        {/* Row 1: date + time inputs + play controls */}
+                        <div className="flex flex-wrap items-center gap-3">
+                            {/* Date picker */}
+                            <div className="flex items-center gap-2">
+                                <Calendar className="w-4 h-4 text-muted-foreground" />
+                                <input
+                                    type="date"
+                                    value={selectedDate}
+                                    max={dateToLocalISO(new Date())}
+                                    onChange={e => { setSelectedDate(e.target.value); stopPlay(); }}
+                                    className="text-sm border border-input rounded-lg px-3 py-1.5 bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+                                />
+                            </div>
+
+                            {/* Time inputs */}
+                            <div className="flex items-center gap-1.5">
+                                <Clock className="w-4 h-4 text-muted-foreground" />
+                                <input
+                                    type="number" min={0} max={23} value={hourInput}
+                                    onChange={e => setHourInput(e.target.value)}
+                                    onBlur={applyTimeInputs}
+                                    onKeyDown={e => e.key === 'Enter' && applyTimeInputs()}
+                                    className="w-14 text-center text-sm border border-input rounded-lg px-2 py-1.5 bg-background focus:outline-none focus:ring-2 focus:ring-ring font-mono"
+                                />
+                                <span className="text-muted-foreground font-bold">:</span>
+                                <input
+                                    type="number" min={0} max={59} value={minInput}
+                                    onChange={e => setMinInput(e.target.value)}
+                                    onBlur={applyTimeInputs}
+                                    onKeyDown={e => e.key === 'Enter' && applyTimeInputs()}
+                                    className="w-14 text-center text-sm border border-input rounded-lg px-2 py-1.5 bg-background focus:outline-none focus:ring-2 focus:ring-ring font-mono"
+                                />
+                            </div>
+
+                            {/* Playback controls */}
+                            <div className="flex items-center gap-1 ml-auto">
+                                <button onClick={() => stepMinutes(-60)} title="−1 hora"
+                                    className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground">
+                                    <SkipBack className="w-4 h-4" />
+                                </button>
+                                <button onClick={() => stepMinutes(-PLAY_STEP_MINUTES)} title={`−${PLAY_STEP_MINUTES} min`}
+                                    className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground">
+                                    <ChevronLeft className="w-4 h-4" />
+                                </button>
+
+                                <button
+                                    onClick={() => isPlaying ? stopPlay() : startPlay()}
+                                    className="px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold flex items-center gap-1.5 transition-colors shadow-sm"
+                                >
+                                    {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                                    {isPlaying ? 'Pausar' : 'Reproducir'}
+                                </button>
+
+                                <button onClick={() => stepMinutes(PLAY_STEP_MINUTES)} title={`+${PLAY_STEP_MINUTES} min`}
+                                    className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground">
+                                    <ChevronRight className="w-4 h-4" />
+                                </button>
+                                <button onClick={() => stepMinutes(60)} title="+1 hora"
+                                    className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground">
+                                    <SkipForward className="w-4 h-4" />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Row 2: Slider */}
+                        <div className="flex items-center gap-3">
+                            <span className="text-[10px] font-mono text-muted-foreground w-10">00:00</span>
+                            <div className="relative flex-1 group">
+                                <input
+                                    type="range"
+                                    min={0} max={1439} step={1}
+                                    value={sliderMinutes}
+                                    onChange={e => {
+                                        const v = Number(e.target.value);
+                                        setSliderMinutes(v);
+                                        setHourInput(padZ(Math.floor(v / 60)));
+                                        setMinInput(padZ(v % 60));
+                                    }}
+                                    onMouseUp={e => {
+                                        const v = Number((e.target as HTMLInputElement).value);
+                                        setCommittedMinutes(v);
+                                        stopPlay();
+                                    }}
+                                    onTouchEnd={e => {
+                                        const v = Number((e.target as HTMLInputElement).value);
+                                        setCommittedMinutes(v);
+                                        stopPlay();
+                                    }}
+                                    className="w-full h-2 accent-indigo-600 cursor-pointer"
+                                />
+                                {/* Bubble tooltip */}
+                                <div
+                                    className="absolute -top-7 pointer-events-none transition-all"
+                                    style={{ left: `calc(${(sliderMinutes / 1439) * 100}% - 20px)` }}
+                                >
+                                    <span className="bg-indigo-600 text-white text-[10px] font-mono px-2 py-0.5 rounded shadow">
+                                        {sliderLabel(sliderMinutes)}
+                                    </span>
+                                </div>
+                            </div>
+                            <span className="text-[10px] font-mono text-muted-foreground w-10 text-right">23:59</span>
+                        </div>
+                    </div>
+
+                    {/* Status bar */}
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        {isFetching && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                        <span>
+                            Snapshot: <span className="font-mono font-semibold text-foreground">{targetTs}</span>
+                        </span>
+                        {selectedSite && <span>— <strong>{selectedSite.name}</strong></span>}
+                        {isPlaying && (
+                            <span className="ml-auto flex items-center gap-1 text-indigo-600 font-semibold animate-pulse">
+                                <Play className="w-3 h-3" /> Reproduciendo…
+                            </span>
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            
+            {/* ── Content (Cloned from MonitoreoSite) ────────────────── */}
+            <div className="flex-1 max-w-[1400px] mx-auto w-full pb-10">
+                {sitesLoading && (
+                    <div className="flex items-center justify-center h-64">
+                        <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
+                    </div>
+                )}
+
+                {!sitesLoading && !selectedSiteId && (
+                    <div className="flex flex-col items-center justify-center h-64 text-slate-500 gap-3">
+                        <Search className="w-10 h-10" />
+                        <p>Selecciona una faena para empezar</p>
+                    </div>
+                )}
+
+                {isError && (
+                    <div className="flex items-center gap-3 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 m-6">
+                        <AlertTriangle className="w-5 h-5 shrink-0" />
+                        <div>
+                            <p className="font-semibold">Error al cargar datos históricos</p>
+                            <p className="text-sm mt-0.5">Intenta con otra fecha u hora.</p>
+                        </div>
+                    </div>
+                )}
+
+                {!isFetching && snapshot && snapshot.servers?.length === 0 && (
+                    <div className="flex flex-col items-center justify-center h-64 text-slate-500 gap-3">
+                        <Database className="w-10 h-10" />
+                        <p>No hay servidores configurados para esta faena</p>
+                    </div>
+                )}
+
+                {!isFetching && snapshot && snapshot.servers?.length > 0 && snapshot.servers.every((s: any) => Object.keys(s.app || {}).length === 0) && (
+                    <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3 text-amber-800 text-sm m-6">
+                        <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" />
+                        <div>
+                            <p className="font-semibold">Sin datos para este momento</p>
+                            <p className="text-xs mt-0.5">
+                                No hay registros en la base de datos para {targetTs}.
+                                Prueba con una fecha y hora diferente.
+                            </p>
+                        </div>
+                    </div>
+                )}
+                
+                {snapshot && snapshot.servers?.length > 0 && !snapshot.servers.every((s: any) => Object.keys(s.app || {}).length === 0) && (
+                    <div className="mt-4">
+{/* Summary Cards Row */}
+            <div className={cn("grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6 transition-all duration-1000", isFullSiteOffline && "grayscale opacity-60")}>
+                {/* JAMS: app.jams.version */}
+                <div className="p-3 rounded shadow-sm border border-slate-200 dark:border-slate-800 border-l-4 border-l-[#06b6d4] bg-white dark:bg-slate-900 flex items-center gap-3 transition-all">
+                    <div className="p-2 rounded bg-[#ecfeff] dark:bg-[#06b6d4]/10 text-[#06b6d4]">
+                        <Terminal size={20} />
+                    </div>
+                    <div>
+                        <div className="text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400">JAMS</div>
+                        <div className="font-bold text-sm truncate w-24 text-slate-800 dark:text-slate-200">
+                            {primaryServer?.app?.['app.jams.version']?.metric_value || '-'}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Summarizer: Check app.summarizer.status aggregated metric */}
+                <div
+                    onClick={() => {
+                        const execVal = primaryServer?.app?.['app.summarizer.ejecution']?.metric_value || '0';
+                        const logVal = primaryServer?.app?.['app.summarizer.log']?.metric_value || 'No Log Data';
+                        const combined = `SUMMARIZER EXECUTIONS: ${execVal}\n------------------------------------------------------------\n\n${logVal}`;
+                        openTerminal('Summarizer', combined, primaryServer?.info?.id, 'app.summarizer.log');
+                    }}
+                    className={cn(
+                        "p-3 rounded shadow-sm border border-slate-200 dark:border-slate-800 border-l-4 flex items-center gap-3 cursor-pointer hover:shadow-md transition-all",
+                        primaryServer?.app?.['app.summarizer.status']?.metric_value === 'stopped' || primaryServer?.app?.['app.summarizer.log']?.status === 'danger' || primaryServer?.app?.['app.summarizer.ejecution']?.status === 'danger'
+                            ? "bg-red-600 border-red-700 text-white shadow-lg shadow-red-500/20"
+                            : (primaryServer?.app?.['app.summarizer.status']?.metric_value === 'both_active' || primaryServer?.app?.['app.summarizer.log']?.status === 'warning' || primaryServer?.app?.['app.summarizer.ejecution']?.status === 'warning' ? "bg-white dark:bg-slate-900 border-l-amber-500" : "bg-white dark:bg-slate-900 border-l-emerald-500")
+                    )}>
+                    <div className={cn(
+                        "p-2 rounded",
+                        primaryServer?.app?.['app.summarizer.status']?.metric_value === 'stopped' || primaryServer?.app?.['app.summarizer.log']?.status === 'danger' || primaryServer?.app?.['app.summarizer.ejecution']?.status === 'danger'
+                            ? "bg-white/20 text-white"
+                            : (primaryServer?.app?.['app.summarizer.status']?.metric_value === 'both_active' || primaryServer?.app?.['app.summarizer.log']?.status === 'warning' || primaryServer?.app?.['app.summarizer.ejecution']?.status === 'warning' ? "bg-amber-50 dark:bg-amber-500/10 text-amber-500" : "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-500")
+                    )}><Activity size={20} /></div>
+                    <div>
+                        <div className={cn("text-[10px] font-bold uppercase", primaryServer?.app?.['app.summarizer.status']?.metric_value === 'stopped' || primaryServer?.app?.['app.summarizer.log']?.status === 'danger' || primaryServer?.app?.['app.summarizer.ejecution']?.status === 'danger' ? "text-white/80" : "text-slate-500 dark:text-slate-400")}>SUMMARIZER</div>
+                        <div className={cn(
+                            "font-bold text-[10px]",
+                            primaryServer?.app?.['app.summarizer.status']?.metric_value === 'stopped' || primaryServer?.app?.['app.summarizer.log']?.status === 'danger' || primaryServer?.app?.['app.summarizer.ejecution']?.status === 'danger' ? "text-white" :
+                                (primaryServer?.app?.['app.summarizer.status']?.metric_value === 'both_active' || primaryServer?.app?.['app.summarizer.ejecution']?.status === 'warning' ? "text-amber-600" : "text-emerald-500")
+                        )}>
+                            {(() => {
+                                // Priority: ejecution alerts override service status display
+                                const ejecVal = primaryServer?.app?.['app.summarizer.ejecution']?.metric_value || '';
+                                const ejecStatus = primaryServer?.app?.['app.summarizer.ejecution']?.status;
+
+                                if (ejecStatus === 'danger' || ejecStatus === 'warning') {
+                                    const lines = ejecVal.split('\n').filter((l: string) => l.trim().length > 0 && !l.includes('/bin/sh -c'));
+                                    const count = lines.length;
+                                    
+                                    const ws = (primaryServer?.app as any)?.['app.summarizer.ejecution']?.warning_start;
+                                    let timeStr = "";
+                                    if (ws) {
+                                        const seconds = Math.floor(Date.now() / 1000) - ws;
+                                        if (seconds < 60) {
+                                            timeStr = `(LLEVAN ${seconds}s)`;
+                                        } else {
+                                            const mins = Math.floor(seconds / 60);
+                                            const secs = seconds % 60;
+                                            timeStr = `(LLEVAN ${mins}m ${secs}s)`;
+                                        }
+                                    }
+                                    
+                                    if (ejecStatus === 'danger') {
+                                        return `${count} PROCESOS SIMULTANEOS ${timeStr}`;
+                                    } else {
+                                        return `${count} PROCESOS (EVALUANDO ${timeStr || '...'})`;
+                                    }
+                                }
+
+                                const aggr = primaryServer?.app?.['app.summarizer.status']?.metric_value;
+                                if (aggr === 'both_active') return 'SERVICE & CRON';
+                                if (aggr === 'service_active') return 'SERVICE ACTIVE';
+                                if (aggr === 'cron_active') return 'CRON ACTIVE';
+                                if (aggr === 'stopped') return 'STOPPED';
+
+                                // Fallback logic
+                                const hasService = !!primaryServer?.app?.['app.summarizer.service']?.metric_value && !primaryServer?.app?.['app.summarizer.service']?.metric_value.includes('stopped');
+                                const hasCrontab = !!primaryServer?.app?.['app.summarizer.crontab']?.metric_value && !primaryServer?.app?.['app.summarizer.crontab']?.metric_value.includes('stopped') && !primaryServer?.app?.['app.summarizer.crontab']?.metric_value.trim().startsWith('#');
+                                if (hasService && hasCrontab) return 'SERVICE & CRON';
+                                if (hasService) return 'SERVICE ACTIVE';
+                                if (hasCrontab) return 'CRON ACTIVE';
+                                return 'STOPPED';
+                            })()}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Equipos: app.repc -> Count lines */}
+                <div
+                    onClick={() => openTerminal('Equipos Conectados', primaryServer?.app?.['app.repc']?.metric_value || 'No Data', primaryServer?.info?.id, 'app.repc')}
+                    className={cn(
+                        "p-3 rounded shadow-sm border border-slate-200 dark:border-slate-800 border-l-4 flex items-center gap-3 cursor-pointer hover:shadow-md transition-all",
+                        primaryServer?.app?.['app.repc']?.status === 'danger'
+                            ? "bg-red-600 border-red-700 text-white shadow-lg shadow-red-500/20"
+                            : (primaryServer?.app?.['app.repc']?.status === 'warning' ? "bg-white dark:bg-slate-900 border-l-amber-500" : "bg-white dark:bg-slate-900 border-l-blue-500")
+                    )}>
+                    <div className={cn(
+                        "p-2 rounded",
+                        primaryServer?.app?.['app.repc']?.status === 'danger' ? "bg-white/20 text-white" : (primaryServer?.app?.['app.repc']?.status === 'warning' ? "bg-amber-50 dark:bg-amber-500/10 text-amber-500" : "bg-blue-50 dark:bg-blue-500/10 text-blue-500")
+                    )}><Database size={20} /></div>
+                    <div>
+                        <div className={cn("text-[10px] font-bold uppercase", primaryServer?.app?.['app.repc']?.status === 'danger' ? "text-white/80" : "text-slate-500 dark:text-slate-400")}>Equipos Conectados</div>
+                        <div className={cn("font-bold text-sm", primaryServer?.app?.['app.repc']?.status === 'danger' ? "text-white" : (primaryServer?.app?.['app.repc']?.status === 'warning' ? "text-amber-500" : ""))}>
+                            {(() => {
+                                const val = primaryServer?.app?.['app.repc']?.metric_value;
+                                if (val == null) return '0';
+                                return String(val).split('\n').filter((x: string) => x.trim().length > 0).length;
+                            })()}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Estacion Base: app.station.ping -> Analyze ping */}
+                <div
+                    onClick={() => openTerminal('Estación Base Ping', primaryServer?.app?.['app.station.ping']?.metric_value || 'No Data', primaryServer?.info?.id, 'app.station.ping')}
+                    className={cn(
+                        "p-3 rounded shadow-sm border border-slate-200 dark:border-slate-800 border-l-4 flex items-center gap-3 cursor-pointer hover:shadow-md transition-all",
+                        primaryServer?.app?.['app.station.ping']?.status === 'danger'
+                            ? "bg-red-600 border-red-700 text-white shadow-lg shadow-red-500/20"
+                            : "bg-white dark:bg-slate-900 border-l-violet-500"
+                    )}>
+                    <div className={cn(
+                        "p-2 rounded",
+                        primaryServer?.app?.['app.station.ping']?.status === 'danger' ? "bg-white/20 text-white" : "bg-violet-50 dark:bg-violet-500/10 text-violet-500"
+                    )}><ShieldCheck size={20} /></div>
+                    <div>
+                        <div className={cn("text-[10px] font-bold uppercase", primaryServer?.app?.['app.station.ping']?.status === 'danger' ? "text-white/80" : "text-slate-500 dark:text-slate-400")}>Estación Base</div>
+                        <div className={cn("font-bold text-sm", primaryServer?.app?.['app.station.ping']?.status === 'danger' ? "text-white" : "text-slate-700 dark:text-slate-200")}>
+                            {(() => {
+                                const val = primaryServer?.app?.['app.station.ping']?.metric_value || '';
+                                const isOk = val.includes('bytes from') || val.includes('0% packet loss') || primaryServer?.app?.['app.station.ping']?.status === 'ok';
+                                return isOk ? <span className={cn(primaryServer?.app?.['app.station.ping']?.status === 'danger' ? "text-white" : "text-emerald-600", "truncate block w-24")}>{primaryServer?.app?.['app.station.name']?.metric_value || 'Online'}</span> : <span className="text-red-500">Offline</span>;
+                            })()}
+                        </div>
+                    </div>
+                </div>
+
+
+
+
+
+                <div
+                    onClick={() => openTerminal('Daily Backup Log', secondaryServer?.app?.['backup.daily.log']?.metric_value || 'No Log Data', secondaryServer?.info?.id, 'backup.daily.log')}
+                    className={cn(
+                        "p-3 rounded shadow-sm border border-slate-200 dark:border-slate-800 border-l-4 flex items-center gap-3 cursor-pointer hover:shadow-md transition-all",
+                        secondaryServer?.app?.['backup.daily.status']?.status === 'danger'
+                            ? "bg-red-600 border-red-700 text-white shadow-lg shadow-red-500/20"
+                            : (secondaryServer?.app?.['backup.daily.status']?.status === 'warning' ? "bg-white dark:bg-slate-900 border-l-amber-500" : "bg-white dark:bg-slate-900 border-l-sky-500")
+                    )}>
+                    <div className={cn(
+                        "p-2 rounded",
+                        secondaryServer?.app?.['backup.daily.status']?.status === 'danger' ? "bg-white/20 text-white" :
+                            (secondaryServer?.app?.['backup.daily.status']?.status === 'warning' ? "bg-amber-50 dark:bg-amber-500/10 text-amber-500" : "bg-sky-50 dark:bg-sky-500/10 text-sky-500")
+                    )}><Clock size={20} /></div>
+                    <div>
+                        <div className={cn("text-[10px] font-bold uppercase", secondaryServer?.app?.['backup.daily.status']?.status === 'danger' ? "text-white/80" : "text-slate-500 dark:text-slate-400")}>DAILY</div>
+                        {(() => {
+                            const { name, time } = parseBackupStatus(secondaryServer?.app?.['backup.daily.status']?.metric_value);
+                            const isDanger = secondaryServer?.app?.['backup.daily.status']?.status === 'danger';
+                            return (
+                                <div className="leading-tight">
+                                    <div className="font-bold text-[10px] truncate w-24" title={name}>{name}</div>
+                                    {time ? (
+                                        <div className={cn(
+                                            "text-[9px] font-mono",
+                                            isDanger ? "text-white font-black" :
+                                                (secondaryServer?.app?.['backup.daily.status']?.status === 'warning' ? "text-amber-600 font-bold" : "text-slate-400")
+                                        )}>
+                                            creado hace : <TimeAgo timestamp={time} />
+                                        </div>
+                                    ) : <div className={cn("text-[9px]", isDanger ? "text-white/60" : "text-slate-400")}>-</div>}
+                                </div>
+                            );
+                        })()}
+                    </div>
+                </div>
+
+                <div
+                    onClick={() => openTerminal('Hourly Backup Log', secondaryServer?.app?.['backup.hourly.log']?.metric_value || 'No Log Data', secondaryServer?.info?.id, 'backup.hourly.log')}
+                    className={cn(
+                        "p-3 rounded shadow-sm border border-slate-200 dark:border-slate-800 border-l-4 flex items-center gap-3 cursor-pointer hover:shadow-md transition-all",
+                        secondaryServer?.app?.['backup.hourly.status']?.status === 'danger'
+                            ? "bg-red-600 border-red-700 text-white shadow-lg shadow-red-500/20"
+                            : (secondaryServer?.app?.['backup.hourly.status']?.status === 'warning' ? "bg-white dark:bg-slate-900 border-l-amber-500" : "bg-white dark:bg-slate-900 border-l-sky-500")
+                    )}>
+                    <div className={cn(
+                        "p-2 rounded",
+                        secondaryServer?.app?.['backup.hourly.status']?.status === 'danger' ? "bg-white/20 text-white" :
+                            (secondaryServer?.app?.['backup.hourly.status']?.status === 'warning' ? "bg-amber-50 dark:bg-amber-500/10 text-amber-500" : "bg-sky-50 dark:bg-sky-500/10 text-sky-500")
+                    )}><Clock size={20} /></div>
+                    <div>
+                        <div className={cn("text-[10px] font-bold uppercase", secondaryServer?.app?.['backup.hourly.status']?.status === 'danger' ? "text-white/80" : "text-slate-500 dark:text-slate-400")}>HOURLY</div>
+                        {(() => {
+                            const { name, time } = parseBackupStatus(secondaryServer?.app?.['backup.hourly.status']?.metric_value);
+                            const isDanger = secondaryServer?.app?.['backup.hourly.status']?.status === 'danger';
+                            return (
+                                <div className="leading-tight">
+                                    <div className="font-bold text-[10px] truncate w-24" title={name}>{name}</div>
+                                    {time ? (
+                                        <div className={cn(
+                                            "text-[9px] font-mono",
+                                            isDanger ? "text-white font-black" :
+                                                (secondaryServer?.app?.['backup.hourly.status']?.status === 'warning' ? "text-amber-600 font-bold" : "text-slate-400")
+                                        )}>
+                                            creado hace : <TimeAgo timestamp={time} />
+                                        </div>
+                                    ) : <div className={cn("text-[9px]", isDanger ? "text-white/60" : "text-slate-400")}>-</div>}
+                                </div>
+                            );
+                        })()}
+                    </div>
+                </div>
+            </div>
+
+            {/* Simplified Content Row: Servers Only -> NOW 3 COLUMNS */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 h-fit">
+                {/* FAILOVER ALERT BANNER (Aligned & Heartbeat) */}
+                {hasFailover && (
+                    <>
+                        <div className="lg:col-span-2">
+                            <div className="bg-red-600 text-white rounded-lg px-4 py-3 flex items-center justify-center gap-4 shadow-lg animate-heartbeat duration-500 mb-2">
+                                <Activity className="w-6 h-6" />
+                                <div className="flex flex-col items-center">
+                                    <span className="font-black text-sm tracking-widest uppercase">FAILOVER DETECTADO</span>
+                                    <p className="text-[10px] font-medium text-red-100 text-center max-w-md mt-1 leading-tight">
+                                        El sistema es inteligente y sigue monitoreando las métricas después del switcheo de servidores. Pero el cambio de IP debe hacerse manual para eliminar la alerta.
+                                    </p>
+                                </div>
+                                <Activity className="w-6 h-6" />
+                            </div>
+                        </div>
+                        <div className="hidden lg:block" /> {/* Gap for Services column */}
+                    </>
+                )}
+
+                {/* Primary Server */}
+                <div className="bg-white dark:bg-slate-900 rounded-xl shadow-lg overflow-hidden border border-slate-200 dark:border-slate-800 flex flex-col ring-2 ring-[#0ea5e9]/5 relative">
+                    {/* Smart Disconnect Overlay - Rendered separately to keep color */}
+                    {isPrimaryOffline && (
+                        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-white/40 dark:bg-slate-950/40 backdrop-blur-[1.5px] transition-all duration-500 rounded-xl">
+                            <div className="bg-white/90 dark:bg-slate-900/90 p-5 rounded-full shadow-2xl border-4 border-red-500/20 mb-3 hover:scale-110 transition-transform">
+                                <WifiOff className="w-16 h-16 text-red-500 animate-pulse" />
+                            </div>
+                            <div className="bg-red-600/90 backdrop-blur-sm text-white px-6 py-2 rounded-full text-xs font-black shadow-lg uppercase tracking-widest flex items-center gap-2">
+                                <span className="w-2 h-2 rounded-full bg-red-300 animate-ping"></span>
+                                Servidor Sin Conexión
+                            </div>
+                        </div>
+                    )}
+
+                    <div className={cn("flex flex-col flex-1 transition-all duration-1000", isFullSiteOffline && "grayscale opacity-40")}>
+                        <div className={cn(
+                            "text-white px-5 py-1.5 flex items-center shadow-sm relative z-10 transition-all",
+                            hasFailover ? "bg-red-600" : "bg-[#0284c7] dark:bg-[#0c2d48]"
+                        )}>
+                            <div className="flex items-center gap-2">
+                                {hasFailover && <Repeat size={14} className="animate-pulse" />}
+                                <span className="text-[11px] font-bold tracking-tight uppercase opacity-90">Servidor Primario</span>
+                            </div>
+                        </div>
+
+                        <div className="p-3 flex-1 flex flex-col gap-3">
+                            <div className="flex flex-col xl:flex-row gap-4 items-stretch">
+                                {/* Gauges Column - Increased width for harmony */}
+                                <div className="flex flex-row gap-4 items-start justify-center xl:justify-start px-0 flex-none w-[220px]">
+                                    {/* DISK SECTION */}
+                                    {(() => {
+                                        const pct = primaryServer?.system?.disk_percent ?? 0;
+                                        const status = primaryServer?.system?.disk_status;
+                                        const color = (status === 'danger' ? '#ef4444' : (status === 'warning' ? '#f59e0b' : '#10b981'));
+                                        return (
+                                            <CircularUsage
+                                                percentage={pct}
+                                                label="Disco"
+                                                sublabel={`${formatMetricValue(primaryServer?.system?.disk_used, 'G')} / ${formatMetricValue(primaryServer?.system?.disk_total, 'G')}`}
+                                                color={color}
+                                                buttonLabel="Particiones"
+                                                onClick={() => openTerminal('Particiones / Disco', primaryServer?.app?.['particionesDiscoDuro']?.metric_value || 'No Data', primaryServer?.info?.id, 'particionesDiscoDuro')}
+                                            />
+                                        );
+                                    })()}
+
+                                    {(() => {
+                                        const pct = primaryServer?.system?.ram_percent ?? 0;
+                                        const status = primaryServer?.system?.ram_status;
+                                        const color = (status === 'danger' ? '#ef4444' : (status === 'warning' ? '#f59e0b' : '#10b981'));
+                                        return (
+                                            <CircularUsage
+                                                percentage={pct}
+                                                label="RAM"
+                                                sublabel={`${formatMetricValue(primaryServer?.system?.ram_used, 'M')} / ${formatMetricValue(primaryServer?.system?.ram_total, 'G')}`}
+                                                color={color}
+                                                buttonLabel="Crontab"
+                                                onClick={() => openTerminal('Crontab', primaryServer?.app?.['crontab']?.metric_value || 'No Data', primaryServer?.info?.id, 'crontab')}
+                                            />
+                                        );
+                                    })()}
+                                </div>
+
+                                {/* CPU History Graph Area */}
+                                <div className="flex-1 min-h-[180px] relative border border-slate-100 dark:border-slate-800 rounded-xl bg-slate-50/50 dark:bg-slate-800/30 overflow-hidden">
+                                    <div className="absolute top-3 right-4 z-10 flex items-center gap-2">
+                                        <div className={cn(
+                                            "text-[10px] font-black px-2 py-1 rounded-full border shadow-sm transition-colors",
+                                            primaryServer?.system?.cpu_status === 'danger' ? "text-red-600 bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-900/30" :
+                                                (primaryServer?.system?.cpu_status === 'warning' ? "text-amber-600 bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-900/30" : "text-emerald-700 bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-900/30")
+                                        )}>
+                                            Load: {primaryServer?.system?.cpu_usage || '0.0'}
+                                        </div>
+                                        <div className={cn(
+                                            "w-4 h-4 transition-colors",
+                                            primaryServer?.system?.cpu_status === 'danger' ? "text-red-400" :
+                                                (primaryServer?.system?.cpu_status === 'danger' ? "text-red-400" :
+                                                    (primaryServer?.system?.cpu_status === 'warning' ? "text-amber-400" : "text-emerald-400"))
+                                        )}>
+                                            <Activity size={14} />
+                                        </div>
+                                    </div>
+                                    {(() => {
+                                        const cpuStatus = primaryServer?.system?.cpu_status || 'ok';
+                                        const cpuColor = (cpuStatus === 'danger' ? '#ef4444' : (cpuStatus === 'warning' ? '#f59e0b' : '#10b981'));
+                                        return (
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <AreaChart data={livePrimaryHistory} margin={{ top: 20, right: 10, left: -20, bottom: 5 }}>
+                                                    <defs>
+                                                        <linearGradient id="colorCpuP" x1="0" y1="0" x2="0" y2="1">
+                                                            <stop offset="5%" stopColor={cpuColor} stopOpacity={0.4} />
+                                                            <stop offset="95%" stopColor={cpuColor} stopOpacity={0} />
+                                                        </linearGradient>
+                                                    </defs>
+                                                    <CartesianGrid strokeDasharray="3 3" vertical={true} stroke="#e2e8f0" strokeOpacity={0.1} />
+                                                    <XAxis dataKey="created_at" hide />
+                                                    <YAxis stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} />
+                                                    <Area type="monotone" dataKey="cpu_usage" stroke={cpuColor} strokeWidth={2.5} fill="url(#colorCpuP)" isAnimationActive={false} />
+                                                </AreaChart>
+                                            </ResponsiveContainer>
+                                        );
+                                    })()}
+                                </div>
+                            </div>
+
+                            {/* Footer Details: Restored 4-Column Grid */}
+                            <div className="border-t border-slate-100 dark:border-slate-800 pt-3 grid grid-cols-4 gap-2 items-center">
+                                <div className="p-1.5 border border-transparent">
+                                    <div className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-tight mb-0.5">Server</div>
+                                    <div className="text-[11px] font-bold text-slate-700 dark:text-slate-200 truncate" title={primaryServer?.app?.['system.name']?.metric_value || primaryServer?.app?.['system.hostname']?.metric_value || primaryServer?.app?.['hostname']?.metric_value || primaryServer?.info?.name}>
+                                        {primaryServer?.app?.['system.name']?.metric_value || primaryServer?.app?.['system.hostname']?.metric_value || primaryServer?.app?.['hostname']?.metric_value || primaryServer?.info?.name}
+                                    </div>
+                                </div>
+                                <div className="p-1.5 border border-transparent">
+                                    <div className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-tight mb-0.5">IP</div>
+                                    <div className="text-[11px] font-bold text-slate-600 dark:text-slate-300 tracking-tight">{primaryServer?.info?.ip_address}</div>
+                                </div>
+                                <div className="p-1.5 border border-transparent">
+                                    <div className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-tight mb-0.5">Status</div>
+                                    <div className="text-[11px] font-black text-emerald-600 dark:text-emerald-500 uppercase tracking-tighter">
+                                        {primaryServer?.app?.['app.jams.status']?.metric_value || 'ACTIVE'}
+                                    </div>
+                                </div>
+                                {(() => {
+                                    const clusterMetric = primaryServer?.app?.['app.fms.cluster'];
+                                    const val = clusterMetric?.metric_value || 'None';
+                                    const isDanger = clusterMetric?.status === 'danger' || val === 'None';
+                                    return (
+                                        <div className={cn(
+                                            "p-1.5 rounded-lg transition-all",
+                                            isDanger ? "bg-red-600 border border-red-700 animate-pulse shadow-md shadow-red-600/30" : "border border-transparent"
+                                        )}>
+                                            <div className={cn(
+                                                "text-[9px] font-black uppercase tracking-widest mb-0.5",
+                                                isDanger ? "text-white/70" : "text-slate-400 dark:text-slate-500"
+                                            )}>Cluster</div>
+                                            <div className={cn(
+                                                "text-[11px] font-black truncate flex items-center gap-1",
+                                                isDanger ? "text-white" : "text-slate-700 dark:text-slate-200"
+                                            )}>
+                                                {isDanger && <AlertTriangle size={12} className="text-white animate-pulse shrink-0" />}
+                                                {val}
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Secondary Server */}
+                <div className="bg-white dark:bg-slate-900 rounded-xl shadow-lg overflow-hidden border border-slate-200 dark:border-slate-800 flex flex-col relative">
+                    {/* Smart Disconnect Overlay - Rendered separately to keep color */}
+                    {isSecondaryOffline && (
+                        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-white/40 dark:bg-slate-950/40 backdrop-blur-[1.5px] transition-all duration-500 rounded-xl">
+                            <div className="bg-white/90 dark:bg-slate-900/90 p-5 rounded-full shadow-2xl border-4 border-red-500/20 mb-3 hover:scale-110 transition-transform">
+                                <WifiOff className="w-16 h-16 text-red-500 animate-pulse" />
+                            </div>
+                            <div className="bg-red-600/90 backdrop-blur-sm text-white px-6 py-2 rounded-full text-xs font-black shadow-lg uppercase tracking-widest flex items-center gap-2">
+                                <span className="w-2 h-2 rounded-full bg-red-300 animate-ping"></span>
+                                Servidor Sin Conexión
+                            </div>
+                        </div>
+                    )}
+
+                    <div className={cn("flex flex-col flex-1 transition-all duration-1000", isFullSiteOffline && "grayscale opacity-40")}>
+                        <div className={cn(
+                            "text-white px-5 py-1.5 flex items-center shadow-sm relative z-10 transition-all",
+                            hasFailover ? "bg-red-600" : "bg-[#0284c7] dark:bg-[#0c2d48]"
+                        )}>
+                            <div className="flex items-center gap-2">
+                                {hasFailover && <Repeat size={14} className="animate-pulse" />}
+                                <span className="text-[11px] font-bold tracking-tight uppercase opacity-90">Servidor Secundario</span>
+                            </div>
+                        </div>
+
+                        <div className={cn("p-3 flex-1 flex flex-col gap-3", !secondaryServer && "opacity-50 grayscale")}>
+                            {secondaryServer ? (
+                                <>
+                                    <div className="flex flex-col xl:flex-row gap-4 items-stretch">
+                                        <div className="flex flex-row gap-4 items-start justify-center xl:justify-start px-0 flex-none w-[220px]">
+                                            {(() => {
+                                                const pct = secondaryServer?.system?.disk_percent ?? 0;
+                                                const status = secondaryServer?.system?.disk_status;
+                                                const color = (status === 'danger' ? '#ef4444' : (status === 'warning' ? '#f59e0b' : '#10b981'));
+                                                return (
+                                                    <CircularUsage
+                                                        percentage={pct}
+                                                        label="Disco"
+                                                        sublabel={`${formatMetricValue(secondaryServer?.system?.disk_used, 'G')} / ${formatMetricValue(secondaryServer?.system?.disk_total, 'G')}`}
+                                                        color={color}
+                                                        buttonLabel="Particiones"
+                                                        onClick={() => openTerminal('Particiones / Disco', secondaryServer?.app?.['particionesDiscoDuro']?.metric_value || 'No Data', secondaryServer?.info?.id, 'particionesDiscoDuro')}
+                                                    />
+                                                );
+                                            })()}
+
+                                            {(() => {
+                                                const pct = secondaryServer?.system?.ram_percent ?? 0;
+                                                const status = secondaryServer?.system?.ram_status;
+                                                const color = (status === 'danger' ? '#ef4444' : (status === 'warning' ? '#f59e0b' : '#10b981'));
+                                                return (
+                                                    <CircularUsage
+                                                        percentage={pct}
+                                                        label="RAM"
+                                                        sublabel={`${formatMetricValue(secondaryServer?.system?.ram_used, 'M')} / ${formatMetricValue(secondaryServer?.system?.ram_total, 'G')}`}
+                                                        color={color}
+                                                        buttonLabel="Crontab"
+                                                        onClick={() => openTerminal('Crontab', secondaryServer?.app?.['crontab']?.metric_value || 'No Data', secondaryServer?.info?.id, 'crontab')}
+                                                    />
+                                                );
+                                            })()}
+                                        </div>
+
+                                        <div className="flex-1 min-h-[180px] relative border border-slate-100 dark:border-slate-800 rounded-xl bg-slate-50/50 dark:bg-slate-800/30 overflow-hidden">
+                                            <div className="absolute top-3 right-4 z-10 flex items-center gap-2">
+                                                <div className={cn(
+                                                    "text-[10px] font-black px-2 py-1 rounded-full border shadow-sm transition-colors",
+                                                    secondaryServer?.system?.cpu_status === 'danger' ? "text-red-600 bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-900/30" :
+                                                        (secondaryServer?.system?.cpu_status === 'warning' ? "text-amber-600 bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-900/30" : "text-emerald-700 bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-900/30")
+                                                )}>
+                                                    Load: {secondaryServer?.system?.cpu_usage || '0.0'}
+                                                </div>
+                                                <div className={cn(
+                                                    "w-4 h-4 transition-colors",
+                                                    secondaryServer?.system?.cpu_status === 'danger' ? "text-red-400" :
+                                                        (secondaryServer?.system?.cpu_status === 'warning' ? "text-amber-400" : "text-emerald-400")
+                                                )}>
+                                                    <Activity size={14} />
+                                                </div>
+                                            </div>
+                                            {(() => {
+                                                const cpuStatus = secondaryServer?.system?.cpu_status || 'ok';
+                                                const cpuColor = (cpuStatus === 'danger' ? '#ef4444' : (cpuStatus === 'warning' ? '#f59e0b' : '#10b981'));
+                                                return (
+                                                    <ResponsiveContainer width="100%" height="100%">
+                                                        <AreaChart data={liveSecondaryHistory} margin={{ top: 20, right: 10, left: -20, bottom: 5 }}>
+                                                            <defs>
+                                                                <linearGradient id="colorCpuS" x1="0" y1="0" x2="0" y2="1">
+                                                                    <stop offset="5%" stopColor={cpuColor} stopOpacity={0.4} />
+                                                                    <stop offset="95%" stopColor={cpuColor} stopOpacity={0} />
+                                                                </linearGradient>
+                                                            </defs>
+                                                            <CartesianGrid strokeDasharray="3 3" vertical={true} stroke="#e2e8f0" strokeOpacity={0.1} />
+                                                            <XAxis dataKey="created_at" hide />
+                                                            <YAxis stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} />
+                                                            <Area type="monotone" dataKey="cpu_usage" stroke={cpuColor} strokeWidth={2.5} fill="url(#colorCpuS)" isAnimationActive={false} />
+                                                        </AreaChart>
+                                                    </ResponsiveContainer>
+                                                );
+                                            })()}
+                                        </div>
+                                    </div>
+
+                                    <div className="border-t border-slate-100 dark:border-slate-800 pt-3 grid grid-cols-4 gap-2 items-center">
+                                        <div className="p-1.5 border border-transparent">
+                                            <div className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-tight mb-0.5">Server</div>
+                                            <div className="text-[11px] font-bold text-slate-700 dark:text-slate-200 truncate" title={secondaryServer?.app?.['system.name']?.metric_value || secondaryServer?.app?.['system.hostname']?.metric_value || secondaryServer?.app?.['hostname']?.metric_value || secondaryServer?.info?.name}>
+                                                {secondaryServer?.app?.['system.name']?.metric_value || secondaryServer?.app?.['system.hostname']?.metric_value || secondaryServer?.app?.['hostname']?.metric_value || secondaryServer?.info?.name}
+                                            </div>
+                                        </div>
+                                        <div className="p-1.5 border border-transparent">
+                                            <div className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-tight mb-0.5">IP</div>
+                                            <div className="text-[11px] font-bold text-slate-600 dark:text-slate-300 tracking-tight">{secondaryServer?.info?.ip_address}</div>
+                                        </div>
+                                        <div className="p-1.5 border border-transparent">
+                                            <div className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-tight mb-0.5">Status</div>
+                                            <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-tighter">
+                                                {secondaryServer?.app?.['app.jams.status']?.metric_value || 'BACKUP'}
+                                            </div>
+                                        </div>
+                                        {(() => {
+                                            const clusterMetric = secondaryServer?.app?.['app.fms.cluster'];
+                                            const val = clusterMetric?.metric_value || 'None';
+                                            const isDanger = clusterMetric?.status === 'danger' || val === 'None';
+                                            return (
+                                                <div className={cn(
+                                                    "p-1.5 rounded-lg transition-all",
+                                                    isDanger ? "bg-red-600 border border-red-700 animate-pulse shadow-md shadow-red-600/30" : "border border-transparent"
+                                                )}>
+                                                    <div className={cn(
+                                                        "text-[9px] font-black uppercase tracking-widest mb-0.5",
+                                                        isDanger ? "text-white/70" : "text-slate-400 dark:text-slate-500"
+                                                    )}>Cluster</div>
+                                                    <div className={cn(
+                                                        "text-[11px] font-black truncate flex items-center gap-1",
+                                                        isDanger ? "text-white" : "text-slate-700 dark:text-slate-200"
+                                                    )}>
+                                                        {isDanger && <AlertTriangle size={12} className="text-white animate-pulse shrink-0" />}
+                                                        {val}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
+                                    </div>
+                                </>
+                            ) : (
+                                <div className="flex-1 flex flex-col items-center justify-center text-slate-400 gap-2">
+                                    <Activity className="w-12 h-12 opacity-20" />
+                                    <div className="font-bold text-sm">Esperando conexión de servidor secundario...</div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Servicios y Scripts Section */}
+                <div className={cn("bg-white dark:bg-slate-900 rounded-xl shadow-lg border border-slate-200 dark:border-slate-800 flex flex-col transition-all duration-1000", isFullSiteOffline && "grayscale opacity-40")}>
+                    <div className="bg-[#0284c7] dark:bg-[#0c2d48] text-white px-5 py-1.5 flex justify-between items-center shadow-sm relative z-10 transition-all">
+                        <span className="text-[11px] font-bold tracking-tight uppercase opacity-90">Servicios y Scripts</span>
+                    </div>
+
+                    <div className="p-4 flex-1 flex flex-col gap-4">
+                        {/* JAMS Cluster Health Row */}
+                        <div className="grid grid-cols-2 gap-3">
+                            {(() => {
+                                const jamsStatus = primaryServer?.app?.['app.jams.restarts_log']?.status || 'ok';
+                                const isDanger = jamsStatus === 'danger';
+                                const isWarning = jamsStatus === 'warning';
+                                
+                                return (
+                                    <div
+                                        onClick={() => openTerminal('JAMS Service Status', primaryServer?.app?.['app.jams.service']?.metric_value || 'No Data', primaryServer?.info?.id, 'app.jams.service')}
+                                        className={cn(
+                                            "cursor-pointer group border rounded-xl p-3 transition-all hover:shadow-md flex flex-col justify-between h-[110px]",
+                                            isDanger ? "bg-red-600 dark:bg-red-700 border-red-700 dark:border-red-800 hover:bg-red-700 dark:hover:bg-red-800 animate-pulse" :
+                                            isWarning ? "bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-900/30 hover:bg-amber-100 dark:hover:bg-amber-900/30" :
+                                            "bg-[#f0fdf4] dark:bg-emerald-950/20 border-[#dcfce7] dark:border-emerald-900/30 hover:bg-emerald-50 dark:hover:bg-emerald-900/30"
+                                        )}
+                                    >
+                                        <div>
+                                            <div className={cn(
+                                                "font-black text-[10px] uppercase truncate mb-0.5",
+                                                isDanger ? "text-white" :
+                                                isWarning ? "text-amber-700 dark:text-amber-400" :
+                                                "text-[#15803d] dark:text-emerald-400"
+                                            )}>
+                                                JAMS {primaryServer?.app?.['system.name']?.metric_value || primaryServer?.app?.['system.hostname']?.metric_value || primaryServer?.app?.['hostname']?.metric_value || primaryServer?.info?.name}
+                                            </div>
+                                            <div className={cn(
+                                                "text-[9px] font-bold uppercase tracking-wider",
+                                                isDanger ? "text-red-100" :
+                                                isWarning ? "text-amber-600 dark:text-amber-500" :
+                                                "text-emerald-600 dark:text-emerald-500"
+                                            )}>Active</div>
+                                        </div>
+                                        <div className={cn(
+                                            "text-[9px] font-black opacity-80 uppercase tracking-tighter pt-1.5 border-t flex justify-between items-center",
+                                            isDanger ? "text-white border-red-500" :
+                                            isWarning ? "text-amber-800 dark:text-amber-500/80 border-amber-200 dark:border-amber-900/30" :
+                                            "text-[#166534] dark:text-emerald-600/80 border-emerald-100 dark:border-emerald-900/30"
+                                        )}>
+                                            <span>Reinicios (24h):</span>
+                                            <span className={cn(
+                                                "px-1.5 rounded-full font-bold",
+                                                isDanger ? "text-red-700 bg-white" :
+                                                isWarning ? "text-amber-700 bg-amber-200/50" :
+                                                "text-emerald-700 bg-emerald-200/50"
+                                            )}>
+                                                {(() => {
+                                                    const val = primaryServer?.app?.['app.jams.restarts_log']?.metric_value ||
+                                                        primaryServer?.app?.['app.jams.restart']?.metric_value;
+                                                    if (val == null) return '0';
+                                                    return String(val).split('\n').filter((l: string) => l.trim().length > 0).length;
+                                                })()}
+                                            </span>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+
+                            <div
+                                onClick={() => openTerminal('JAMS Service Status', secondaryServer?.app?.['app.jams.service']?.metric_value || 'No Data', secondaryServer?.info?.id, 'app.jams.service')}
+                                className="cursor-pointer group bg-[#f0fdf4] dark:bg-emerald-950/10 border border-[#dcfce7] dark:border-emerald-900/20 rounded-xl p-3 transition-all hover:bg-emerald-50 dark:hover:bg-emerald-900/20 hover:shadow-md flex flex-col h-[110px]"
+                            >
+                                <div>
+                                    <div className="text-[#15803d] dark:text-emerald-500/60 font-black text-[10px] uppercase truncate mb-0.5">
+                                        JAMS {secondaryServer?.app?.['system.name']?.metric_value || secondaryServer?.app?.['system.hostname']?.metric_value || secondaryServer?.app?.['hostname']?.metric_value || secondaryServer?.info?.name}
+                                    </div>
+                                    <div className="text-slate-400 dark:text-slate-500 text-[9px] font-bold uppercase tracking-wider">Backup</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Critical Services Status Grid */}
+                        <div className="grid grid-cols-4 gap-3">
+                            <StandardMetricCard
+                                title="SCRIPTS"
+                                icon={Activity}
+                                statusColor={primaryServer?.app?.['app.fms.active_scripts']?.status === 'danger' ? 'danger' : primaryServer?.app?.['app.fms.active_scripts']?.status === 'warning' ? 'warning' : 'success'}
+                                pulse={primaryServer?.app?.['app.fms.active_scripts']?.status === 'danger'}
+                                value={(() => {
+                                    const val = primaryServer?.app?.['app.fms.active_scripts']?.metric_value;
+                                    if (!val) return <CheckCircle2 size={28} className="text-emerald-500" />;
+                                    const numVal = !isNaN(Number(val)) ? Number(val) : val.split('\n').filter((l: string) => l.trim().length > 0 && l.includes('/')).length;
+                                    return numVal === 0 ? <CheckCircle2 size={28} className="text-emerald-500" /> : numVal;
+                                })()}
+                                onClick={() => openTerminal('Scripts Activos', primaryServer?.app?.['app.fms.active_scripts']?.metric_value || 'No hay scripts activos', primaryServer?.info?.id, 'app.fms.active_scripts')}
+                            />
+
+                            <StandardMetricCard
+                                title="REPLICAS"
+                                icon={Database}
+                                statusColor={primaryServer?.app?.['app.fms.replica']?.status === 'danger' ? 'danger' : primaryServer?.app?.['app.fms.replica']?.status === 'warning' ? 'warning' : 'success'}
+                                pulse={primaryServer?.app?.['app.fms.replica']?.status === 'danger'}
+                                value={(() => {
+                                    const val = primaryServer?.app?.['app.fms.replica']?.metric_value;
+                                    if (val == null) return <CheckCircle2 size={28} className="text-emerald-500" />;
+                                    const numVal = String(val).split('\n').filter((l: string) => l.trim().length > 0).length;
+                                    return numVal === 0 ? <CheckCircle2 size={28} className="text-emerald-500" /> : numVal;
+                                })()}
+                                onClick={() => openTerminal('Replica Log', primaryServer?.app?.['app.fms.replica']?.metric_value || 'No hay replicas activas', primaryServer?.info?.id, 'app.fms.replica')}
+                            />
+
+                            <StandardMetricCard
+                                title="RECONCILIE"
+                                icon={ShieldCheck}
+                                statusColor={primaryServer?.app?.['app.jams.reconcilie']?.status === 'danger' ? 'danger' : primaryServer?.app?.['app.jams.reconcilie']?.status === 'warning' ? 'warning' : 'success'}
+                                value={(() => {
+                                    const status = primaryServer?.app?.['app.jams.reconcilie']?.status;
+                                    if (status === 'danger') return 'Error';
+                                    if (status === 'warning') return 'Warning';
+                                    return <CheckCircle2 size={28} className="text-emerald-500" />;
+                                })()}
+                                onClick={() => openTerminal('Reconciliador Log', primaryServer?.app?.['app.jams.reconcilie']?.metric_value || 'No Log Data', primaryServer?.info?.id, 'app.jams.reconcilie')}
+                            />
+
+                            <StandardMetricCard
+                                title="NTP"
+                                icon={Clock}
+                                statusColor="success"
+                                value={(() => {
+                                    const val = primaryServer?.app?.['system.ntp.status']?.metric_value || '';
+                                    const isActive = val.toLowerCase().includes('ntpd') || val.trim().length > 20 || val === 'Active';
+                                    return isActive ? <CheckCircle2 size={28} className="text-emerald-500" /> : (val || <CheckCircle2 size={28} className="text-emerald-500" />);
+                                })()}
+                            />
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* NEW SECTION: Files & DB Overview */}
+            <div className={cn("grid grid-cols-1 lg:grid-cols-2 gap-4 mt-6 items-stretch transition-all duration-1000", isFullSiteOffline && "grayscale opacity-40")}>
+                {/* 1. Large Files Explorer */}
+                <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col h-full">
+                    <div className="bg-[#0284c7] dark:bg-[#0c2d48] text-white px-5 py-2.5 flex justify-between items-center shadow-sm relative z-10 shrink-0">
+                        <div className="flex items-center gap-2">
+                            <FolderOpen size={18} className="text-white/80" />
+                            <h2 className="text-sm font-black tracking-tight uppercase leading-none">Archivos y Log Pesados (Sobre 1 GB)</h2>
+                        </div>
+                    </div>
+                    <div className="flex-1 bg-slate-50/30 dark:bg-slate-950/20 overflow-auto custom-scrollbar">
+                        <FileTree rawData={primaryServer?.app?.['system.files.largest']?.metric_value} />
+                    </div>
+                </div>
+
+                {/* 2. Database Intelligence */}
+                <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col h-full">
+                    <div className="bg-[#0284c7] dark:bg-[#0c2d48] text-white px-5 py-2.5 flex justify-between items-center shadow-sm">
+                        <div className="flex items-center gap-2">
+                            <Database size={18} className="text-white/80" />
+                            <h2 className="text-sm font-black tracking-tight uppercase leading-none">DataBase</h2>
+                        </div>
+                    </div>
+
+                    <div className="p-4 space-y-5">
+                        {/* A. Active/Backup Status Boxes */}
+                        <div className="grid grid-cols-2 gap-3">
+                            {/* Active Card */}
+                            <div className="bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700/50 rounded-xl p-3 flex gap-4 items-center shadow-sm">
+                                <div className="p-3 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-2xl ring-4 ring-blue-50/50 dark:ring-blue-900/10 shadow-inner">
+                                    <Database size={24} />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-1.5 mb-0.5">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                        <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-tighter">Activo</span>
+                                    </div>
+                                    <div className="text-xl font-black text-slate-800 dark:text-slate-100 leading-none mb-0.5">
+                                        {primaryServer?.app?.['db.size']?.metric_value || '0 MB'}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Backup Card */}
+                            <div className="bg-white dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700/50 rounded-xl p-3 flex gap-4 items-center shadow-sm">
+                                <div className="p-3 bg-violet-50 dark:bg-violet-900/20 text-violet-600 dark:text-violet-400 rounded-2xl ring-4 ring-violet-50/50 dark:ring-violet-900/10 shadow-inner">
+                                    <Database size={24} />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-1.5 mb-0.5">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-violet-400" />
+                                        <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-tighter">Backup</span>
+                                    </div>
+                                    <div className="text-xl font-black text-slate-800 dark:text-slate-100 leading-none mb-1">
+                                        {secondaryServer?.app?.['db.size']?.metric_value || '0 MB'}
+                                    </div>
+                                    {secondaryServer?.app?.['db.schema.date']?.metric_value && (
+                                        <div className="text-[9px] font-black text-slate-400 dark:text-slate-500 tracking-tighter">
+                                            backup_at (S): <span className="text-violet-500">{secondaryServer?.app?.['db.schema.date']?.metric_value}</span>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* B. Max ID Progress Row */}
+                        {(() => {
+                            const raw = primaryServer?.app?.['db.max_id_table']?.metric_value;
+                            if (!raw) return <div className="bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-4 text-center text-xs italic text-slate-400 dark:text-slate-500">Sin datos de ID</div>;
+                            const [table, pk] = raw.split('|');
+                            const maxValue = 2147483647;
+                            const gap = maxValue - parseInt(pk);
+                            // Correct progress calculation restored
+                            const progress = (parseInt(pk) / maxValue) * 100;
+                            const isDanger = gap <= 50000000;
+                            const isWarning = gap <= 100000000;
+
+                            return (
+                                <div className={cn(
+                                    "border rounded-2xl p-4 transition-all duration-500 relative overflow-hidden",
+                                    isDanger ? "bg-red-600 border-red-700 text-white shadow-[0_0_30px_rgba(220,38,38,0.6)]" :
+                                        isWarning ? "bg-amber-400 border-amber-500 text-amber-950" :
+                                            "bg-slate-50 dark:bg-slate-800 border-slate-100 dark:border-slate-700 text-slate-700 dark:text-slate-200"
+                                )}>
+                                    {isDanger && <div className="absolute inset-0 bg-red-500 animate-pulse opacity-20 pointer-events-none" />}
+                                    <table className="w-full relative z-10">
+                                        <thead>
+                                            <tr className={cn("text-[10px] uppercase font-black tracking-widest text-left", isDanger ? "text-white/70" : "text-slate-400 dark:text-slate-500")}>
+                                                <th className="pb-3 px-1">Tabla</th>
+                                                <th className="pb-3 px-1">PK</th>
+                                                <th className="pb-3 px-1">Max. Val</th>
+                                                <th className="pb-3 px-1 text-right">Gap</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr className="text-sm font-black">
+                                                <td className="py-1 px-1">{table}</td>
+                                                <td className="py-1 px-1 tabular-nums ">{Number(pk).toLocaleString()}</td>
+                                                <td className={cn("py-1 px-1 tabular-nums", isDanger ? "text-white/60" : "text-slate-400 dark:text-slate-500")}>2.147.483.647</td>
+                                                <td className={cn("py-1 px-1 tabular-nums text-right font-black", isDanger ? "text-white" : isWarning ? "text-amber-900" : "text-emerald-600")}>
+                                                    {gap.toLocaleString()}
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td colSpan={4} className="pt-2 px-1">
+                                                    <div className={cn("h-2.5 bg-black/10 dark:bg-white/5 rounded-full overflow-hidden border", isDanger ? "border-white/30" : "border-slate-200 dark:border-slate-700")}>
+                                                        <div
+                                                            className={cn("h-full transition-all duration-1000 shadow-sm", isDanger ? "bg-white shadow-[0_0_15px_white]" : isWarning ? "bg-amber-700" : "bg-emerald-500")}
+                                                            style={{ width: `${progress}%` }}
+                                                        />
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            );
+                        })()}
+
+                        {/* C. Metrics Health Grid */}
+                        <div className="grid grid-cols-4 gap-2">
+                            {(() => {
+                                const idleVal = (() => {
+                                    const val = primaryServer?.app?.['db.idle_queries']?.metric_value || '';
+                                    return String(val).split('\n').filter((l: string) => l.includes('|')).length;
+                                })();
+                                const status = primaryServer?.app?.['db.idle_queries']?.status || 'success';
+                                const isDanger = status === 'danger';
+                                const isWarning = status === 'warning';
+
+                                return (
+                                    <DBHealthCard
+                                        label="Idle Queries"
+                                        value={idleVal}
+                                        sublabel="TOTAL IDLE"
+                                        color={isDanger ? { bg: 'bg-red-600', text: 'text-white' } :
+                                            isWarning ? { bg: 'bg-amber-400', text: 'text-amber-950' } :
+                                                { bg: 'bg-blue-50', text: 'text-blue-600' }}
+                                        icon={Activity}
+                                        onClick={() => openTerminal('Database Idle Queries', primaryServer?.app?.['db.idle_queries']?.metric_value || 'No hay consultas en idle.', primaryServer?.info?.id, 'db.idle_queries')}
+                                    />
+                                );
+                            })()}
+
+                            <DBHealthCard
+                                label="Tabla mas pesada"
+                                value={(() => {
+                                    const val = primaryServer?.app?.['db.top_ten_tables']?.metric_value;
+                                    if (val == null) return '-';
+                                    const lines = String(val).split(/\r?\n/).filter((l: string) => l.trim().length > 0);
+                                    if (!lines[0]) return '-';
+
+                                    // Handle pipe or space
+                                    if (lines[0].includes('|')) return lines[0].split('|')[0];
+                                    return lines[0].trim().split(/\s+/)[0];
+                                })()}
+                                sublabel={(() => {
+                                    const val = primaryServer?.app?.['db.top_ten_tables']?.metric_value;
+                                    if (val == null) return '0.00 GB';
+                                    const lines = String(val).split(/\r?\n/).filter((l: string) => l.trim().length > 0);
+                                    if (!lines[0]) return '0.00 GB';
+
+                                    let count = 0;
+                                    if (lines[0].includes('|')) {
+                                        count = parseInt(lines[0].split('|')[1]);
+                                    } else {
+                                        const parts = lines[0].trim().split(/\s+/);
+                                        count = parseInt(parts[parts.length - 1]);
+                                    }
+                                    return `${(count * 0.0000004).toFixed(2)} GB • ${count.toLocaleString()} reg`;
+                                })()}
+                                color={{ bg: 'bg-blue-50', text: 'text-blue-600' }}
+                                icon={Layers}
+                            />
+
+                            <SchemaBackupCard secondaryServer={secondaryServer} />
+
+                            {(() => {
+                                const parseMap = (v: any) => {
+                                    const res: any = {};
+                                    // Support both newline and space separation
+                                    const matches = (v || '').match(/[\w_]+\|\d+/g) || [];
+                                    matches.forEach((m: string) => {
+                                        const [t, c] = m.split('|');
+                                        if (t) res[t] = parseInt(c) || 0;
+                                    });
+                                    return res;
+                                };
+                                const pMap = parseMap(primaryServer?.app?.['db.tables.shifts']?.metric_value);
+                                const sMap = parseMap(secondaryServer?.app?.['db.tables.shifts']?.metric_value);
+                                let maxDiff = 0;
+                                let maxTab = '-';
+                                Object.keys(pMap).forEach(table => {
+                                    const diff = Math.abs((pMap[table] || 0) - (sMap[table] || 0));
+                                    if (diff > maxDiff) {
+                                        maxDiff = diff;
+                                        maxTab = table;
+                                    }
+                                });
+
+                                // Prefer backend-evaluated status (db.shifts.max_diff) so the
+                                // same evaluation that creates the alert drives the card color.
+                                const backendStatus = primaryServer?.app?.['db.shifts.max_diff']?.status;
+                                const isDanger = backendStatus === 'danger' || (!backendStatus && maxDiff > 1000);
+                                const isWarning = backendStatus === 'warning' || (!backendStatus && !isDanger && maxDiff > 100);
+
+                                return (
+                                    <div className={cn(isDanger && "animate-pulse")}>
+                                        <DBHealthCard
+                                            label="Max Diff"
+                                            value={maxTab}
+                                            sublabel={maxDiff.toLocaleString() + " diff"}
+                                            color={isDanger ? { bg: 'bg-red-600', text: 'text-white' } :
+                                                isWarning ? { bg: 'bg-amber-400', text: 'text-amber-950' } :
+                                                    { bg: 'bg-blue-50', text: 'text-blue-600' }}
+                                            icon={AlertTriangle}
+                                        />
+                                    </div>
+                                );
+                            })()}
+                        </div>
+
+                        {/* D. Comparison Tables (Shifts & Top Tables) */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {/* Shift Tables Comparison - CLEAN REWRITE/STRICT */}
+                            <div className="bg-slate-50/50 dark:bg-slate-800/50 rounded-xl p-3 border border-slate-100 dark:border-slate-700/50 flex flex-col min-h-[100px] mb-6">
+                                <h4 className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 pl-1 border-l-2 border-indigo-500 leading-none">Resumen Comparación Shift Tables</h4>
+                                <div className="flex-1 overflow-auto custom-scrollbar pr-2">
+                                    <table className="w-full text-left">
+                                        <thead>
+                                            <tr className="text-[9px] text-slate-400 dark:text-slate-500 font-bold uppercase border-b border-slate-200 dark:border-slate-700">
+                                                <th className="pb-1.5 px-0.5">Tabla</th>
+                                                <th className="pb-1.5 px-0.5">P</th>
+                                                <th className="pb-1.5 px-0.5">S</th>
+                                                <th className="pb-1.5 px-0.5 text-right">Diff</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="text-[10px] tabular-nums">
+                                            {(() => {
+                                                // STRICT REQUIREMENT: Only db.tables.shifts
+                                                const rawP = primaryServer?.app?.['db.tables.shifts']?.metric_value || "";
+                                                const rawS = secondaryServer?.app?.['db.tables.shifts']?.metric_value || "";
+
+                                                // Clean Parser Function - Extracts "Name|Number" patterns globally
+                                                // Handles both multi-line and single-line space-separated formats
+                                                const parseShiftTables = (input: string) => {
+                                                    const map: Record<string, number> = {};
+                                                    if (!input) return map;
+
+                                                    // Regex to find all "TableName|Count" occurrences
+                                                    // Ignores all other delimiters (newlines, spaces, etc)
+                                                    const matches = input.matchAll(/([a-zA-Z0-9_]+)\|(\d+)/g);
+
+                                                    for (const match of matches) {
+                                                        const name = match[1];
+                                                        const val = parseInt(match[2]);
+                                                        if (name && !isNaN(val)) {
+                                                            map[name] = val;
+                                                        }
+                                                    }
+                                                    return map;
+                                                };
+
+                                                const pMap = parseShiftTables(rawP);
+                                                const sMap = parseShiftTables(rawS);
+
+                                                const keys = Array.from(new Set([...Object.keys(pMap), ...Object.keys(sMap)])).sort();
+
+                                                if (keys.length === 0) {
+                                                    return <tr><td colSpan={4} className="text-center py-2 text-xs text-slate-400 italic">Esperando datos (db.tables.shifts)...</td></tr>;
+                                                }
+
+                                                return keys.map(k => {
+                                                    const pVal = pMap[k] || 0;
+                                                    const sVal = sMap[k] || 0;
+                                                    const diff = pVal - sVal; // Raw difference
+
+                                                    return (
+                                                        <tr key={k} className="border-b border-slate-100/50 dark:border-slate-700/30 hover:bg-white/50 dark:hover:bg-slate-700/30">
+                                                            <td className="py-1 px-0.5 font-bold text-slate-700 dark:text-slate-200">{k}</td>
+                                                            <td className="py-1 px-0.5 text-slate-500 dark:text-slate-400">{pVal.toLocaleString()}</td>
+                                                            <td className="py-1 px-0.5 text-slate-500 dark:text-slate-400">{sVal.toLocaleString()}</td>
+                                                            <td className={cn("py-1 px-0.5 text-right font-bold", Math.abs(diff) > 0 ? "text-amber-600" : "text-emerald-500")}>
+                                                                {Math.abs(diff).toLocaleString()}
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                });
+                                            })()}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            {/* Top 10 Heaviest Tables (Simulated or Placeholder) */}
+                            <div className="bg-slate-50/50 dark:bg-slate-800/50 rounded-xl p-3 border border-slate-100 dark:border-slate-700/50 flex flex-col min-h-[220px]">
+                                <h4 className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 pl-1 border-l-2 border-violet-500 leading-none">Top 10 Tablas mas Pesadas</h4>
+                                <div className="flex-1 overflow-auto custom-scrollbar pr-2">
+                                    <table className="w-full text-left">
+                                        <thead>
+                                            <tr className="text-[9px] text-slate-400 dark:text-slate-500 font-bold uppercase border-b border-slate-200 dark:border-slate-700">
+                                                <th className="pb-1.5 px-0.5">Tabla</th>
+                                                <th className="pb-1.5 px-0.5 text-right">Registros</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="text-[10px] tabular-nums">
+                                            {(() => {
+                                                const val = primaryServer?.app?.['db.top_ten_tables']?.metric_value;
+                                                if (val == null) return <tr><td colSpan={2} className="text-center py-2 text-xs text-slate-400 italic">Sin datos</td></tr>;
+
+                                                const lines = String(val).split(/\r?\n/).filter((l: string) => l.trim().length > 0);
+                                                return lines.slice(0, 10).map((line: string) => {
+                                                    let table = "Unknown";
+                                                    let count = "0";
+
+                                                    if (line.includes('|')) {
+                                                        [table, count] = line.split('|');
+                                                    } else {
+                                                        const parts = line.trim().split(/\s+/);
+                                                        count = parts[parts.length - 1] || "0";
+                                                        table = parts.slice(0, -1).join(' ');
+                                                    }
+
+                                                    return (
+                                                        <tr key={table} className="border-b border-slate-100/50 dark:border-slate-700/30 group hover:bg-white/40 dark:hover:bg-slate-700/30">
+                                                            <td className="py-1.5 px-0.5 font-bold text-slate-600 dark:text-slate-300 truncate max-w-[120px]" title={table}>{table}</td>
+                                                            <td className="py-1.5 px-0.5 text-right font-black text-slate-700 dark:text-slate-200">{parseInt(count).toLocaleString()}</td>
+                                                        </tr>
+                                                    );
+                                                });
+                                            })()}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            
+                    </div>
+                )}
+            </div>
+            
+            <TerminalModal
+                isOpen={modalOpen}
+                onClose={() => setModalOpen(false)}
+                title={modalTitle}
+                content={modalContent}
+                serverId={selectedServerId}
+                metricKey={selectedMetricKey}
+                metricsData={metricsData}
+            />
+        </div>
+    );
+};
+
+export default ReproductorMonitoreo;

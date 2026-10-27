@@ -50,8 +50,27 @@ if ($method === 'GET') {
     $result = $stmt->get_result();
 
     $servers = array();
+    $server_ids = [];
     while($row = $result->fetch_assoc()) {
+        $row['secondary_product_ids'] = [];
         $servers[] = $row;
+        $server_ids[] = intval($row['id']);
+    }
+
+    if (!empty($server_ids)) {
+        $ids_str = implode(',', $server_ids);
+        $sec_res = $mysqli->query("SELECT server_id, product_id FROM server_secondary_products WHERE server_id IN ($ids_str)");
+        if ($sec_res) {
+            $sec_map = [];
+            while ($sr = $sec_res->fetch_assoc()) {
+                $sec_map[$sr['server_id']][] = intval($sr['product_id']);
+            }
+            foreach ($servers as &$s) {
+                if (isset($sec_map[$s['id']])) {
+                    $s['secondary_product_ids'] = $sec_map[$s['id']];
+                }
+            }
+        }
     }
 
     echo json_encode($servers);
@@ -63,17 +82,31 @@ if ($method === 'GET') {
     if (
         !isset($data->name) || 
         !isset($data->ip_address) || 
-        !isset($data->site_id)
+        !isset($data->site_id) ||
+        !isset($data->primary_product_id) ||
+        empty($data->primary_product_id)
     ) {
         http_response_code(400);
-        echo json_encode(["message" => "Incomplete data. Name, IP, and Site ID are required."]);
+        echo json_encode(["message" => "Incomplete data. Name, IP, Site ID, and Primary Product are required."]);
         exit();
     }
 
+    $primary_product_id = intval($data->primary_product_id);
     $name = $mysqli->real_escape_string($data->name);
     $ip = $mysqli->real_escape_string($data->ip_address);
     $os = $mysqli->real_escape_string($data->os ?? 'Linux');
-    $type = $mysqli->real_escape_string($data->server_type ?? 'Generic');
+    $type = $mysqli->real_escape_string($data->server_type ?? '');
+    
+    // Auto-fill server_type text from system_products for backwards compatibility
+    if (empty($type) || $type === 'Generic') {
+        $pQuery = $mysqli->query("SELECT name FROM system_products WHERE id = $primary_product_id");
+        if ($pRow = $pQuery->fetch_assoc()) {
+            $type = $mysqli->real_escape_string($pRow['name']);
+        } else {
+            $type = 'Generic';
+        }
+    }
+
     $desc = $mysqli->real_escape_string($data->description ?? '');
     $notes = $mysqli->real_escape_string($data->notes ?? '');
     
@@ -95,8 +128,8 @@ if ($method === 'GET') {
 
     try {
         // 1. Insert Server
-        $stmt = $mysqli->prepare("INSERT INTO servers (name, ip, os, server_type, description, notes, status, ssh_user, ssh_password, db_user, db_password, is_deleted, port, protocol, db_engine, db_name) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, 0, ?, ?, ?, ?)");
-        $stmt->bind_param("ssssssssssssss", $name, $ip, $os, $type, $desc, $notes, $ssh_user, $ssh_password, $db_user, $db_password, $port, $protocol, $db_engine, $db_name);
+        $stmt = $mysqli->prepare("INSERT INTO servers (name, ip, os, server_type, description, notes, status, ssh_user, ssh_password, db_user, db_password, is_deleted, port, protocol, db_engine, db_name, primary_product_id) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)");
+        $stmt->bind_param("ssssssssssssssi", $name, $ip, $os, $type, $desc, $notes, $ssh_user, $ssh_password, $db_user, $db_password, $port, $protocol, $db_engine, $db_name, $primary_product_id);
         $stmt->execute();
         $server_id = $mysqli->insert_id;
 
@@ -104,6 +137,18 @@ if ($method === 'GET') {
         $stmt = $mysqli->prepare("INSERT INTO site_servers (server_id, site_id) VALUES (?, ?)");
         $stmt->bind_param("ii", $server_id, $site_id);
         $stmt->execute();
+
+        // 3. Link Secondary Products if provided
+        if (isset($data->secondary_product_ids) && is_array($data->secondary_product_ids)) {
+            $secStmt = $mysqli->prepare("INSERT IGNORE INTO server_secondary_products (server_id, product_id) VALUES (?, ?)");
+            foreach ($data->secondary_product_ids as $secId) {
+                $secId = intval($secId);
+                if ($secId > 0 && $secId !== $primary_product_id) {
+                    $secStmt->bind_param("ii", $server_id, $secId);
+                    $secStmt->execute();
+                }
+            }
+        }
 
         $mysqli->commit();
 
@@ -145,14 +190,33 @@ if ($method === 'GET') {
     $db_user = $mysqli->real_escape_string($data->db_user ?? '');
     $db_password = $mysqli->real_escape_string($data->db_password ?? '');
 
-
     // db_name defaulted to empty for now
     $db_name = $mysqli->real_escape_string($data->db_name ?? '');
 
-    $stmt = $mysqli->prepare("UPDATE servers SET name=?, ip=?, os=?, server_type=?, description=?, notes=?, ssh_user=?, ssh_password=?, db_user=?, db_password=?, port=?, protocol=?, db_engine=?, db_name=? WHERE id=?");
-    $stmt->bind_param("ssssssssssssssi", $name, $ip, $os, $type, $desc, $notes, $ssh_user, $ssh_password, $db_user, $db_password, $port, $protocol, $db_engine, $db_name, $id);
+    $primary_product_id = isset($data->primary_product_id) && intval($data->primary_product_id) > 0 
+        ? intval($data->primary_product_id) 
+        : null;
+
+    if ($primary_product_id !== null) {
+        $stmt = $mysqli->prepare("UPDATE servers SET name=?, ip=?, os=?, server_type=?, description=?, notes=?, ssh_user=?, ssh_password=?, db_user=?, db_password=?, port=?, protocol=?, db_engine=?, db_name=?, primary_product_id=? WHERE id=?");
+        $stmt->bind_param("ssssssssssssssii", $name, $ip, $os, $type, $desc, $notes, $ssh_user, $ssh_password, $db_user, $db_password, $port, $protocol, $db_engine, $db_name, $primary_product_id, $id);
+    } else {
+        $stmt = $mysqli->prepare("UPDATE servers SET name=?, ip=?, os=?, server_type=?, description=?, notes=?, ssh_user=?, ssh_password=?, db_user=?, db_password=?, port=?, protocol=?, db_engine=?, db_name=? WHERE id=?");
+        $stmt->bind_param("ssssssssssssssi", $name, $ip, $os, $type, $desc, $notes, $ssh_user, $ssh_password, $db_user, $db_password, $port, $protocol, $db_engine, $db_name, $id);
+    }
 
     if ($stmt->execute()) {
+        if (isset($data->secondary_product_ids) && is_array($data->secondary_product_ids)) {
+            $mysqli->query("DELETE FROM server_secondary_products WHERE server_id = $id");
+            $secStmt = $mysqli->prepare("INSERT IGNORE INTO server_secondary_products (server_id, product_id) VALUES (?, ?)");
+            foreach ($data->secondary_product_ids as $secId) {
+                $secId = intval($secId);
+                if ($secId > 0 && $secId !== $primary_product_id) {
+                    $secStmt->bind_param("ii", $id, $secId);
+                    $secStmt->execute();
+                }
+            }
+        }
         echo json_encode(["message" => "Server updated successfully."]);
     } else {
         error_log("Server Update Error: " . $stmt->error);
